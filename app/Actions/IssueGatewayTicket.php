@@ -22,21 +22,19 @@ final readonly class IssueGatewayTicket
 
     public function handle(Twin $twin, User $user, bool $canOperate): string
     {
-        if ($twin->gateway_token_hash === null) {
-            throw new LogicException('The twin has no gateway token.');
-        }
+        throw_if($twin->gateway_token_hash === null, LogicException::class, 'The twin has no gateway token.');
 
-        $payload = self::encode((string) json_encode([
+        $payload = $this->encode(json_encode([
             'twin' => $twin->id,
             'user' => $user->id,
             'operate' => $canOperate,
             'exp' => now()->addSeconds(self::LIFETIME_SECONDS)->getTimestamp(),
         ], JSON_THROW_ON_ERROR));
 
-        return $payload.'.'.self::encode(hash_hmac('sha256', $payload, $twin->gateway_token_hash, true));
+        return $payload.'.'.$this->encode(hash_hmac('sha256', $payload, $twin->gateway_token_hash, true));
     }
 
-    private static function encode(string $bytes): string
+    private function encode(string $bytes): string
     {
         return mb_rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
     }

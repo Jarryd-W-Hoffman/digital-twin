@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\TwinFactory;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
+#[Hidden(['gateway_token_hash'])]
 final class Twin extends Model
 {
     /** @use HasFactory<TwinFactory> */
@@ -38,11 +40,6 @@ final class Twin extends Model
      * it is treated as offline.
      */
     public const int GATEWAY_TIMEOUT_SECONDS = 30;
-
-    /**
-     * @var list<string>
-     */
-    protected $hidden = ['gateway_token_hash'];
 
     /**
      * @return array<string, string>

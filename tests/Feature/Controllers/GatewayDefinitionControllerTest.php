@@ -14,7 +14,7 @@ function gatewayTwin(): array
     return [$twin, resolve(IssueGatewayToken::class)->handle($twin)];
 }
 
-it('serves the latest version to the twin\'s gateway and records its check-in', function (): void {
+it("serves the latest version to the twin's gateway and records its check-in", function (): void {
     $this->freezeSecond();
     [$twin, $token] = gatewayTwin();
 
