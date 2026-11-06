@@ -76,10 +76,10 @@
             "name": "custom types",
             "ops": [
                 { "set": "types", "value": [
-                    { "id": "pump", "name": "Pump", "primary": "flow", "metrics": [{ "key": "flow", "unit": "L/s", "default": 0 }, { "key": "rpm", "unit": "rpm" }], "visual": { "color": "#3a7ca5", "shape": "cylinder" } },
+                    { "id": "pump", "name": "Pump", "primary": "flowLps", "metrics": [{ "key": "flowLps", "unit": "L/s", "default": 0 }, { "key": "rpm", "unit": "rpm" }], "visual": { "color": "#3a7ca5", "shape": "cylinder" } },
                     { "id": "Bad Id" },
                     { "id": "empty", "name": "Empty", "primary": "x", "metrics": [], "visual": { "color": "#000000", "shape": "box" } },
-                    { "id": "pump", "metrics": [{ "key": "state", "unit": "" }, { "key": "a", "unit": "x", "default": "1" }, { "key": "a" }], "primary": "b", "visual": { "color": "red", "shape": "cone" } }
+                    { "id": "pump", "metrics": [{ "key": "state", "unit": "" }, { "key": "Upper", "unit": "" }, { "key": "a", "unit": "x", "default": "1" }, { "key": "a" }], "primary": "b", "visual": { "color": "red", "shape": "cone" } }
                 ] },
                 { "push": "assets", "value": { "id": "p1", "kind": "custom", "type": "pump", "position": [10, 10], "zone": "yard" } },
                 { "push": "assets", "value": { "id": "p2", "kind": "custom", "position": [12, 10], "zone": "yard" } }
@@ -90,7 +90,8 @@
                 "Type empty: primary must be one of its metrics",
                 "Duplicate type id pump",
                 "Type pump: needs a name",
-                "Type pump: metric keys must be lowercase identifiers other than state",
+                "Type pump: metric keys must be camelCase identifiers other than state",
+                "Type pump: metric keys must be camelCase identifiers other than state",
                 "Type pump: metric a default must be a number",
                 "Type pump: duplicate metric a",
                 "Type pump: metric a needs a unit",

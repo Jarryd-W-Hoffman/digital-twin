@@ -308,7 +308,9 @@ describe('bearing wear', () => {
 describe('other twins', () => {
     it('runs a minimal twin with no battery, solar, generator or vehicles', () => {
         const small = parseDefinition(
-            JSON.parse(readFileSync('public/samples/harbour-depot.json', 'utf8')),
+            JSON.parse(
+                readFileSync('public/samples/harbour-depot.json', 'utf8'),
+            ),
         );
         const m = compile(small);
         const state = advance(m, initialState(m, NOON), HOUR * 24);

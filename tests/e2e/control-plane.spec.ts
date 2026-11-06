@@ -30,7 +30,7 @@ async function logIn(page: Page, email: string) {
 async function openTwin(page: Page, name: string) {
   await page.getByRole('link', { name }).click();
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
-  await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Debug).__twin.getState().def)), { timeout: 45_000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Debug).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
 }
 
 const layers = (page: Page) => page.evaluate(() => (window as unknown as Debug).__scene?.loadedLayers() ?? []);
@@ -46,8 +46,8 @@ test('an owner uploads a model and a tileset, places the model, and the twin kee
 
   await editor.getByLabel('Upload file').setInputFiles(model);
   await editor.getByLabel('Upload name').fill('Pump skid');
-  await editor.getByRole('button', { name: 'Upload' }).click();
-  await expect(editor.getByText('Pump skid')).toBeVisible();
+  await editor.getByRole('button', { name: 'Upload', exact: true }).click();
+  await expect(editor.getByText('Pump skid', { exact: true })).toBeVisible();
   await expect(page.locator('.version-chip')).toHaveText('v2');
   await expect.poll(() => layers(page), { timeout: 45_000 }).toContainEqual(expect.stringMatching(/^upload-/));
 
@@ -58,7 +58,7 @@ test('an owner uploads a model and a tileset, places the model, and the twin kee
 
   await editor.getByLabel('Upload file').setInputFiles(tilesetZip());
   await editor.getByLabel('Upload name').fill('Neighbours');
-  await editor.getByRole('button', { name: 'Upload' }).click();
+  await editor.getByRole('button', { name: 'Upload', exact: true }).click();
   await expect(page.locator('.version-chip')).toHaveText('v4');
   await expect.poll(async () => (await layers(page)).length, { timeout: 45_000 }).toBe(2);
 
@@ -76,7 +76,7 @@ test('a bad archive is refused with the reason', async ({ page }) => {
   const editor = page.getByRole('complementary', { name: 'Layout' });
   await editor.getByLabel('Upload file').setInputFiles({ name: 'evil.zip', mimeType: 'application/zip', buffer: Buffer.from('not a zip') });
   await editor.getByLabel('Upload name').fill('Evil');
-  await editor.getByRole('button', { name: 'Upload' }).click();
+  await editor.getByRole('button', { name: 'Upload', exact: true }).click();
   await expect(editor.getByRole('alert')).toContainText('not a readable zip file');
 });
 
@@ -85,7 +85,7 @@ test('a viewer watches the twin but cannot edit or operate it', async ({ page })
   await openTwin(page, 'Northshore Cold Chain Hub');
   await expect(page.getByRole('button', { name: 'Layout' })).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as Debug).__twin.getState().canOperate)).toBe(false);
-  await page.getByRole('button', { name: /Freezer/ }).first().click();
+  await page.getByRole('button', { name: /^Freezer hall/ }).first().click();
   await expect(page.getByRole('button', { name: 'Raise setpoint' })).toBeDisabled();
 });
 

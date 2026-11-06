@@ -20,6 +20,8 @@ final readonly class TwinDefinitionValidator
 
     private const string ID = '/^[a-z0-9][a-z0-9_-]{0,63}$/';
 
+    private const string METRIC_KEY = '/^[a-z][A-Za-z0-9_]{0,63}$/';
+
     /**
      * @return list<string>
      */
@@ -253,8 +255,8 @@ final readonly class TwinDefinitionValidator
             foreach ($metrics as $metric) {
                 $key = $this->isObject($metric) ? ($metric['key'] ?? null) : null;
 
-                if (! is_string($key) || preg_match(self::ID, $key) !== 1 || $key === 'state') {
-                    $errors[] = sprintf('Type %s: metric keys must be lowercase identifiers other than state', $id);
+                if (! is_string($key) || preg_match(self::METRIC_KEY, $key) !== 1 || $key === 'state') {
+                    $errors[] = sprintf('Type %s: metric keys must be camelCase identifiers other than state', $id);
 
                     continue;
                 }

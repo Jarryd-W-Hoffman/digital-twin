@@ -40,9 +40,10 @@ const FIELDS: { key: keyof Placement; label: string; step: number }[] = [
     { key: 'scale', label: 'Scale', step: 0.1 },
 ];
 
-const megabytes = (bytes: number) =>
-    `${(bytes / 1024 / 1024).toFixed(bytes < 1024 * 1024 ? 2 : 1)} MB`;
-
+const size = (bytes: number) =>
+    bytes < 1024 * 1024
+        ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+        : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 /**
  * Uploads, placement and history for a twin. Placement edits show live in the
  * scene as drafts and are saved together as one new version.
@@ -224,7 +225,7 @@ export function TwinEditor({
                                             {' '}
                                             · {layer.kind}
                                             {asset
-                                                ? ` · ${megabytes(asset.bytes)}`
+                                                ? ` · ${size(asset.bytes)}`
                                                 : ''}
                                         </span>
                                     </span>

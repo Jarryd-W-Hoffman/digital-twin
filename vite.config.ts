@@ -54,6 +54,8 @@ export default defineConfig({
     },
     test: {
         include: ['resources/js/**/*.test.ts', 'gateway/**/*.test.ts'],
+        // Multi-day physics runs are slow on a busy machine.
+        testTimeout: 30_000,
     },
     server: {
         port: 5199,

@@ -11,6 +11,16 @@
     "dieselPerLitre": 1.95, "gridKgCo2PerKwh": 0.71, "dieselKgCo2PerLitre": 2.68
   },
   "tilesets": [{ "id": "context", "name": "Neighbouring buildings", "url": "/tilesets/context/tileset.json" }],
+  "types": [
+    {
+      "id": "water-tank", "name": "Fire water tank", "primary": "levelPct",
+      "metrics": [
+        { "key": "levelPct", "label": "Level", "unit": "%", "decimals": 0, "default": 92 },
+        { "key": "pressureKpa", "label": "Ring main pressure", "unit": "kPa", "decimals": 0, "default": 710 }
+      ],
+      "visual": { "color": "#3a7ca5", "shape": "cylinder", "height": 9 }
+    }
+  ],
   "zones": [
     { "id": "cold", "name": "Cold storage", "footprint": [[-150,-60],[60,-60],[60,110],[-150,110]] },
     { "id": "plant", "name": "Plant yard", "footprint": [[60,-60],[150,-60],[150,110],[60,110]] },
@@ -19,6 +29,7 @@
     { "id": "admin", "name": "Administration", "footprint": [[-250,-60],[-160,-60],[-160,110],[-250,110]] }
   ],
   "assets": [
+    { "id": "fire-tank", "name": "Fire water tank", "kind": "custom", "type": "water-tank", "zone": "plant", "position": [134, 70] },
     { "id": "site", "name": "Northshore site", "kind": "site", "zone": "admin" },
     { "id": "wx", "name": "Weather mast", "kind": "weather", "zone": "admin", "position": [-205, 95], "height": 24 },
 
@@ -96,6 +107,7 @@
       "stops": [{ "at": 1, "dwellS": 240 }, { "at": 3, "dwellS": 300, "charger": "agv-dock" }] }
   ],
   "rules": [
+    { "id": "fire-water-low", "name": "Fire water low", "severity": "warning", "asset": "fire-tank", "metric": "levelPct", "op": "lt", "threshold": 60, "clearAt": 65, "message": "{asset} is below 60%" },
     { "id": "store-warm", "name": "Store above temperature limit", "severity": "critical", "kind": "coldstore", "metric": "excursionMin", "op": "gt", "threshold": 0.5, "clearAt": 0, "message": "{asset} is above its temperature limit" },
     { "id": "freezer-drift", "name": "Freezer drifting warm", "severity": "warning", "asset": "freezer", "metric": "tempC", "op": "gt", "threshold": -18, "forS": 300, "clearAt": -18.6, "message": "{asset} is drifting above -18 °C" },
     { "id": "chill-drift", "name": "Chill room drifting warm", "severity": "warning", "asset": "chillroom", "metric": "tempC", "op": "gt", "threshold": 5.5, "forS": 300, "clearAt": 4.8, "message": "{asset} is drifting above 5.5 °C" },

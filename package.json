@@ -12,6 +12,7 @@
         "test:e2e": "playwright test",
         "gateway": "tsx gateway/gateway.ts",
         "generate:context": "tsx scripts/generate-context.ts",
+        "generate:model": "tsx scripts/generate-sample-model.ts",
         "screenshots": "tsx scripts/screenshots.ts",
         "postinstall": "node scripts/copy-cesium.mjs"
     },

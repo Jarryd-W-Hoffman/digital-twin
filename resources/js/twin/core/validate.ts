@@ -22,6 +22,8 @@ const KINDS: readonly AssetKind[] = [
 ];
 const SHAPES = ['box', 'cylinder'];
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+/** Metric keys follow the built-in ones: camelCase like tempC or socPct. */
+const METRIC_KEY = /^[a-z][A-Za-z0-9_]{0,63}$/;
 
 type Obj = Record<string, unknown>;
 
@@ -108,11 +110,11 @@ export function validateDefinition(input: unknown): string[] {
             if (
                 !isObj(m) ||
                 !isText(m.key) ||
-                !ID.test(m.key) ||
+                !METRIC_KEY.test(m.key) ||
                 m.key === 'state'
             ) {
                 errors.push(
-                    `Type ${t.id}: metric keys must be lowercase identifiers other than state`,
+                    `Type ${t.id}: metric keys must be camelCase identifiers other than state`,
                 );
                 continue;
             }
@@ -233,9 +235,7 @@ export function validateDefinition(input: unknown): string[] {
         if (r.kind === undefined && r.asset === undefined)
             errors.push(`Rule ${label(r.id)}: needs a kind or an asset`);
         if (r.asset !== undefined && !ids.has(show(r.asset)))
-            errors.push(
-                `Rule ${label(r.id)}: unknown asset ${show(r.asset)}`,
-            );
+            errors.push(`Rule ${label(r.id)}: unknown asset ${show(r.asset)}`);
         if (r.op !== 'gt' && r.op !== 'lt')
             errors.push(`Rule ${label(r.id)}: op must be gt or lt`);
     }
