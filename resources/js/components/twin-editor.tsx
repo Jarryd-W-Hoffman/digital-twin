@@ -1,5 +1,6 @@
 import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import { GatewayPanel, type GatewayStatus } from '@/components/gateway-panel';
 import {
     destroy as destroyAsset,
     store as storeAsset,
@@ -53,9 +54,11 @@ export function TwinEditor({
     definition,
     versions,
     assets,
+    gateway,
     onClose,
 }: {
     twinId: string;
+    gateway: GatewayStatus;
     definition: TwinDefinition;
     versions: TwinVersionSummary[];
     assets: TwinAssetSummary[];
@@ -348,6 +351,8 @@ export function TwinEditor({
                     </div>
                 )}
             </section>
+
+            <GatewayPanel twinId={twinId} gateway={gateway} />
 
             <section>
                 <h3>Definition</h3>

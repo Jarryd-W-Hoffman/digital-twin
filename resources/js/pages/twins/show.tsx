@@ -1,5 +1,6 @@
-import { Head, Link } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { Head, Link, usePoll } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
+import type { GatewayStatus } from '@/components/gateway-panel';
 import {
     TwinEditor,
     type TwinAssetSummary,
@@ -7,7 +8,7 @@ import {
 } from '@/components/twin-editor';
 import { index } from '@/routes/twins';
 import type { TwinDefinition } from '@/twin/core/types';
-import { runDefinition, stopTwin } from '@/twin/state/store';
+import { runDefinition, runGateway, stopTwin } from '@/twin/state/store';
 import { Viewer } from '@/twin/ui/Viewer';
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
     version: number;
     versions: TwinVersionSummary[];
     assets: TwinAssetSummary[];
+    gateway: GatewayStatus;
     can: { update: boolean; operate: boolean };
 };
 
@@ -25,14 +27,35 @@ export default function ShowTwin({
     version,
     versions,
     assets,
+    gateway,
     can,
 }: Props) {
     const [editing, setEditing] = useState(false);
+    // Follow the gateway when one is connected, unless the user picks the simulator.
+    const [preferSimulator, setPreferSimulator] = useState(false);
+    const live =
+        Boolean(gateway?.online && gateway.url && gateway.ticket) &&
+        !preferSimulator;
+    const gatewayUrl = gateway?.online ? gateway.url : null;
 
-    // A save comes back as a new version; restart the simulator on it.
+    // The gateway's status comes and goes; tickets are refreshed with it.
+    usePoll(15_000, { only: ['gateway'] });
+    const ticket = useRef(gateway?.ticket ?? null);
     useEffect(() => {
-        runDefinition(definition, { canOperate: can.operate });
-    }, [version, definition, can.operate]);
+        if (gateway?.ticket) ticket.current = gateway.ticket;
+    }, [gateway?.ticket]);
+
+    // A save comes back as a new version; restart the simulator on it. In live
+    // mode the gateway picks the version up itself.
+    useEffect(() => {
+        if (live && gatewayUrl && ticket.current) {
+            const url = new URL(gatewayUrl);
+            url.searchParams.set('ticket', ticket.current);
+            runGateway(url.toString(), { canOperate: can.operate });
+        } else {
+            runDefinition(definition, { canOperate: can.operate });
+        }
+    }, [version, definition, can.operate, live, gatewayUrl]);
 
     useEffect(() => stopTwin, []);
 
@@ -53,6 +76,34 @@ export default function ShowTwin({
                         <span className="version-chip" title="Saved version">
                             v{version}
                         </span>
+                        {gateway?.online && (
+                            <div
+                                className="segmented"
+                                role="radiogroup"
+                                aria-label="Source"
+                            >
+                                {(['Simulator', 'Live'] as const).map(
+                                    (label) => {
+                                        const on = (label === 'Live') === live;
+                                        return (
+                                            <button
+                                                key={label}
+                                                role="radio"
+                                                aria-checked={on}
+                                                className={on ? 'on' : ''}
+                                                onClick={() =>
+                                                    setPreferSimulator(
+                                                        label === 'Simulator',
+                                                    )
+                                                }
+                                            >
+                                                {label}
+                                            </button>
+                                        );
+                                    },
+                                )}
+                            </div>
+                        )}
                         {can.update && (
                             <button
                                 className={editing ? 'primary' : 'ghost'}
@@ -71,6 +122,7 @@ export default function ShowTwin({
                         definition={definition}
                         versions={versions}
                         assets={assets}
+                        gateway={gateway}
                         onClose={() => setEditing(false)}
                     />
                 )}

@@ -268,6 +268,25 @@ The gateway binds to `127.0.0.1` by default, and browser sockets are accepted on
 | `GATEWAY_TOKEN`   | If set, `POST /ingest` needs `Authorization: Bearer <token>`     |
 | `GATEWAY_ORIGINS` | Comma-separated extra browser origins allowed to open the socket |
 
+### Running a twin from the control plane
+
+Instead of a JSON file, a gateway can serve a twin saved in the control plane. Open the twin's **Layout** panel, choose **Issue token**, and run the command it shows (the token is shown once; only its hash is stored):
+
+```bash
+MERIDIAN_URL=http://localhost:8000 MERIDIAN_GATEWAY_TOKEN=mgw_… npm run gateway
+```
+
+The gateway fetches the twin's latest version from `GET /api/gateway/definition`, polls it every few seconds (answered `304` while nothing changed), and restarts the model on each new version. Every poll is also a check-in that reports where browsers can reach it. While it has checked in within the last 30 seconds, the twin page offers a **Simulator / Live** switch and follows the gateway.
+
+Browsers get in with a ticket the control plane signs for each page view. The HMAC key is the token's SHA-256, which both sides can compute without the control plane holding the token. The ticket names the twin, the user and whether they may operate, so a viewer's socket can watch but not send commands. The same token authorises `POST /ingest`. Rotating or revoking the token cuts the gateway off.
+
+| Variable                 |                                                                     |
+| ------------------------ | ------------------------------------------------------------------- |
+| `MERIDIAN_URL`           | The control plane, e.g. `http://localhost:8000`                     |
+| `MERIDIAN_GATEWAY_TOKEN` | The twin's gateway token                                            |
+| `GATEWAY_PUBLIC_URL`     | Where browsers reach the socket, default `ws://127.0.0.1:<port>/ws` |
+| `GATEWAY_POLL_MS`        | How often to poll for new versions, default `5000`                  |
+
 ## Writing a twin
 
 Positions are in metres east and north of `origin`. The [Northshore definition](public/samples/northshore.json) uses every feature, and [Harbour Depot](public/samples/harbour-depot.json) is close to the minimum.
@@ -394,8 +413,13 @@ tests/e2e/                Playwright specs
 
 ## Roadmap
 
-1. **Control plane** (this milestone): organisations and roles, versioned twins, uploads, placement, custom types. Still to come here: Docker Compose with Postgres and RustFS, and the gateway loading twins from the control plane rather than from a file.
-2. **MQTT and history:** broker bridge with tag mapping and device tokens, TimescaleDB for long-term readings.
-3. **Point cloud pipeline:** LAS/LAZ through PDAL to 3D Tiles as a queued job, with progress in the UI.
-4. **Editor and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.
-5. **OPC UA and actuation:** read from OPC UA servers, and write back, off by default and audited.
+Meridian is meant to be a tool teams run for their own sites: bring in scans, models and live data, organise them by project, and build twins from them, all managed from the control plane. The microgrid and cold chain physics stay as a reference domain, and each milestone moves more of what is fixed in code into data people control.
+
+1. **Control plane and gateway** (done): organisations and roles, versioned twins, uploads, placement, custom types, Docker Compose with Postgres and RustFS, and gateways that load their twin from the control plane, follow new versions and admit browsers with signed tickets.
+2. **Projects and a data library:** organisations hold projects, and projects hold twins and a shared library of uploads (models, tilesets, later point clouds), so one scan can be placed into several twins. Large files upload straight to object storage in parts rather than through PHP. Blank and template twins, so a new project doesn't start from JSON.
+3. **Point cloud pipeline:** LAS, LAZ and E57 uploaded to the library and converted to 3D Tiles by a queued worker (PDAL to reproject, filter and thin; py3dtiles to tile), with progress, logs and retries in the UI, then placed into a twin like any tileset.
+4. **IoT: devices, MQTT and history:** devices registered per project with their own tokens, an MQTT bridge with topic and tag mapping onto any asset's metrics, gateways managed from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
+5. **Customisation core:** behaviour for custom types as data (derived metrics written as safe expressions, simple state machines, setpoints), KPIs and panels declared in the definition instead of built in, expression and rate-of-change rules, and a type library per organisation.
+6. **Definition editor:** edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators.
+7. **Scene editing and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.
+8. **OPC UA and actuation:** read from OPC UA servers, and write back through the custom setpoints, off by default and audited.

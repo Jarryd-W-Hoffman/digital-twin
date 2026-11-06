@@ -23,7 +23,7 @@ describe('gateway', () => {
   const nextMessage = (socket: WebSocket, type: ServerMessage['type']) =>
     new Promise<ServerMessage>((done) => {
       const listen = (data: WebSocket.RawData) => {
-        const message = JSON.parse(String(data)) as ServerMessage;
+        const message = JSON.parse((data as Buffer).toString()) as ServerMessage;
         if (message.type === type) {
           socket.off('message', listen);
           done(message);

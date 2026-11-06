@@ -8,6 +8,7 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\TwinAssetController;
 use App\Http\Controllers\TwinAssetFileController;
 use App\Http\Controllers\TwinController;
+use App\Http\Controllers\TwinGatewayTokenController;
 use App\Http\Controllers\TwinVersionController;
 use App\Http\Controllers\TwinVersionRestorationController;
 use App\Http\Controllers\UserController;
@@ -41,6 +42,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
         ->where('path', '.*')
         ->scopeBindings()
         ->name('twins.assets.files.show');
+    Route::post('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'store'])->name('twins.gateway-token.store');
+    Route::delete('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'destroy'])->name('twins.gateway-token.destroy');
 
     // Organisations...
     Route::post('organisations', [OrganisationController::class, 'store'])->name('organisations.store');

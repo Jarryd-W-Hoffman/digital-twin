@@ -232,11 +232,20 @@ function startSource(next: TwinSource): void {
     });
     next.start({
         onDefinition: (def) => {
-            // A gateway re-sends the definition and its history on reconnect.
-            if (useTwin.getState().def?.id !== def.id) {
-                rules = createRuleEngine(def);
-                useTwin.setState({ def, model: compile(def) });
-            }
+            // A gateway re-sends the definition and its history on reconnect,
+            // and sends a new one when the control plane saves a version.
+            const current = useTwin.getState().def;
+            if (current && JSON.stringify(current) === JSON.stringify(def))
+                return;
+            if (current) history = new History(HISTORY_FRAMES);
+            rules = createRuleEngine(def);
+            useTwin.setState((s) => ({
+                def,
+                model: compile(def),
+                alerts: [],
+                forecast: undefined,
+                historyVersion: s.historyVersion + 1,
+            }));
         },
         onTick,
         onStatus: (status, statusDetail) =>
@@ -281,6 +290,23 @@ export function runDefinition(
             status: 'offline',
         });
     }
+}
+
+/**
+ * Follows the twin's gateway instead of simulating in the browser. The URL
+ * carries the ticket the control plane signed; the gateway enforces the same
+ * operate permission as `canOperate`.
+ */
+export function runGateway(
+    url: string,
+    options: { canOperate: boolean },
+): void {
+    useTwin.setState({
+        canOperate: options.canOperate,
+        drafts: {},
+        placingLayer: null,
+    });
+    startSource(new GatewaySource(url));
 }
 
 /** Stops the running source when the viewer page is left. */

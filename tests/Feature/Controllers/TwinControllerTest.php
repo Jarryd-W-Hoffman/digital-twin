@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\IssueGatewayToken;
+use App\Actions\RecordGatewayCheckIn;
 use App\Actions\StoreTwinAsset;
 use App\Enums\OrganisationRole;
 use App\Models\Twin;
@@ -103,12 +105,34 @@ it('shows a twin with its definition, history, uploads and abilities', function 
             ->where('versions.1.author', null)
             ->where('assets.0.id', $asset->id)
             ->where('assets.0.url', $asset->url())
+            ->where('gateway', null)
             ->where('can', ['update' => $update, 'operate' => $operate]));
 })->with([
     [OrganisationRole::Owner, true, true],
     [OrganisationRole::Operator, false, true],
     [OrganisationRole::Viewer, false, false],
 ]);
+
+it('reports the gateway, and gives viewers a ticket while it is online', function (): void {
+    $this->freezeSecond();
+    [$user, $organisation] = member(OrganisationRole::Viewer);
+    $twin = twinIn($organisation);
+    $token = resolve(IssueGatewayToken::class)->handle($twin);
+
+    $this->actingAs($user)->get(route('twins.show', $twin))
+        ->assertInertia(fn ($page) => $page->where('gateway', ['online' => false, 'url' => null, 'seenAt' => null, 'ticket' => null]));
+
+    resolve(RecordGatewayCheckIn::class)->handle($twin, 'ws://localhost:8788/ws');
+
+    $this->actingAs($user)->get(route('twins.show', $twin))
+        ->assertInertia(fn ($page) => $page
+            ->where('gateway.online', true)
+            ->where('gateway.url', 'ws://localhost:8788/ws')
+            ->where('gateway.seenAt', now()->toIso8601String())
+            ->where('gateway.ticket', fn (string $ticket): bool => json_decode(base64_decode(strtr(explode('.', $ticket)[0], '-_', '+/')), true)['operate'] === false));
+
+    expect(hash('sha256', $token))->toBe($twin->refresh()->gateway_token_hash);
+});
 
 it('hides twins from other organisations', function (): void {
     [, $organisation] = member();
