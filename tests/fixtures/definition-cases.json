@@ -1,0 +1,119 @@
+{
+    "base": "harbour-depot",
+    "cases": [
+        { "name": "the sample is valid", "ops": [], "errors": [] },
+        { "name": "not an object", "replace": [1, 2], "errors": ["Definition must be a JSON object"] },
+        { "name": "null", "replace": null, "errors": ["Definition must be a JSON object"] },
+        {
+            "name": "header fields",
+            "ops": [{ "unset": "id" }, { "set": "name", "value": "" }, { "set": "origin.lon", "value": 200 }, { "unset": "origin.lat" }, { "set": "tariff", "value": 3 }, { "unset": "camera" }],
+            "errors": ["Missing id", "Missing name", "origin.lon must be -180..180", "origin.lat must be -90..90", "Missing tariff", "Missing camera"]
+        },
+        { "name": "assets not a list stops early", "ops": [{ "set": "assets", "value": { "a": 1 } }, { "unset": "zones" }], "errors": ["assets must be an array"] },
+        {
+            "name": "lists and optional lists",
+            "ops": [{ "unset": "zones" }, { "set": "rules", "value": { "first": 1 } }, { "set": "types", "value": 4 }, { "set": "models", "value": "x" }],
+            "errors": ["zones must be an array", "rules must be an array", "types must be an array", "models must be an array", "site: unknown zone yard", "wx: unknown zone yard", "grid: unknown zone yard", "board: unknown zone yard", "plant: unknown zone yard", "store: unknown zone yard"]
+        },
+        {
+            "name": "asset problems",
+            "ops": [
+                { "push": "assets", "value": { "name": "nameless" } },
+                { "push": "assets", "value": 7 },
+                { "push": "assets", "value": { "id": "grid", "kind": "grid", "position": [1, 2], "zone": "yard" } },
+                { "set": "assets.1.kind", "value": "volcano" },
+                { "unset": "assets.2.kind" },
+                { "set": "assets.4.cools", "value": ["store", "grid", "ghost"] },
+                { "set": "assets.4.fedBy", "value": "nowhere" },
+                { "set": "assets.5.zone", "value": "attic" },
+                { "set": "assets.3.zone", "value": "" },
+                { "push": "assets", "value": { "id": "van", "kind": "vehicle", "route": "loop" } },
+                { "push": "assets", "value": { "id": "pad", "kind": "building", "footprint": [[0, 0], [1, 1]], "zone": "yard" } },
+                { "push": "assets", "value": { "id": "pin", "kind": "building", "position": [1, "x"], "zone": "yard" } },
+                { "push": "assets", "value": { "id": "shed", "kind": "building", "zone": "yard" } }
+            ],
+            "errors": [
+                "wx: unknown kind volcano",
+                "grid: unknown kind undefined",
+                "An asset has no id",
+                "An asset has no id",
+                "Duplicate asset id grid",
+                "plant: fedBy unknown asset nowhere",
+                "plant: cools grid, which is not a cold store",
+                "plant: cools ghost, which is not a cold store",
+                "store: unknown zone attic",
+                "van: unknown route loop",
+                "pad: footprint needs 3+ points",
+                "pin: position must be [east, north]",
+                "shed: needs a footprint or position"
+            ]
+        },
+        {
+            "name": "feed tree",
+            "ops": [{ "set": "assets.3.fedBy", "value": "plant" }, { "set": "assets.4.fedBy", "value": "board" }],
+            "errors": ["board: fedBy forms a cycle", "plant: fedBy forms a cycle", "Twin needs exactly one main bus (a bus with no fedBy)"]
+        },
+        {
+            "name": "routes, rules and scenarios",
+            "ops": [
+                { "set": "routes", "value": [{ "id": "r1", "path": [[0, 0]], "stops": [{ "at": 3, "dwellS": 0 }, { "at": 0, "dwellS": 10 }] }, { "path": [[0, 0], [1, 1]], "stops": [{ "dwellS": 5 }] }] },
+                { "push": "rules", "value": { "id": "loose", "op": "eq" } },
+                { "push": "rules", "value": { "id": "lost", "asset": "ghost", "op": "lt" } },
+                { "set": "scenarios.0.faults.0.target", "value": "ghost" }
+            ],
+            "errors": [
+                "Route r1: path needs 2+ points",
+                "Route r1: stop at 3 is off the path",
+                "Route r1: stop dwell must be positive",
+                "Route ?: stop at undefined is off the path",
+                "Rule loose: needs a kind or an asset",
+                "Rule loose: op must be gt or lt",
+                "Rule lost: unknown asset ghost",
+                "Scenario trip: unknown target ghost"
+            ]
+        },
+        {
+            "name": "custom types",
+            "ops": [
+                { "set": "types", "value": [
+                    { "id": "pump", "name": "Pump", "primary": "flow", "metrics": [{ "key": "flow", "unit": "L/s", "default": 0 }, { "key": "rpm", "unit": "rpm" }], "visual": { "color": "#3a7ca5", "shape": "cylinder" } },
+                    { "id": "Bad Id" },
+                    { "id": "empty", "name": "Empty", "primary": "x", "metrics": [], "visual": { "color": "#000000", "shape": "box" } },
+                    { "id": "pump", "metrics": [{ "key": "state", "unit": "" }, { "key": "a", "unit": "x", "default": "1" }, { "key": "a" }], "primary": "b", "visual": { "color": "red", "shape": "cone" } }
+                ] },
+                { "push": "assets", "value": { "id": "p1", "kind": "custom", "type": "pump", "position": [10, 10], "zone": "yard" } },
+                { "push": "assets", "value": { "id": "p2", "kind": "custom", "position": [12, 10], "zone": "yard" } }
+            ],
+            "errors": [
+                "A type needs an id of lowercase letters, digits, - or _",
+                "Type empty: needs at least one metric",
+                "Type empty: primary must be one of its metrics",
+                "Duplicate type id pump",
+                "Type pump: needs a name",
+                "Type pump: metric keys must be lowercase identifiers other than state",
+                "Type pump: metric a default must be a number",
+                "Type pump: duplicate metric a",
+                "Type pump: metric a needs a unit",
+                "Type pump: primary must be one of its metrics",
+                "Type pump: visual.color must be a #rrggbb colour",
+                "Type pump: visual.shape must be box or cylinder",
+                "p2: unknown type undefined"
+            ]
+        },
+        {
+            "name": "layers",
+            "ops": [
+                { "set": "tilesets", "value": [{ "id": "city", "url": "/t/tileset.json" }, { "id": "scan", "url": "", "placement": { "east": 0, "north": 0, "up": 0, "headingDeg": 0, "scale": 0 } }, { "name": "anon" }] },
+                { "set": "models", "value": [{ "id": "city", "url": "/m.glb" }, { "id": "skid", "url": "/s.glb", "placement": { "east": 1, "north": "2", "up": 0, "headingDeg": 90, "scale": 1 } }] }
+            ],
+            "errors": [
+                "Tileset scan: needs a url",
+                "Tileset scan: placement.scale must be positive",
+                "A tileset has no id",
+                "Duplicate layer id city",
+                "Model city: placement must be an object",
+                "Model skid: placement.north must be a number"
+            ]
+        }
+    ]
+}

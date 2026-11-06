@@ -1,0 +1,38 @@
+{
+  "id": "harbour-depot",
+  "name": "Harbour Depot",
+  "description": "A fictional grid-only seafood depot: one store, one chiller, no storage. Shows that the platform is driven by the definition.",
+  "origin": { "lon": 174.7855, "lat": -36.8395 },
+  "utcOffsetHours": 12,
+  "climate": { "meanC": 17, "swingC": 4 },
+  "camera": { "headingDeg": 340, "pitchDeg": -35, "rangeM": 220 },
+  "tariff": {
+    "offPeakPerKwh": 0.16, "peakPerKwh": 0.34, "peakStartHour": 17, "peakEndHour": 21,
+    "dieselPerLitre": 2.1, "gridKgCo2PerKwh": 0.1, "dieselKgCo2PerLitre": 2.68
+  },
+  "zones": [
+    { "id": "yard", "name": "Depot yard", "footprint": [[-60,-45],[60,-45],[60,45],[-60,45]] }
+  ],
+  "assets": [
+    { "id": "site", "name": "Depot", "kind": "site", "zone": "yard" },
+    { "id": "wx", "name": "Weather sensor", "kind": "weather", "zone": "yard", "position": [50, 35], "height": 8 },
+    { "id": "grid", "name": "Grid connection", "kind": "grid", "zone": "yard", "height": 6,
+      "footprint": [[45,-40],[56,-40],[56,-30],[45,-30]], "params": { "importLimitKw": 200 } },
+    { "id": "board", "name": "Main board", "kind": "bus", "zone": "yard", "height": 4,
+      "footprint": [[28,-40],[40,-40],[40,-30],[28,-30]] },
+    { "id": "plant", "name": "Chiller", "kind": "chiller", "zone": "yard", "fedBy": "board", "height": 4, "cools": ["store"],
+      "footprint": [[30,-15],[50,-15],[50,5],[30,5]], "params": { "capacityKw": 70, "copNominal": 3.1 } },
+    { "id": "store", "name": "Seafood store", "kind": "coldstore", "zone": "yard", "height": 9,
+      "footprint": [[-50,-30],[20,-30],[20,30],[-50,30]],
+      "params": { "setpointC": 1, "limitC": 5, "uaKwPerK": 1.1, "doorKwPerK": 1.6, "doorDutyPct": 10, "internalKw": 4, "massKwhPerK": 42, "stockT": 220, "graceMin": 30, "totalLossMin": 180, "controlBandC": 1.5 } }
+  ],
+  "routes": [],
+  "rules": [
+    { "id": "warm", "name": "Store above limit", "severity": "critical", "kind": "coldstore", "metric": "excursionMin", "op": "gt", "threshold": 0.5, "clearAt": 0, "message": "{asset} is above its temperature limit" },
+    { "id": "tripped", "name": "Chiller tripped", "severity": "critical", "kind": "chiller", "metric": "state", "op": "gt", "threshold": 3.5, "clearAt": 3.5, "message": "{asset} has tripped" }
+  ],
+  "scenarios": [
+    { "id": "trip", "name": "Chiller trips", "description": "The only chiller goes offline.", "faults": [{ "type": "trip", "target": "plant" }] },
+    { "id": "outage", "name": "Grid outage, 3 hours", "description": "With no storage, the store coasts on its thermal mass.", "faults": [{ "type": "grid-outage", "durationS": 10800 }] }
+  ]
+}
