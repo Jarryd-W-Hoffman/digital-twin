@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateTwin;
 use App\Actions\DeleteTwin;
+use App\Actions\IssueGatewayTicket;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
 use App\Models\Twin;
@@ -68,11 +69,13 @@ final readonly class TwinController
         return to_route('twins.show', $twin);
     }
 
-    public function show(Twin $twin, #[CurrentUser] User $user): Response
+    public function show(Twin $twin, #[CurrentUser] User $user, IssueGatewayTicket $tickets): Response
     {
         Gate::authorize('view', $twin);
 
         $latest = $twin->latestVersion()->firstOrFail();
+        $canOperate = $user->can('operate', $twin);
+        $online = $twin->gatewayOnline();
 
         return Inertia::render('twins/show', [
             'twin' => [
@@ -99,9 +102,15 @@ final readonly class TwinController
                 'files' => $asset->files,
                 'url' => $asset->url(),
             ]),
+            'gateway' => $twin->gateway_token_hash === null ? null : [
+                'online' => $online,
+                'url' => $online ? $twin->gateway_url : null,
+                'seenAt' => $twin->gateway_seen_at?->toIso8601String(),
+                'ticket' => $online ? $tickets->handle($twin, $user, $canOperate) : null,
+            ],
             'can' => [
                 'update' => $user->can('update', $twin),
-                'operate' => $user->can('operate', $twin),
+                'operate' => $canOperate,
             ],
         ]);
     }

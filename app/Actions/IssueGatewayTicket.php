@@ -1,0 +1,43 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Actions;
+
+use App\Models\Twin;
+use App\Models\User;
+use LogicException;
+
+/**
+ * A signed pass that lets one user's browser open a socket to the twin's
+ * gateway. The gateway holds the token, the control plane holds its SHA-256
+ * hash, and the hash is the HMAC key, so both can sign and check tickets
+ * without the token ever being stored here.
+ *
+ * Format: base64url(payload JSON) "." base64url(HMAC-SHA256(that string)).
+ */
+final readonly class IssueGatewayTicket
+{
+    public const int LIFETIME_SECONDS = 12 * 3600;
+
+    public function handle(Twin $twin, User $user, bool $canOperate): string
+    {
+        if ($twin->gateway_token_hash === null) {
+            throw new LogicException('The twin has no gateway token.');
+        }
+
+        $payload = self::encode((string) json_encode([
+            'twin' => $twin->id,
+            'user' => $user->id,
+            'operate' => $canOperate,
+            'exp' => now()->addSeconds(self::LIFETIME_SECONDS)->getTimestamp(),
+        ], JSON_THROW_ON_ERROR));
+
+        return $payload.'.'.self::encode(hash_hmac('sha256', $payload, $twin->gateway_token_hash, true));
+    }
+
+    private static function encode(string $bytes): string
+    {
+        return mb_rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
+    }
+}

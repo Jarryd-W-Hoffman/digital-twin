@@ -7,7 +7,13 @@ use App\Models\TwinAsset;
 
 test('to array', function (): void {
     expect(array_keys(Twin::factory()->create()->refresh()->toArray()))
-        ->toBe(['id', 'organisation_id', 'name', 'description', 'created_at', 'updated_at']);
+        ->toBe(['id', 'organisation_id', 'name', 'description', 'created_at', 'updated_at', 'gateway_url', 'gateway_seen_at']);
+});
+
+it('never serialises its gateway token hash', function (): void {
+    $twin = Twin::factory()->create(['gateway_token_hash' => hash('sha256', 'mgw_secret')]);
+
+    expect($twin->refresh()->toArray())->not->toHaveKey('gateway_token_hash');
 });
 
 it('tracks its versions, latest first', function (): void {

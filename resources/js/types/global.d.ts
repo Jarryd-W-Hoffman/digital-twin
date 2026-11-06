@@ -11,6 +11,8 @@ declare module '@inertiajs/core' {
     export interface InertiaConfig {
         flashDataType: {
             toast?: FlashToast;
+            /** A new gateway token, shown once. */
+            gatewayToken?: string;
         };
         sharedPageProps: {
             name: string;
