@@ -6,6 +6,7 @@ namespace Database\Seeders;
 
 use App\Actions\AddMember;
 use App\Actions\CreateOrganisation;
+use App\Actions\CreateProject;
 use App\Actions\CreateTwin;
 use App\Enums\OrganisationRole;
 use App\Models\User;
@@ -14,11 +15,12 @@ use Illuminate\Database\Seeder;
 
 /**
  * A working organisation to log in to: test@example.com / password owns it,
- * with an operator and a viewer to try the roles, and both sample twins.
+ * with an operator and a viewer to try the roles, and a project holding both
+ * sample twins.
  */
 final class DatabaseSeeder extends Seeder
 {
-    public function run(CreateOrganisation $organisations, AddMember $members, CreateTwin $twins, SampleTwins $samples): void
+    public function run(CreateOrganisation $organisations, AddMember $members, CreateProject $projects, CreateTwin $twins, SampleTwins $samples): void
     {
         $owner = User::factory()->withoutTwoFactor()->create(['name' => 'Test User', 'email' => 'test@example.com']);
         $organisation = $organisations->handle($owner, 'Northshore Logistics');
@@ -32,8 +34,10 @@ final class DatabaseSeeder extends Seeder
             $user->forceFill(['current_organisation_id' => $organisation->id])->save();
         }
 
+        $project = $projects->handle($organisation, 'Pilot sites', 'The sample sites, to try the viewer, uploads and gateways on.');
+
         foreach ($samples->all() as $id => $name) {
-            $twins->handle($organisation, $owner, $name, null, $samples->definition($id));
+            $twins->handle($project, $owner, $name, null, $samples->definition($id));
         }
     }
 }

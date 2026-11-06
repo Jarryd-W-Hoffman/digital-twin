@@ -6,13 +6,14 @@ import {
     type TwinAssetSummary,
     type TwinVersionSummary,
 } from '@/components/twin-editor';
-import { index } from '@/routes/twins';
+import { show as showProject } from '@/routes/projects';
 import type { TwinDefinition } from '@/twin/core/types';
 import { runDefinition, runGateway, stopTwin } from '@/twin/state/store';
 import { Viewer } from '@/twin/ui/Viewer';
 
 type Props = {
     twin: { id: string; name: string; description: string | null };
+    project: { id: string; name: string };
     definition: TwinDefinition;
     version: number;
     versions: TwinVersionSummary[];
@@ -23,6 +24,7 @@ type Props = {
 
 export default function ShowTwin({
     twin,
+    project,
     definition,
     version,
     versions,
@@ -66,9 +68,10 @@ export default function ShowTwin({
                 header={
                     <>
                         <Link
-                            href={index()}
+                            href={showProject(project.id)}
                             className="back-link"
-                            aria-label="All twins"
+                            aria-label={`Back to ${project.name}`}
+                            title={project.name}
                         >
                             ←
                         </Link>

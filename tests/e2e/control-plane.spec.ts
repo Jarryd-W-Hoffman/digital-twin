@@ -24,7 +24,8 @@ async function logIn(page: Page, email: string) {
   await page.getByLabel('Email address').fill(email);
   await page.getByLabel('Password', { exact: true }).fill('password');
   await page.getByRole('button', { name: 'Log in' }).click();
-  await expect(page).toHaveURL(/\/twins$/);
+  await expect(page).toHaveURL(/\/projects$/);
+  await page.getByRole('link', { name: /^Pilot sites/ }).click();
 }
 
 async function openTwin(page: Page, name: string) {
@@ -67,6 +68,34 @@ test('an owner uploads a model and a tileset, places the model, and the twin kee
     .toMatchObject({ east: 25, north: -10 });
   await expect(page.getByText('v3 Moved layers')).toHaveCount(0);
   expect(problems).toEqual([]);
+});
+
+test('a project library upload is shared: added to a twin, then taken out again without losing it', async ({ page }) => {
+  page.on('dialog', (dialog) => void dialog.accept());
+  await logIn(page, 'test@example.com');
+
+  // Upload straight into the library, from the project page.
+  await page.getByLabel('File (.glb, or a zipped 3D Tiles tileset)').setInputFiles(model);
+  await page.getByLabel('Name', { exact: true }).fill('Shared crane');
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  await expect(page.getByText('Shared crane', { exact: true })).toBeVisible();
+
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const editor = page.getByRole('complementary', { name: 'Layout' });
+  const library = editor.getByRole('list', { name: 'Library' });
+  await library.getByRole('listitem').filter({ hasText: 'Shared crane' }).getByRole('button', { name: 'Add' }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+  await expect(library.getByText('Shared crane')).toHaveCount(0);
+  await expect.poll(() => layers(page), { timeout: 45_000 }).toContainEqual(expect.stringMatching(/^upload-/));
+
+  await editor.getByRole('listitem').filter({ hasText: 'Shared crane' }).getByRole('button', { name: 'Remove' }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 2}`);
+  await expect(library.getByText('Shared crane')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Back to Pilot sites' }).click();
+  await expect(page.getByText('Shared crane', { exact: true })).toBeVisible();
 });
 
 test('a bad archive is refused with the reason', async ({ page }) => {

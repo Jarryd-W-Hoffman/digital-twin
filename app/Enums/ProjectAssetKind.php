@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
-enum TwinAssetKind: string
+enum ProjectAssetKind: string
 {
     case Model = 'model';
     case Tileset = 'tileset';

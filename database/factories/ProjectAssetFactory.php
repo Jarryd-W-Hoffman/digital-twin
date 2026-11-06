@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
-use App\Enums\TwinAssetKind;
-use App\Models\Twin;
-use App\Models\TwinAsset;
+use App\Enums\ProjectAssetKind;
+use App\Models\Project;
+use App\Models\ProjectAsset;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<TwinAsset>
+ * @extends Factory<ProjectAsset>
  */
-final class TwinAssetFactory extends Factory
+final class ProjectAssetFactory extends Factory
 {
     /**
      * @return array<string, mixed>
@@ -20,11 +20,12 @@ final class TwinAssetFactory extends Factory
     public function definition(): array
     {
         return [
-            'twin_id' => Twin::factory(),
-            'kind' => TwinAssetKind::Model,
+            'project_id' => Project::factory(),
+            'kind' => ProjectAssetKind::Model,
             'name' => 'Pump skid',
             'original_name' => 'pump.glb',
-            'entry' => 'pump.glb',
+            'directory' => 'projects/factory/assets/'.fake()->uuid(),
+            'entry' => 'model.glb',
             'bytes' => 1024,
             'files' => 1,
         ];

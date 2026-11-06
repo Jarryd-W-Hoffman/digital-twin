@@ -1,6 +1,6 @@
 # Meridian
 
-A digital twin platform: a [CesiumJS](https://cesium.com/platform/cesiumjs/) viewer and physics model, plus a Laravel control plane for organisations, versioned twins, and uploaded models and 3D Tiles.
+A digital twin platform: a [CesiumJS](https://cesium.com/platform/cesiumjs/) viewer and physics model, plus a Laravel control plane for organisations, projects, versioned twins, and a shared library of uploaded models and 3D Tiles.
 
 A twin is a JSON definition. Meridian turns it into a running physical model, a 3D scene on a real globe, an asset tree, alerting, time travel and what-if forecasts. Teams keep their twins in the control plane: every edit is a version, uploads are checked and served privately, and roles decide who can change a twin and who can only operate or watch it.
 
@@ -12,9 +12,9 @@ The sample twin, **Northshore Cold Chain Hub**, is a fictional refrigerated logi
 
 |                                    |                                                                                                                                                                                                                                                                                                                           |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Organisations and roles**        | Every twin belongs to an organisation. Owners and admins edit twins and manage members, operators send commands, viewers watch. People can belong to several organisations and switch between them.                                                                                                                       |
+| **Organisations and roles**        | Every project and twin belongs to an organisation. Owners and admins edit twins and manage members, operators send commands, viewers watch. People can belong to several organisations and switch between them.                                                                                                           |
 | **Versioned twins**                | Each save appends an immutable version: a layout change, an upload, a replaced definition or a restore. Any version can be downloaded as JSON or restored as a new one.                                                                                                                                                   |
-| **Uploads**                        | Models as glTF binaries (`.glb`) and 3D Tiles tilesets as a zip. Archives are checked entry by entry before anything is written, and files are served only to members of the twin's organisation.                                                                                                                         |
+| **Projects and uploads**           | Projects group twins with a library of models (`.glb`) and zipped 3D Tiles tilesets that any of their twins can show, so one scan serves several twins. Archives are checked entry by entry before anything is written, and files are served only to members of the organisation.                                         |
 | **Placement**                      | Models and local-coordinate tilesets are placed in metres east, north and up from the twin's origin, with heading and scale. Edits preview live in the scene, and **Place on map** moves a layer to wherever you click on the ground.                                                                                     |
 | **Custom asset types**             | Equipment the simulator has no physics for, described as data: metrics with units and defaults, a primary metric, a colour and a shape. Readings come from ingest, and rules can alert on them like any other metric.                                                                                                     |
 | **Live physics**                   | A microgrid power balance (solar, battery dispatch with peak shaving, grid, generator start delay, load shedding by priority) feeding a refrigeration plant (chiller capacity and COP that derate with ambient air, store thermal mass, door losses, stock spoilage). Vehicles drive their routes and queue for chargers. |
@@ -104,7 +104,7 @@ flowchart LR
     C[Controllers + policies]
     A[Actions: CreateTwin, SaveTwinVersion, StoreTwinAsset, ...]
     VAL[TwinDefinitionValidator]
-    DB[(organisations, memberships, twins, twin_versions, twin_assets)]
+    DB[(organisations, memberships, projects, project_assets, twins, twin_versions)]
     DISK[(assets disk: local or S3)]
     C --> A
     A --> VAL
@@ -164,7 +164,7 @@ sequenceDiagram
   E->>S: runDefinition(new version)
 ```
 
-Versions are never edited. Uploading, removing an upload, replacing the definition and restoring an old version all go through `SaveTwinVersion`, so the history is the complete record of what the twin looked like and who changed it.
+Versions are never edited. Adding or removing a library upload, replacing the definition and restoring an old version all go through `SaveTwinVersion`, so the history is the complete record of what the twin looked like and who changed it.
 
 ### Uploads
 
@@ -203,16 +203,16 @@ for each entry:
 on any failure: delete everything written so far
 ```
 
-Files are served from `twins/{twin}/assets/{asset}/files/{path}` after `TwinPolicy::view`, with route bindings scoped so an asset is only found through its own twin. Each response has a fixed content type per extension, `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`, so an uploaded file can never run as a page. The path is checked for `.` and `..` segments too.
+Uploads go into the project's library (`project_assets`), and adding one to a twin saves a version with a layer pointing at it. Removing a layer leaves the upload in the library; deleting it from the library takes it out of every twin in the project first. Files are served from `assets/{asset}/files/{path}` after `ProjectPolicy::view` on the upload's project. The URL names neither twin nor project, so layers keep working as twins change. Each response has a fixed content type per extension, `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`, so an uploaded file can never run as a page. The path is checked for `.` and `..` segments too.
 
 ### Roles
 
-|                                                        | Owner | Admin | Operator | Viewer |
-| ------------------------------------------------------ | :---: | :---: | :------: | :----: |
-| See twins and stream them                              |   ✓   |   ✓   |    ✓     |   ✓    |
-| Send commands (setpoints, maintenance, scenarios)      |   ✓   |   ✓   |    ✓     |        |
-| Create twins, upload, place, save and restore versions |   ✓   |   ✓   |          |        |
-| Add members and change roles                           |   ✓   |   ✓   |          |        |
+|                                                                     | Owner | Admin | Operator | Viewer |
+| ------------------------------------------------------------------- | :---: | :---: | :------: | :----: |
+| See projects and twins, and stream them                             |   ✓   |   ✓   |    ✓     |   ✓    |
+| Send commands (setpoints, maintenance, scenarios)                   |   ✓   |   ✓   |    ✓     |        |
+| Create projects and twins, upload, place, save and restore versions |   ✓   |   ✓   |          |        |
+| Add members and change roles                                        |   ✓   |   ✓   |          |        |
 
 An organisation always keeps at least one owner: demoting or removing the last one is refused. A viewer's controls are disabled in the inspector, and the store drops their commands too.
 
@@ -389,19 +389,19 @@ The default basemap is Natural Earth imagery bundled with Cesium. It makes no th
 
 ## Tests
 
-- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. The shared definition fixtures. Browser tests for the kit's account pages.
+- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. The shared definition fixtures. Browser tests for the kit's account pages.
 - **Vitest:** power is conserved every step, including while islanded. Stores hold setpoint for a full day. Outages bridge on battery, start the generator and return to grid. Load sheds by priority. Runs are deterministic, and survive cloning and a JSON round trip. The forecast's baseline matches a straight run exactly. Rule hold times and hysteresis. The gateway's socket, commands, ingest, tokens, body limits and origins. The shared definition fixtures.
-- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. A bad archive is refused with its reason. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin, bad files, the gateway path including a real `POST /ingest`, and phone width.
+- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A bad archive is refused with its reason. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin, bad files, the gateway path including a real `POST /ingest`, and phone width.
 
 ## Project layout
 
 ```text
-app/Actions/              business logic: organisations, members, twins, versions, uploads
+app/Actions/              business logic: organisations, members, projects, libraries, twins, versions
 app/Http/Controllers/     thin, authorising controllers
-app/Policies/             TwinPolicy, OrganisationPolicy
+app/Policies/             ProjectPolicy, TwinPolicy, OrganisationPolicy
 app/Support/              TwinDefinitionValidator (mirrors validate.ts), SampleTwins
 resources/js/pages/       Inertia pages: twins, members, demo, and the kit's account pages
-resources/js/components/  twin-editor (layout, uploads, history), organisation-switcher
+resources/js/components/  twin-editor (layout, uploads, library, history), organisation-switcher
 resources/js/twin/core/   model, rules, history, forecast, validation, protocol (no DOM)
 resources/js/twin/scene/  TwinScene, the Cesium side
 resources/js/twin/ui/     the viewer's React panels and charts

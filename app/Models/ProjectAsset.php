@@ -4,30 +4,35 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Enums\TwinAssetKind;
+use App\Enums\ProjectAssetKind;
 use Carbon\CarbonInterface;
-use Database\Factories\TwinAssetFactory;
+use Database\Factories\ProjectAssetFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
+ * An upload in a project's library, which any of the project's twins can
+ * show as a layer. Its directory is stored, not derived, so uploads made
+ * before projects existed stay where they were written.
+ *
  * @property-read string $id
- * @property-read string $twin_id
- * @property-read TwinAssetKind $kind
+ * @property-read string $project_id
+ * @property-read ProjectAssetKind $kind
  * @property-read string $name
  * @property-read string $original_name
+ * @property-read string $directory
  * @property-read string $entry
  * @property-read int $bytes
  * @property-read int $files
- * @property-read Twin $twin
+ * @property-read Project $project
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
-final class TwinAsset extends Model
+final class ProjectAsset extends Model
 {
-    /** @use HasFactory<TwinAssetFactory> */
+    /** @use HasFactory<ProjectAssetFactory> */
     use HasFactory;
 
     use HasUuids;
@@ -39,10 +44,11 @@ final class TwinAsset extends Model
     {
         return [
             'id' => 'string',
-            'twin_id' => 'string',
-            'kind' => TwinAssetKind::class,
+            'project_id' => 'string',
+            'kind' => ProjectAssetKind::class,
             'name' => 'string',
             'original_name' => 'string',
+            'directory' => 'string',
             'entry' => 'string',
             'bytes' => 'integer',
             'files' => 'integer',
@@ -52,16 +58,11 @@ final class TwinAsset extends Model
     }
 
     /**
-     * @return BelongsTo<Twin, $this>
+     * @return BelongsTo<Project, $this>
      */
-    public function twin(): BelongsTo
+    public function project(): BelongsTo
     {
-        return $this->belongsTo(Twin::class);
-    }
-
-    public function directory(): string
-    {
-        return $this->twin->storagePrefix().'/assets/'.$this->id;
+        return $this->belongsTo(Project::class);
     }
 
     /**
@@ -69,6 +70,6 @@ final class TwinAsset extends Model
      */
     public function url(): string
     {
-        return route('twins.assets.files.show', [$this->twin_id, $this->id, $this->entry], absolute: false);
+        return route('assets.files.show', [$this->id, $this->entry], absolute: false);
     }
 }

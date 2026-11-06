@@ -18,7 +18,7 @@ final readonly class OrganisationController
     {
         $action->handle($user, $request->string('name')->value());
 
-        return to_route('twins.index');
+        return to_route('projects.index');
     }
 
     /**
@@ -28,6 +28,6 @@ final readonly class OrganisationController
     {
         $action->handle($user, $organisation);
 
-        return to_route('twins.index');
+        return to_route('projects.index');
     }
 }
