@@ -133,6 +133,7 @@ it('shows a twin with its definition, history, project library and abilities', f
     $twin = twinIn($organisation);
     $asset = ProjectAsset::factory()->for($twin->project)->create();
     resolve(AddAssetToTwin::class)->handle($twin, $user, $asset);
+    ProjectAsset::factory()->for($twin->project)->processing()->create();
 
     $this->actingAs($user)->get(route('twins.show', $twin))
         ->assertOk()
@@ -145,6 +146,7 @@ it('shows a twin with its definition, history, project library and abilities', f
             ->where('versions.0.number', 2)
             ->where('versions.0.author', $user->name)
             ->where('versions.1.author', null)
+            ->has('assets', 1)
             ->where('assets.0.id', $asset->id)
             ->where('assets.0.url', $asset->url())
             ->where('gateway', null)

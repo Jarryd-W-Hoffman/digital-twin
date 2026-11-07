@@ -255,6 +255,8 @@ services:
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       AWS_ENDPOINT: http://rustfs:9000
       RUSTFS_BUCKETS: ${AWS_BUCKET:-meridian}
+      # The app's origin, allowed to PUT direct upload parts.
+      RUSTFS_CORS_ORIGINS: http://localhost:${FORWARD_APP_PORT:-8085}
     volumes:
       - ./rustfs/create-buckets.sh:/scripts/create-buckets.sh:ro
     restart: "no"

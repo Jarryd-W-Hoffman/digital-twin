@@ -16,6 +16,19 @@ return [
     */
     'max_upload_kb' => (int) env('MERIDIAN_MAX_UPLOAD_KB', 512 * 1024),
 
+    /*
+    | Uploads straight from the browser to an s3 assets disk, in parts, so
+    | large files skip PHP's limits. The bucket needs a CORS rule allowing PUT
+    | from the app and exposing ETag. Set the public endpoint when the app
+    | reaches the store at an address browsers can't (RustFS inside Docker).
+    */
+    'direct_uploads' => [
+        'enabled' => (bool) env('MERIDIAN_DIRECT_UPLOADS', false),
+        'public_endpoint' => env('MERIDIAN_DIRECT_UPLOADS_ENDPOINT'),
+        'part_mb' => (int) env('MERIDIAN_DIRECT_UPLOADS_PART_MB', 16),
+        'max_upload_gb' => (int) env('MERIDIAN_DIRECT_UPLOADS_MAX_GB', 20),
+    ],
+
     'tileset' => [
         'max_files' => (int) env('MERIDIAN_TILESET_MAX_FILES', 20000),
         'max_uncompressed_bytes' => (int) env('MERIDIAN_TILESET_MAX_BYTES', 4 * 1024 * 1024 * 1024),

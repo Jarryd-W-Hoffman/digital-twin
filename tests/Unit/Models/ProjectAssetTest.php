@@ -3,11 +3,12 @@
 declare(strict_types=1);
 
 use App\Enums\ProjectAssetKind;
+use App\Enums\ProjectAssetStatus;
 use App\Models\ProjectAsset;
 
 test('to array', function (): void {
     expect(array_keys(ProjectAsset::factory()->create()->refresh()->toArray()))
-        ->toBe(['id', 'project_id', 'kind', 'name', 'original_name', 'directory', 'entry', 'bytes', 'files', 'created_at', 'updated_at']);
+        ->toBe(['id', 'project_id', 'kind', 'name', 'original_name', 'directory', 'entry', 'bytes', 'files', 'created_at', 'updated_at', 'status', 'error', 'upload_id']);
 });
 
 it('belongs to its project and loads from a route that names only itself', function (): void {
@@ -17,3 +18,16 @@ it('belongs to its project and loads from a route that names only itself', funct
         ->and($asset->project->assets->sole()->is($asset))->toBeTrue()
         ->and($asset->url())->toBe(sprintf('/assets/%s/files/tileset.json', $asset->id));
 });
+
+it('knows whether it is ready and where a direct upload lands', function (): void {
+    $asset = ProjectAsset::factory()->uploading()->create(['original_name' => 'scan.zip']);
+
+    expect($asset->status)->toBe(ProjectAssetStatus::Uploading)
+        ->and($asset->isReady())->toBeFalse()
+        ->and($asset->sourceKey())->toBe('uploads/'.$asset->id.'/scan.zip')
+        ->and(ProjectAsset::factory()->create()->isReady())->toBeTrue();
+});
+
+it('tells models from tileset archives by extension', function (string $filename, ProjectAssetKind $kind): void {
+    expect(ProjectAssetKind::fromFilename($filename))->toBe($kind);
+})->with([['scan.ZIP', ProjectAssetKind::Tileset], ['pump.glb', ProjectAssetKind::Model], ['noextension', ProjectAssetKind::Model]]);

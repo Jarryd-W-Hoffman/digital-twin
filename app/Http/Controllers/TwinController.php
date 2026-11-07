@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateTwin;
 use App\Actions\DeleteTwin;
 use App\Actions\IssueGatewayTicket;
+use App\Enums\ProjectAssetStatus;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
 use App\Models\ProjectAsset;
@@ -98,7 +99,7 @@ final readonly class TwinController
                     'createdAt' => $version->created_at->toIso8601String(),
                 ]),
             // The project's library: what this twin shows, and what it could.
-            'assets' => $twin->project->assets()->latest()->get()->map(fn (ProjectAsset $asset): array => [
+            'assets' => $twin->project->assets()->where('status', ProjectAssetStatus::Ready)->latest()->get()->map(fn (ProjectAsset $asset): array => [
                 'id' => $asset->id,
                 'kind' => $asset->kind->value,
                 'name' => $asset->name,

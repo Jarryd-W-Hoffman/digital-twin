@@ -54,3 +54,12 @@ it('refuses uploads from another project', function (): void {
     expect(fn () => resolve(AddAssetToTwin::class)->handle($twin, $user, $elsewhere))
         ->toThrow(InvalidArgumentException::class, 'another project');
 });
+
+it('refuses uploads that are not ready yet', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $asset = ProjectAsset::factory()->for($twin->project)->processing()->create();
+
+    expect(fn () => resolve(AddAssetToTwin::class)->handle($twin, $user, $asset))
+        ->toThrow(InvalidArgumentException::class, 'not ready');
+});

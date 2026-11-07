@@ -23,6 +23,7 @@ final readonly class AddAssetToTwin
     public function handle(Twin $twin, ?User $user, ProjectAsset $asset): ?TwinVersion
     {
         throw_if($asset->project_id !== $twin->project_id, InvalidArgumentException::class, 'The upload belongs to another project.');
+        throw_unless($asset->isReady(), InvalidArgumentException::class, 'The upload is not ready yet.');
 
         $definition = $twin->latestVersion()->firstOrFail()->definition;
         $field = $asset->kind === ProjectAssetKind::Tileset ? 'tilesets' : 'models';

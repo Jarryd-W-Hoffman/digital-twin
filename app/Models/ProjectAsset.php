@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\ProjectAssetKind;
+use App\Enums\ProjectAssetStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\ProjectAssetFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -26,6 +27,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $entry
  * @property-read int $bytes
  * @property-read int $files
+ * @property-read ProjectAssetStatus $status
+ * @property-read string|null $error
+ * @property-read string|null $upload_id
  * @property-read Project $project
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -52,6 +56,9 @@ final class ProjectAsset extends Model
             'entry' => 'string',
             'bytes' => 'integer',
             'files' => 'integer',
+            'status' => ProjectAssetStatus::class,
+            'error' => 'string',
+            'upload_id' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -63,6 +70,20 @@ final class ProjectAsset extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function isReady(): bool
+    {
+        return $this->status === ProjectAssetStatus::Ready;
+    }
+
+    /**
+     * Where a direct upload's bytes land before they are checked and unpacked:
+     * apart from the asset's files, so a failed unpack can't take them too.
+     */
+    public function sourceKey(): string
+    {
+        return 'uploads/'.$this->id.'/'.$this->original_name;
     }
 
     /**
