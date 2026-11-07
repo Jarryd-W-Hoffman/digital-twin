@@ -231,3 +231,16 @@ function gatewayTwin(): array
 
     return [$twin, resolve(IssueGatewayToken::class)->handle($twin)];
 }
+
+/**
+ * One of Northshore's custom types, as the library would hold it.
+ *
+ * @return array<string, mixed>
+ */
+function northshoreType(string $id): array
+{
+    /** @var array{types: list<array<string, mixed>>} $definition */
+    $definition = resolve(SampleTwins::class)->definition('northshore');
+
+    return array_find($definition['types'], fn (array $type): bool => $type['id'] === $id) ?? throw new RuntimeException('No type '.$id);
+}

@@ -10,7 +10,8 @@ it('lets members see and managers manage', function (OrganisationRole $role, boo
     [$user, $organisation] = member($role);
 
     expect(new OrganisationPolicy()->view($user, $organisation))->toBeTrue()
-        ->and(new OrganisationPolicy()->manageMembers($user, $organisation))->toBe($manage);
+        ->and(new OrganisationPolicy()->manageMembers($user, $organisation))->toBe($manage)
+        ->and(new OrganisationPolicy()->manageTypes($user, $organisation))->toBe($manage);
 })->with([
     [OrganisationRole::Owner, true],
     [OrganisationRole::Admin, true],
@@ -23,5 +24,6 @@ it('gives outsiders nothing', function (): void {
     $outsider = User::factory()->create();
 
     expect(new OrganisationPolicy()->view($outsider, $organisation))->toBeFalse()
-        ->and(new OrganisationPolicy()->manageMembers($outsider, $organisation))->toBeFalse();
+        ->and(new OrganisationPolicy()->manageMembers($outsider, $organisation))->toBeFalse()
+        ->and(new OrganisationPolicy()->manageTypes($outsider, $organisation))->toBeFalse();
 });

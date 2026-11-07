@@ -10,6 +10,7 @@ use App\Actions\IssueGatewayTicket;
 use App\Enums\ProjectAssetStatus;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
+use App\Models\AssetType;
 use App\Models\ProjectAsset;
 use App\Models\Twin;
 use App\Models\TwinVersion;
@@ -80,6 +81,9 @@ final readonly class TwinController
         $latest = $twin->latestVersion()->firstOrFail();
         $canOperate = $user->can('operate', $twin);
         $online = $twin->gatewayOnline();
+        $types = collect(is_array($latest->definition['types'] ?? null) ? $latest->definition['types'] : [])
+            ->filter(fn (mixed $type): bool => is_array($type) && is_string($type['id'] ?? null))
+            ->keyBy('id');
 
         return Inertia::render('twins/show', [
             'twin' => [
@@ -108,6 +112,17 @@ final readonly class TwinController
                 'files' => $asset->files,
                 'url' => $asset->url(),
             ]),
+            // The organisation's type library, and how each compares with this twin's type of that id.
+            'types' => $twin->organisation->assetTypes()->orderBy('name')->get()->map(fn (AssetType $type): array => [
+                'id' => $type->id,
+                'slug' => $type->slug,
+                'name' => $type->name,
+                'inTwin' => match (true) {
+                    ! $types->has($type->slug) => null,
+                    $type->matches($types->get($type->slug)) => 'same',
+                    default => 'different',
+                },
+            ]),
             'gateway' => $twin->gateway_token_hash === null ? null : [
                 'online' => $online,
                 'url' => $online ? $twin->gateway_url : null,
@@ -118,6 +133,7 @@ final readonly class TwinController
             'can' => [
                 'update' => $user->can('update', $twin),
                 'operate' => $canOperate,
+                'manageTypes' => $user->can('manageTypes', $twin->organisation),
             ],
         ]);
     }

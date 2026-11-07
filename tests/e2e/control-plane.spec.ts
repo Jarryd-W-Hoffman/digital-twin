@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -84,7 +84,7 @@ test('a project library upload is shared: added to a twin, then taken out again 
   const version = Number((await page.locator('.version-chip').innerText()).slice(1));
   await page.getByRole('button', { name: 'Layout' }).click();
   const editor = page.getByRole('complementary', { name: 'Layout' });
-  const library = editor.getByRole('list', { name: 'Library' });
+  const library = editor.getByRole('list', { name: 'Library', exact: true });
   await library.getByRole('listitem').filter({ hasText: 'Shared crane' }).getByRole('button', { name: 'Add' }).click();
   await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
   await expect(library.getByText('Shared crane')).toHaveCount(0);
@@ -250,6 +250,50 @@ test('an owner maps an MQTT topic to a metric, and sees what sensors recorded', 
   await page.getByRole('button', { name: 'Layout' }).click();
   await expect(page.getByRole('region', { name: 'Telemetry' }).getByLabel('Topic')).toHaveValue('northshore/+/temp');
   await expect(page.getByRole('region', { name: 'Telemetry' }).getByLabel('JSON path')).toHaveValue('reading.c');
+});
+
+test('the type library: imported, compared with a twin, added to it, and refused where it cannot run', async ({ page }) => {
+  page.on('dialog', (dialog) => void dialog.accept());
+  await logIn(page, 'test@example.com');
+
+  // The seeded library holds Northshore's types; import one more.
+  await page.getByRole('link', { name: 'Types' }).click();
+  const library = page.getByRole('list', { name: 'Types' });
+  await expect(library.getByText('Jockey pump')).toBeVisible();
+  await expect(library.getByText(/Reads fire-tank/)).toBeVisible();
+  const file = join(mkdtempSync(join(tmpdir(), 'meridian-')), 'meter.json');
+  writeFileSync(file, JSON.stringify({
+    id: 'flow-meter', name: 'Flow meter', primary: 'flowLps',
+    metrics: [{ key: 'flowLps', label: 'Flow', unit: 'L/s', default: 4 }],
+    visual: { color: '#2f9e44', shape: 'box', height: 1.5 },
+  }));
+  await page.getByLabel('File').setInputFiles(file);
+  await page.getByRole('button', { name: 'Import' }).click();
+  await expect(page.getByText('1 type saved to the library.')).toBeVisible();
+  await expect(library.getByText('Flow meter')).toBeVisible();
+
+  // Northshore already has the library's two; the meter can be added.
+  await page.goto('/projects');
+  await page.getByRole('link', { name: /^Pilot sites/ }).click();
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const editor = page.getByRole('complementary', { name: 'Layout' });
+  const twinTypes = editor.getByRole('list', { name: 'Twin types' });
+  await expect(twinTypes.getByText('in the library')).toHaveCount(2);
+  await editor.getByRole('list', { name: 'Type library' }).getByRole('button', { name: 'Add' }).click();
+  await expect(twinTypes.getByText('Flow meter')).toBeVisible();
+  await expect(page.getByText('Flow meter added from the library.')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __twin: { getState(): { def?: { types?: { id: string }[] } } } }).__twin.getState().def?.types?.map((t) => t.id)))
+    .toEqual(['water-tank', 'jockey-pump', 'flow-meter']);
+
+  // Harbour Depot has no fire tank, so the jockey pump can't run there.
+  await page.goto('/projects');
+  await page.getByRole('link', { name: /^Pilot sites/ }).click();
+  await openTwin(page, 'Harbour Depot');
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const depot = page.getByRole('complementary', { name: 'Layout' });
+  await depot.getByRole('list', { name: 'Type library' }).getByRole('listitem').filter({ hasText: 'Jockey pump' }).getByRole('button', { name: 'Add' }).click();
+  await expect(depot.getByRole('alert')).toContainText('refers to unknown asset fire-tank');
 });
 
 test('a viewer watches the twin but cannot edit or operate it', async ({ page }) => {

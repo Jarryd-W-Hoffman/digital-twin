@@ -256,6 +256,27 @@ final readonly class TwinDefinitionValidator
     }
 
     /**
+     * Checks one type on its own, as an organisation's library holds it:
+     * everything a twin checks except that the assets it reads exist, which
+     * only a twin can say. Those assets are returned as reads.
+     *
+     * @return array{errors: list<string>, reads: list<string>}
+     */
+    public function type(mixed $type): array
+    {
+        if (! $this->isObject($type)) {
+            return ['errors' => ['A type must be a JSON object'], 'reads' => []];
+        }
+
+        $errors = [];
+        /** @var list<array{string, string}> $refs */
+        $refs = [];
+        $this->checkTypes($errors, ['types' => [$type]], $refs);
+
+        return ['errors' => $errors, 'reads' => array_values(array_unique(array_column($refs, 1)))];
+    }
+
+    /**
      * MQTT filter rules: `+` and `#` fill a whole level, and `#` comes last.
      */
     public function isTopicFilter(string $topic): bool
