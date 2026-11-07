@@ -2,17 +2,19 @@
 
 A local stack for Meridian, based on the [containers](https://github.com/Jarryd-W-Hoffman/containers/tree/main/laravel) Laravel template. The app code stays on the host and is bind-mounted in.
 
-| Service | Image | Host port | |
-|---|---|---|---|
-| `php` | `php:8.5-fpm-alpine` (custom) | | PHP-FPM with pgsql, redis, zip, Xdebug (off), Composer, Node and npm 11 |
-| `nginx` | `nginx:1.29-alpine` | `8085` | The app; accepts uploads up to 600 MB |
-| `supervisor` | `php:8.5-cli-alpine` (custom) | | Queue worker and scheduler |
-| `postgres` | `postgres:18-alpine` | `5436` | Database |
-| `redis` | `redis:7-alpine` | `6385` | Cache, queue, sessions |
-| `mailpit` | `axllent/mailpit` | `1030`, `8030` | Mail capture |
-| `rustfs` | `rustfs/rustfs` | `9014`, `9015` | S3-compatible storage for uploads; `rustfs-buckets` creates the bucket |
-| `gateway` | `node:24-alpine` | `8788` | Streams one twin, loaded from the control plane (profile `gateway`) |
-| `vite` | the php image | `5199` | Hot reload (profile `dev`) |
+| Service      | Image                                   | Host port      |                                                                                   |
+| ------------ | --------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
+| `php`        | `php:8.5-fpm-alpine` (custom)           |                | PHP-FPM with pgsql, redis, zip, Xdebug (off), Composer, Node and npm 11           |
+| `nginx`      | `nginx:1.29-alpine`                     | `8085`         | The app; accepts uploads up to 600 MB                                             |
+| `supervisor` | `php:8.5-cli-alpine` (custom)           |                | Queue worker and scheduler                                                        |
+| `converter`  | Debian with PDAL and py3dtiles (custom) |                | Works the `conversions` queue: point clouds to 3D Tiles                           |
+| `postgres`   | `timescale/timescaledb` (Postgres 18)   | `5436`         | Database; readings are a TimescaleDB hypertable                                   |
+| `redis`      | `redis:7-alpine`                        | `6385`         | Cache, queue, sessions                                                            |
+| `mailpit`    | `axllent/mailpit`                       | `1030`, `8030` | Mail capture                                                                      |
+| `rustfs`     | `rustfs/rustfs`                         | `9014`, `9015` | S3-compatible storage for uploads; `rustfs-buckets` creates the bucket            |
+| `gateway`    | `node:24-alpine`                        | `8788`         | Streams one twin, loaded from the control plane (profile `gateway`)               |
+| `mosquitto`  | `iegomez/mosquitto-go-auth`             | `1883`         | MQTT broker; asks the app who may log in and use which topics (profile `gateway`) |
+| `vite`       | the php image                           | `5199`         | Hot reload (profile `dev`)                                                        |
 
 ## Start
 
@@ -35,11 +37,12 @@ Open http://localhost:8085 and log in as `test@example.com` / `password`. Mail i
 
 ## The gateway
 
-1. Open a twin, then **Layout → Gateway → Issue token**. The token is shown once.
-2. Put it in `docker/.env` as `MERIDIAN_GATEWAY_TOKEN`.
-3. `docker compose --profile gateway up -d gateway`
+1. Set the same `MERIDIAN_MQTT_AUTH_SECRET` in `docker/.env` and the app's `.env` (any long random string, such as `openssl rand -hex 32`).
+2. Open a twin, then **Layout → Gateway → Issue token**. The token is shown once.
+3. Put it in `docker/.env` as `MERIDIAN_GATEWAY_TOKEN`.
+4. `docker compose --profile gateway up -d gateway` (this starts the broker too)
 
-The gateway fetches the twin's latest version from `http://nginx`, checks for new versions every few seconds, and tells the control plane its public address (`ws://localhost:8788/ws`). The twin page then offers **Live** next to the simulator. Readings go to `POST http://localhost:8788/ingest` with the same token as a bearer token.
+The gateway fetches the twin's latest version from `http://nginx`, checks for new versions every few seconds, and tells the control plane its public address (`ws://localhost:8788/ws`). The twin page then offers **Live** next to the simulator. Readings go to `POST http://localhost:8788/ingest` with the same token as a bearer token, or from devices publishing to the broker on port 1883 (add them on the project page).
 
 ## Useful commands
 
