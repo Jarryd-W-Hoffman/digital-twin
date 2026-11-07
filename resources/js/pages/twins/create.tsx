@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import TwinController from '@/actions/App/Http/Controllers/TwinController';
 import Heading from '@/components/heading';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import { create as createProject } from '@/routes/projects';
 import { create, index } from '@/routes/twins';
 import type { BreadcrumbItem } from '@/types';
 
@@ -16,11 +17,34 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function CreateTwin({
+    projects,
+    project,
     samples,
 }: {
+    projects: { id: string; name: string }[];
+    project: string | null;
     samples: { id: string; name: string }[];
 }) {
     const [source, setSource] = useState<'sample' | 'file'>('sample');
+
+    if (projects.length === 0) {
+        return (
+            <>
+                <Head title="New twin" />
+                <div className="max-w-xl space-y-4 p-4 md:p-6">
+                    <Heading
+                        title="New twin"
+                        description="Twins live in a project, alongside the uploads they show."
+                    />
+                    <Button asChild>
+                        <Link href={createProject()}>
+                            Create a project first
+                        </Link>
+                    </Button>
+                </div>
+            </>
+        );
+    }
 
     return (
         <>
@@ -33,6 +57,22 @@ export default function CreateTwin({
                 <Form {...TwinController.store.form()} className="space-y-6">
                     {({ processing, errors }) => (
                         <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="project">Project</Label>
+                                <select
+                                    id="project"
+                                    name="project"
+                                    defaultValue={project ?? projects[0]?.id}
+                                    className="h-9 rounded-md border bg-transparent px-3 text-sm"
+                                >
+                                    {projects.map((p) => (
+                                        <option key={p.id} value={p.id}>
+                                            {p.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <InputError message={errors.project} />
+                            </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="name">Name</Label>
                                 <Input id="name" name="name" required />

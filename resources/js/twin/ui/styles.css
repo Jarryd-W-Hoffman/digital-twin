@@ -1232,6 +1232,30 @@
 .twin-root .button-like:hover {
     background: #273140;
 }
+/* Gateway token, shown once after issuing. */
+.twin-root .gateway-status {
+    margin: 0;
+    font-size: 12px;
+}
+.twin-root .gateway-token {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.twin-root .gateway-token p {
+    margin: 0;
+    font-size: 12px;
+}
+.twin-root .gateway-token textarea {
+    font: 11px var(--mono);
+    background: var(--raised);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    padding: 6px;
+    resize: none;
+    word-break: break-all;
+}
 @media (max-width: 899px) {
     .twin-root .editor {
         left: var(--gap);

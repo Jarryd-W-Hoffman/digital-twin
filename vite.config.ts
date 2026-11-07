@@ -65,23 +65,30 @@ export default defineConfig({
         },
     },
     plugins: [
-        laravel({
-            input: ['resources/css/app.css', 'resources/js/app.tsx'],
-            ssr: 'resources/js/ssr.tsx',
-            refresh: true,
-            fonts: [
-                bunny('Instrument Sans', {
-                    weights: [400, 500, 600],
-                }),
-            ],
-        }),
+        // Vitest only runs the pure model and gateway code. The Laravel plugin
+        // would refuse to start (it sees a dev server in CI), and Wayfinder
+        // would shell out to artisan, so neither loads under Vitest.
+        ...(process.env.VITEST
+            ? []
+            : [
+                  laravel({
+                      input: ['resources/css/app.css', 'resources/js/app.tsx'],
+                      ssr: 'resources/js/ssr.tsx',
+                      refresh: true,
+                      fonts: [
+                          bunny('Instrument Sans', {
+                              weights: [400, 500, 600],
+                          }),
+                      ],
+                  }),
+                  wayfinder({
+                      formVariants: true,
+                  }),
+              ]),
         react(),
         babel({
             presets: [reactCompilerPreset()],
         }),
         tailwindcss(),
-        wayfinder({
-            formVariants: true,
-        }),
     ],
 });

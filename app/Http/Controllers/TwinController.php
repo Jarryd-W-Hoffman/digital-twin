@@ -6,15 +6,17 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateTwin;
 use App\Actions\DeleteTwin;
+use App\Actions\IssueGatewayTicket;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
+use App\Models\ProjectAsset;
 use App\Models\Twin;
-use App\Models\TwinAsset;
 use App\Models\TwinVersion;
 use App\Models\User;
 use App\Support\SampleTwins;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,8 +29,7 @@ final readonly class TwinController
 
         return Inertia::render('twins/index', [
             'twins' => $organisation->twins()
-                ->with('latestVersion:id,twin_id,number,created_at')
-                ->withCount('assets')
+                ->with(['latestVersion:id,twin_id,number,created_at', 'project:id,name'])
                 ->latest('updated_at')
                 ->get()
                 ->map(fn (Twin $twin): array => [
@@ -36,18 +37,21 @@ final readonly class TwinController
                     'name' => $twin->name,
                     'description' => $twin->description,
                     'version' => $twin->latestVersion?->number,
-                    'assets' => $twin->assets_count,
+                    'project' => ['id' => $twin->project->id, 'name' => $twin->project->name],
                     'updatedAt' => $twin->updated_at->toIso8601String(),
                 ]),
             'canCreate' => Gate::allows('create', [Twin::class, $organisation]),
         ]);
     }
 
-    public function create(#[CurrentUser] User $user, SampleTwins $samples): Response
+    public function create(Request $request, #[CurrentUser] User $user, SampleTwins $samples): Response
     {
-        Gate::authorize('create', [Twin::class, $user->organisation()]);
+        $organisation = $user->organisation();
+        Gate::authorize('create', [Twin::class, $organisation]);
 
         return Inertia::render('twins/create', [
+            'projects' => $organisation->projects()->orderBy('name')->get(['id', 'name']),
+            'project' => $request->filled('project') ? $request->string('project')->value() : null,
             'samples' => collect($samples->all())->map(fn (string $name, string $id): array => ['id' => $id, 'name' => $name])->values(),
         ]);
     }
@@ -58,7 +62,7 @@ final readonly class TwinController
         Gate::authorize('create', [Twin::class, $organisation]);
 
         $twin = $action->handle(
-            $organisation,
+            $request->project(),
             $user,
             $request->string('name')->value(),
             $request->filled('description') ? $request->string('description')->value() : null,
@@ -68,11 +72,13 @@ final readonly class TwinController
         return to_route('twins.show', $twin);
     }
 
-    public function show(Twin $twin, #[CurrentUser] User $user): Response
+    public function show(Twin $twin, #[CurrentUser] User $user, IssueGatewayTicket $tickets): Response
     {
         Gate::authorize('view', $twin);
 
         $latest = $twin->latestVersion()->firstOrFail();
+        $canOperate = $user->can('operate', $twin);
+        $online = $twin->gatewayOnline();
 
         return Inertia::render('twins/show', [
             'twin' => [
@@ -80,6 +86,7 @@ final readonly class TwinController
                 'name' => $twin->name,
                 'description' => $twin->description,
             ],
+            'project' => ['id' => $twin->project->id, 'name' => $twin->project->name],
             'definition' => $latest->definition,
             'version' => $latest->number,
             'versions' => $twin->versions()->with('user:id,name')->latest('number')->limit(25)->get()
@@ -90,7 +97,8 @@ final readonly class TwinController
                     'author' => $version->user?->name,
                     'createdAt' => $version->created_at->toIso8601String(),
                 ]),
-            'assets' => $twin->assets()->latest()->get()->map(fn (TwinAsset $asset): array => [
+            // The project's library: what this twin shows, and what it could.
+            'assets' => $twin->project->assets()->latest()->get()->map(fn (ProjectAsset $asset): array => [
                 'id' => $asset->id,
                 'kind' => $asset->kind->value,
                 'name' => $asset->name,
@@ -99,9 +107,15 @@ final readonly class TwinController
                 'files' => $asset->files,
                 'url' => $asset->url(),
             ]),
+            'gateway' => $twin->gateway_token_hash === null ? null : [
+                'online' => $online,
+                'url' => $online ? $twin->gateway_url : null,
+                'seenAt' => $twin->gateway_seen_at?->toIso8601String(),
+                'ticket' => $online ? $tickets->handle($twin, $user, $canOperate) : null,
+            ],
             'can' => [
                 'update' => $user->can('update', $twin),
-                'operate' => $user->can('operate', $twin),
+                'operate' => $canOperate,
             ],
         ]);
     }
@@ -126,6 +140,6 @@ final readonly class TwinController
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Twin deleted.')]);
 
-        return to_route('twins.index');
+        return to_route('projects.show', $twin->project_id);
     }
 }

@@ -1,0 +1,9 @@
+{
+    "_comment": "Signed by app/Actions/IssueGatewayTicket.php, checked by gateway/tickets.ts; both tests use this case.",
+    "token": "mgw_fixture-token-for-ticket-interop-tests-0123456789",
+    "twin": "019a5b2e-0000-7000-8000-000000000001",
+    "user": "019a5b2e-0000-7000-8000-000000000002",
+    "operate": false,
+    "issuedAt": 1793952000,
+    "ticket": "eyJ0d2luIjoiMDE5YTViMmUtMDAwMC03MDAwLTgwMDAtMDAwMDAwMDAwMDAxIiwidXNlciI6IjAxOWE1YjJlLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDAwMiIsIm9wZXJhdGUiOmZhbHNlLCJleHAiOjE3OTM5OTUyMDB9.5el7xn-GbW4d4llSPzejONOrl0QTRe9dPVzRgMHUkKs"
+}

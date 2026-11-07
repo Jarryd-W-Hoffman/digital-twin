@@ -129,8 +129,8 @@ test('time travel shows the past, and returns to live', async ({ page }) => {
   const bounds = await slider.evaluate((el: HTMLInputElement) => ({ min: Number(el.min), max: Number(el.max) }));
   const past = bounds.min + (bounds.max - bounds.min) * 0.05;
   await slider.evaluate((el: HTMLInputElement, t) => {
-    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-    set.call(el, String(t));
+    // React tracks the value property, so set it the way the browser does.
+    Reflect.set(HTMLInputElement.prototype, 'value', String(t), el);
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }, past);
   await expect(page.locator('.clock')).toContainText('Replay');

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\Project;
+use App\Models\User;
 use App\Rules\ValidTwinDefinition;
 use App\Support\SampleTwins;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -18,12 +20,21 @@ final class StoreTwinRequest extends FormRequest
      */
     public function rules(): array
     {
+        $user = $this->user();
+        assert($user instanceof User);
+
         return [
+            'project' => ['required', 'uuid', Rule::exists(Project::class, 'id')->where('organisation_id', $user->organisation()->id)],
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
             'sample' => ['required_without:definition', 'nullable', 'string', Rule::in(array_keys(resolve(SampleTwins::class)->all()))],
             'definition' => ['bail', 'required_without:sample', 'nullable', 'file', 'max:4096', 'extensions:json', new ValidTwinDefinition()],
         ];
+    }
+
+    public function project(): Project
+    {
+        return Project::query()->findOrFail($this->string('project')->value());
     }
 
     /**

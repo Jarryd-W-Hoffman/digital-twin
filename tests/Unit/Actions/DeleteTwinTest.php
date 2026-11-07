@@ -3,16 +3,19 @@
 declare(strict_types=1);
 
 use App\Actions\DeleteTwin;
+use App\Models\ProjectAsset;
 use Illuminate\Support\Facades\Storage;
 
-it('deletes the twin and its files', function (): void {
+it('deletes the twin and leaves the project library alone', function (): void {
     Storage::fake('local');
     [, $organisation] = member();
     $twin = twinIn($organisation);
-    Storage::disk('local')->put($twin->storagePrefix().'/assets/a/model.glb', 'x');
+    $asset = ProjectAsset::factory()->for($twin->project)->create();
+    Storage::disk('local')->put($asset->directory.'/model.glb', 'x');
 
     resolve(DeleteTwin::class)->handle($twin);
 
     expect($twin->exists)->toBeFalse()
-        ->and(Storage::disk('local')->allFiles())->toBe([]);
+        ->and($asset->fresh())->not->toBeNull()
+        ->and(Storage::disk('local')->allFiles())->toBe([$asset->directory.'/model.glb']);
 });

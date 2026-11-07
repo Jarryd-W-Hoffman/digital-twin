@@ -1,0 +1,274 @@
+name: ${COMPOSE_PROJECT_NAME:-meridian}
+
+# Meridian's local stack: Laravel (php-fpm + nginx + supervisor), Postgres,
+# Redis, Mailpit, RustFS for uploaded models and tilesets, and the Node
+# gateway that streams a twin loaded from the control plane.
+
+services:
+  php:
+    build:
+      context: ./php
+      args:
+        UID: 1000
+        GID: 1000
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-php
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ${APP_CODE_PATH}:/var/www/html
+      - node-modules:/var/www/html/node_modules
+      - ./php/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'fclose(fsockopen(\"127.0.0.1\", 9000));' 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      rustfs:
+        condition: service_healthy
+    networks:
+      - meridian
+
+  nginx:
+    image: nginx:1.29-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-nginx
+    restart: unless-stopped
+    ports:
+      - "${FORWARD_APP_PORT:-8085}:80"
+    volumes:
+      - ${APP_CODE_PATH}:/var/www/html
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/up || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      - php
+    networks:
+      - meridian
+
+  # Vite dev server for hot reload: `docker compose --profile dev up -d`.
+  # vite.config.ts pins port 5199, so stop a host `npm run dev` first.
+  vite:
+    build:
+      context: ./php
+      args:
+        UID: 1000
+        GID: 1000
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-vite
+    restart: unless-stopped
+    working_dir: /var/www/html
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    environment:
+      VITE_IN_DOCKER: "true"
+    ports:
+      - "5199:5199"
+    volumes:
+      - ${APP_CODE_PATH}:/var/www/html
+      - node-modules:/var/www/html/node_modules
+    profiles:
+      - dev
+    networks:
+      - meridian
+
+  supervisor:
+    build:
+      context: ./supervisor
+      args:
+        UID: 1000
+        GID: 1000
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-supervisor
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ${APP_CODE_PATH}:/var/www/html
+      - ./supervisor/conf.d:/etc/supervisor/conf.d:ro
+      - ./supervisor/crontab:/import/crontab:ro
+    healthcheck:
+      test: ["CMD-SHELL", "supervisorctl status >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      php:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - meridian
+
+  # Streams one twin. It loads the definition from the control plane with a
+  # gateway token (issued in the twin's Layout panel) and follows new versions.
+  # Start it once you have a token: set MERIDIAN_GATEWAY_TOKEN in .env, then
+  # `docker compose --profile gateway up -d gateway`.
+  gateway:
+    image: node:24-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-gateway
+    restart: unless-stopped
+    working_dir: /var/www/html
+    command: ["npx", "tsx", "gateway/gateway.ts"]
+    environment:
+      GATEWAY_HOST: 0.0.0.0
+      GATEWAY_PORT: 8787
+      MERIDIAN_URL: http://nginx
+      MERIDIAN_GATEWAY_TOKEN: ${MERIDIAN_GATEWAY_TOKEN:-}
+      # Where browsers reach this gateway; reported to the control plane.
+      GATEWAY_PUBLIC_URL: ws://localhost:${FORWARD_GATEWAY_PORT:-8788}/ws
+      GATEWAY_ORIGINS: http://localhost:${FORWARD_APP_PORT:-8085}
+    ports:
+      - "${FORWARD_GATEWAY_PORT:-8788}:8787"
+    volumes:
+      - ${APP_CODE_PATH}:/var/www/html
+      - node-modules:/var/www/html/node_modules
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8787/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      nginx:
+        condition: service_healthy
+    profiles:
+      - gateway
+    networks:
+      - meridian
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-postgres
+    restart: unless-stopped
+    ports:
+      - "${FORWARD_DB_PORT:-5436}:5432"
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-meridian}
+      POSTGRES_USER: ${DB_USERNAME:-meridian}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - meridian
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "${FORWARD_REDIS_PORT:-6385}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+    networks:
+      - meridian
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-mailpit
+    restart: unless-stopped
+    ports:
+      - "${FORWARD_MAILPIT_PORT:-1030}:1025"
+      - "${FORWARD_MAILPIT_DASHBOARD_PORT:-8030}:8025"
+    networks:
+      - meridian
+
+  # S3-compatible storage for uploaded models and tilesets
+  # (MERIDIAN_ASSETS_DISK=s3).
+  rustfs:
+    image: rustfs/rustfs:1.0.1
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-rustfs
+    restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    depends_on:
+      rustfs-permissions:
+        condition: service_completed_successfully
+    ports:
+      - "${FORWARD_RUSTFS_PORT:-9014}:9000"
+      - "${FORWARD_RUSTFS_CONSOLE_PORT:-9015}:9001"
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${AWS_ACCESS_KEY_ID:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_OBS_LOGGER_LEVEL: warn
+      RUSTFS_OBS_LOG_DIRECTORY: /app/logs
+      # Single local volume for development only.
+      RUSTFS_UNSAFE_BYPASS_DISK_CHECK: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/health && curl -fsS http://127.0.0.1:9001/rustfs/console/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - rustfs-data:/data
+      - rustfs-logs:/app/logs
+    networks:
+      - meridian
+
+  # RustFS runs as uid 10001; make its named volumes writable.
+  rustfs-permissions:
+    image: alpine:3.22
+    volumes:
+      - rustfs-data:/data
+      - rustfs-logs:/app/logs
+    command: ["sh", "-c", "chown -R 10001:10001 /data /app/logs"]
+    restart: "no"
+    networks:
+      - meridian
+
+  # Creates the assets bucket once RustFS is healthy, then exits.
+  rustfs-buckets:
+    image: amazon/aws-cli:2.27.50
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    entrypoint: ["sh", "/scripts/create-buckets.sh"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-rustfsadmin}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_ENDPOINT: http://rustfs:9000
+      RUSTFS_BUCKETS: ${AWS_BUCKET:-meridian}
+    volumes:
+      - ./rustfs/create-buckets.sh:/scripts/create-buckets.sh:ro
+    restart: "no"
+    networks:
+      - meridian
+
+networks:
+  meridian:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  rustfs-data:
+  rustfs-logs:
+  # Linux/musl node_modules for the containers, kept apart from the host's.
+  node-modules:
