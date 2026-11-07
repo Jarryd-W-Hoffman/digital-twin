@@ -92,6 +92,19 @@ it('takes DEMs and says they are converting to terrain', function (): void {
     expect($project->assets()->sole()->kind)->toBe(ProjectAssetKind::Terrain);
 });
 
+it('takes IFC models and says they are converting to a model', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Shed', 'file' => UploadedFile::fake()->createWithContent('shed.ifc', "ISO-10303-21;\n"),
+    ])->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Shed uploaded. Converting it to a model…']);
+
+    expect($project->assets()->sole()->kind)->toBe(ProjectAssetKind::Bim);
+    Queue::assertPushed(ConvertUpload::class);
+});
+
 it('checks conversion options', function (): void {
     [$user, $organisation] = member();
     $project = Project::factory()->for($organisation)->create();

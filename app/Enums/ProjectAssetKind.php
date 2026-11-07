@@ -10,6 +10,7 @@ enum ProjectAssetKind: string
     case Tileset = 'tileset';
     case PointCloud = 'pointcloud';
     case Terrain = 'terrain';
+    case Bim = 'bim';
 
     /**
      * Kinds are told apart by extension; the file's contents are checked when
@@ -21,6 +22,7 @@ enum ProjectAssetKind: string
             'zip' => self::Tileset,
             'las', 'laz', 'e57' => self::PointCloud,
             'tif', 'tiff', 'asc' => self::Terrain,
+            'ifc' => self::Bim,
             default => self::Model,
         };
     }
@@ -34,10 +36,10 @@ enum ProjectAssetKind: string
     }
 
     /**
-     * Point clouds and DEMs are kept as uploaded and converted on the queue.
+     * Point clouds, DEMs and IFC models are kept as uploaded and converted on the queue.
      */
     public function isConverted(): bool
     {
-        return $this === self::PointCloud || $this === self::Terrain;
+        return in_array($this, [self::PointCloud, self::Terrain, self::Bim], true);
     }
 }

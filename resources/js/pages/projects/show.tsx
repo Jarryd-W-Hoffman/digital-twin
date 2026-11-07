@@ -244,13 +244,14 @@ export default function ShowProject({
                             <div className="grid min-w-48 flex-1 gap-2">
                                 <Label htmlFor="upload-file">
                                     File (.glb, a zipped 3D Tiles tileset, a
-                                    .las, .laz or .e57 point cloud, or a .tif or
-                                    .asc elevation model)
+                                    .las, .laz or .e57 point cloud, a .tif or
+                                    .asc elevation model, or an .ifc building
+                                    model)
                                 </Label>
                                 <Input
                                     id="upload-file"
                                     type="file"
-                                    accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc"
+                                    accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc,.ifc"
                                     required
                                     onChange={(e) => {
                                         const file =

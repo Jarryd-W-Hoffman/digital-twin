@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""
+Converts an IFC model to one GLB a twin can place, keeping what each
+element is so it can later be bound to a twin's assets:
+
+    triangulate every element with geometry (IfcOpenShell, world coordinates, metres)
+    write model.glb: one node per element, named by its GlobalId, with its
+        name, IFC class and storey in the node's extras; IFC is Z-up and
+        glTF Y-up, so (x, y, z) is written as (x, z, -y)
+    write elements.json: the same, as a list
+    georeference the model's origin, when the file says where it is:
+        IfcMapConversion: eastings and northings in its target CRS, reprojected
+            to WGS84 with GDAL, and the rotation of the project's x axis
+        otherwise IfcSite's RefLatitude and RefLongitude, and the model
+            context's TrueNorth
+    a model drawn far from its origin is moved back to it, and the
+    georeference follows
+
+Prints a one-line JSON summary.
+"""
+
+import argparse
+import json
+import math
+import multiprocessing
+import os
+import struct
+import sys
+
+import ifcopenshell
+import ifcopenshell.geom
+import ifcopenshell.util.element
+import numpy as np
+from osgeo import osr
+
+osr.UseExceptions()
+
+# Recentre a model whose geometry is further than this from its origin, so
+# float32 vertices stay precise.
+RECENTRE_M = 1000.0
+EARTH_RADIUS_M = 6378137.0
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    sys.exit(1)
+
+
+def triangulate(model):
+    """Yields (element, vertices N x 3, triangles M x 3, material per triangle, materials)."""
+    settings = ifcopenshell.geom.settings()
+    settings.set("use-world-coords", True)
+    iterator = ifcopenshell.geom.iterator(settings, model, multiprocessing.cpu_count())
+    if not iterator.initialize():
+        return
+    while True:
+        shape = iterator.get()
+        geometry = shape.geometry
+        vertices = np.array(geometry.verts, dtype=np.float64).reshape(-1, 3)
+        triangles = np.array(geometry.faces, dtype=np.uint32).reshape(-1, 3)
+        if len(triangles) > 0:
+            materials = []
+            for style in geometry.materials:
+                colour = style.diffuse
+                rgb = [colour.r(), colour.g(), colour.b()] if hasattr(colour, "r") else list(colour)[:3]
+                # Unset transparency comes back as NaN.
+                transparency = style.transparency if style.has_transparency else 0.0
+                alpha = 1.0 - (transparency if math.isfinite(transparency) else 0.0)
+                materials.append((tuple(round(c, 4) for c in rgb), round(alpha, 4)))
+            ids = list(geometry.material_ids) or [-1] * len(triangles)
+            yield model.by_guid(shape.guid), vertices, triangles, ids, materials
+        if not iterator.next():
+            return
+
+
+def describe(element) -> dict:
+    container = ifcopenshell.util.element.get_container(element)
+    return {
+        "id": element.GlobalId,
+        "name": element.Name or "",
+        "ifcClass": element.is_a(),
+        "storey": (container.Name or "") if container is not None else "",
+    }
+
+
+class Glb:
+    """A minimal glTF 2.0 binary: positions, normals and indices, a material per colour."""
+
+    def __init__(self) -> None:
+        self.buffer = bytearray()
+        self.views, self.accessors, self.meshes, self.nodes = [], [], [], []
+        self.materials, self.material_index = [], {}
+
+    def material(self, colour) -> int:
+        if colour not in self.material_index:
+            (r, g, b), alpha = colour
+            self.material_index[colour] = len(self.materials)
+            self.materials.append({
+                "pbrMetallicRoughness": {"baseColorFactor": [r, g, b, alpha], "metallicFactor": 0.0, "roughnessFactor": 0.9},
+                **({"alphaMode": "BLEND"} if alpha < 1 else {}),
+                "doubleSided": True,
+            })
+        return self.material_index[colour]
+
+    def accessor(self, data: np.ndarray, kind: str, component: int, target: int, bounds: bool = False) -> int:
+        while len(self.buffer) % 4:
+            self.buffer.append(0)
+        raw = data.tobytes()
+        self.views.append({"buffer": 0, "byteOffset": len(self.buffer), "byteLength": len(raw), "target": target})
+        self.buffer.extend(raw)
+        accessor = {"bufferView": len(self.views) - 1, "componentType": component, "count": len(data), "type": kind}
+        if bounds:
+            accessor["min"] = data.min(axis=0).tolist()
+            accessor["max"] = data.max(axis=0).tolist()
+        self.accessors.append(accessor)
+        return len(self.accessors) - 1
+
+    def add(self, info: dict, vertices: np.ndarray, triangles: np.ndarray, ids, materials) -> None:
+        primitives = []
+        ids = np.array(ids)
+        for material_id in sorted(set(ids.tolist())):
+            faces = triangles[ids == material_id]
+            # Flat-shaded: each triangle gets its own corners and face normal.
+            corners = vertices[faces.reshape(-1)]
+            a, b, c = corners[0::3], corners[1::3], corners[2::3]
+            normal = np.cross(b - a, c - a)
+            length = np.linalg.norm(normal, axis=1, keepdims=True)
+            normal = np.divide(normal, length, out=np.zeros_like(normal), where=length > 0)
+            normals = np.repeat(normal, 3, axis=0)
+            colour = materials[material_id] if 0 <= material_id < len(materials) else ((0.8, 0.8, 0.8), 1.0)
+            primitives.append({
+                "attributes": {
+                    "POSITION": self.accessor(corners.astype(np.float32), "VEC3", 5126, 34962, bounds=True),
+                    "NORMAL": self.accessor(normals.astype(np.float32), "VEC3", 5126, 34962),
+                },
+                "indices": self.accessor(np.arange(len(corners), dtype=np.uint32), "SCALAR", 5125, 34963),
+                "material": self.material(colour),
+            })
+        self.meshes.append({"name": info["id"], "primitives": primitives})
+        self.nodes.append({"name": info["id"], "mesh": len(self.meshes) - 1, "extras": info})
+
+    def write(self, path: str) -> None:
+        document = {
+            "asset": {"version": "2.0", "generator": "meridian-ifc"},
+            "scene": 0,
+            "scenes": [{"nodes": list(range(len(self.nodes)))}],
+            "nodes": self.nodes,
+            "meshes": self.meshes,
+            "materials": self.materials,
+            "accessors": self.accessors,
+            "bufferViews": self.views,
+            "buffers": [{"byteLength": len(self.buffer)}],
+        }
+        text = json.dumps(document, separators=(",", ":")).encode()
+        text += b" " * (-len(text) % 4)
+        binary = bytes(self.buffer) + b"\0" * (-len(self.buffer) % 4)
+        with open(path, "wb") as out:
+            out.write(struct.pack("<III", 0x46546C67, 2, 12 + 8 + len(text) + 8 + len(binary)))
+            out.write(struct.pack("<II", len(text), 0x4E4F534A) + text)
+            out.write(struct.pack("<II", len(binary), 0x004E4942) + binary)
+
+
+def angle(measure) -> float | None:
+    """An IfcCompoundPlaneAngleMeasure (degrees, minutes, seconds, millionths) in degrees."""
+    if not measure:
+        return None
+    parts = list(measure) + [0] * (4 - len(measure))
+    sign = -1 if any(p < 0 for p in parts) else 1
+    d, m, s, u = (abs(p) for p in parts[:4])
+    return sign * (d + m / 60 + (s + u / 1e6) / 3600)
+
+
+def reproject(crs: str, east: float, north: float) -> tuple[float, float]:
+    source, target = osr.SpatialReference(), osr.SpatialReference()
+    try:
+        source.SetFromUserInput(crs)
+    except RuntimeError:
+        fail(f"The IFC file's map conversion is in {crs}, which GDAL doesn't know.")
+    target.ImportFromEPSG(4326)
+    for srs in (source, target):
+        srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    lon, lat, _ = osr.CoordinateTransformation(source, target).TransformPoint(east, north)
+    return lon, lat
+
+
+def georeference(model, shift):
+    """Where the model's (recentred) origin is, and which way it faces; None if the file doesn't say."""
+    conversions = model.by_type("IfcMapConversion") if model.schema != "IFC2X3" else []
+    for conversion in conversions:
+        crs = getattr(conversion.TargetCRS, "Name", None)
+        if not crs:
+            continue
+        abscissa = conversion.XAxisAbscissa if conversion.XAxisAbscissa is not None else 1.0
+        ordinate = conversion.XAxisOrdinate or 0.0
+        theta = math.atan2(ordinate, abscissa)
+        scale = conversion.Scale or 1.0
+        x, y = shift
+        east = conversion.Eastings + scale * (math.cos(theta) * x - math.sin(theta) * y)
+        north = conversion.Northings + scale * (math.sin(theta) * x + math.cos(theta) * y)
+        lon, lat = reproject(crs, east, north)
+        return {"lon": lon, "lat": lat, "headingDeg": round(-math.degrees(theta), 6), "source": "IfcMapConversion"}, crs
+
+    for site in model.by_type("IfcSite"):
+        lat, lon = angle(site.RefLatitude), angle(site.RefLongitude)
+        if lat is None or lon is None:
+            continue
+        heading = 0.0
+        for context in model.by_type("IfcGeometricRepresentationContext"):
+            north = getattr(context, "TrueNorth", None)
+            if context.ContextType == "Model" and north is not None:
+                tx, ty = list(north.DirectionRatios)[:2]
+                heading = -math.degrees(math.atan2(tx, ty))
+                break
+        # The recentred origin is `shift` away from the site, turned by the heading.
+        h = math.radians(heading)
+        x, y = shift
+        east = math.cos(h) * x + math.sin(h) * y
+        north = -math.sin(h) * x + math.cos(h) * y
+        lat2 = lat + math.degrees(north / EARTH_RADIUS_M)
+        lon2 = lon + math.degrees(east / (EARTH_RADIUS_M * math.cos(math.radians(lat))))
+        return {"lon": lon2, "lat": lat2, "headingDeg": round(heading, 6), "source": "IfcSite"}, None
+    return None, None
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("source")
+    parser.add_argument("out")
+    args = parser.parse_args()
+
+    try:
+        model = ifcopenshell.open(args.source)
+    except Exception as error:  # IfcOpenShell raises plain errors for unreadable files.
+        fail(f"Could not read the IFC file: {error}")
+
+    shapes = list(triangulate(model))
+    if not shapes:
+        fail("The IFC file has no elements with geometry.")
+
+    low = np.min([v.min(axis=0) for _, v, _, _, _ in shapes], axis=0)
+    high = np.max([v.max(axis=0) for _, v, _, _, _ in shapes], axis=0)
+    centre = (low + high) / 2
+    shift = (float(centre[0]), float(centre[1])) if math.hypot(centre[0], centre[1]) > RECENTRE_M else (0.0, 0.0)
+
+    os.makedirs(args.out, exist_ok=True)
+    glb, elements, triangles = Glb(), [], 0
+    for element, vertices, faces, ids, materials in shapes:
+        info = describe(element)
+        local = vertices - np.array([shift[0], shift[1], 0.0])
+        glb.add(info, np.column_stack([local[:, 0], local[:, 2], -local[:, 1]]), faces, ids, materials)
+        elements.append(info)
+        triangles += len(faces)
+    glb.write(os.path.join(args.out, "model.glb"))
+    with open(os.path.join(args.out, "elements.json"), "w") as out:
+        json.dump(elements, out, separators=(",", ":"))
+
+    georef, crs = georeference(model, shift)
+    print(json.dumps({
+        "schema": model.schema,
+        "elements": len(elements),
+        "triangles": triangles,
+        "size": [round(float(v), 2) for v in (high - low)],
+        "shift": [round(v, 3) for v in shift],
+        "georeference": georef,
+        "crs": crs,
+    }))
+
+
+if __name__ == "__main__":
+    main()

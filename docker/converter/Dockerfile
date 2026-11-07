@@ -2,7 +2,9 @@
 # those jobs call. Point clouds: PDAL (reads LAS, LAZ and E57; reprojects and
 # thins) and py3dtiles (tiles the result as 3D Tiles). Terrain: GDAL (reads
 # and reprojects DEMs), pydelatin (triangulates) and quantized-mesh-encoder,
-# driven by meridian-terrain. Alpine's PDAL has no E57 reader and
+# driven by meridian-terrain. IFC: IfcOpenShell from PyPI (its wheel bundles
+# OpenCascade; the conda-forge build can't share an environment with PDAL
+# and GDAL, and doubles the image), driven by meridian-ifc. Alpine's PDAL has no E57 reader and
 # py3dtiles' numba doesn't build on musl, and Debian doesn't package PDAL,
 # so the tools come from conda-forge and PyPI on Debian.
 FROM mambaorg/micromamba:2.5.0 AS micromamba
@@ -42,7 +44,7 @@ COPY --from=micromamba /bin/micromamba /usr/local/bin/micromamba
 
 RUN micromamba create -y -p /opt/pointclouds -c conda-forge python=3.12 pdal=2.10.1 \
         gdal=3.13.3 pydelatin=0.4.0 quantized-mesh-encoder=0.5.0 pip \
-    && /opt/pointclouds/bin/pip install --no-cache-dir "py3dtiles[las]==12.1.1" \
+    && /opt/pointclouds/bin/pip install --no-cache-dir "py3dtiles[las]==12.1.1" "ifcopenshell==0.9.0.post1" \
     && micromamba clean -a -y
 
 ENV PATH=/opt/pointclouds/bin:$PATH \
@@ -50,6 +52,7 @@ ENV PATH=/opt/pointclouds/bin:$PATH \
     GDAL_DATA=/opt/pointclouds/share/gdal
 
 COPY meridian-terrain /usr/local/bin/meridian-terrain
+COPY meridian-ifc /usr/local/bin/meridian-ifc
 
 USER www
 

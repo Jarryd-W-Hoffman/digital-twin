@@ -49,6 +49,22 @@ final class ProjectAssetFactory extends Factory
         return $this->state(['kind' => ProjectAssetKind::PointCloud, 'original_name' => 'scan.laz', 'entry' => 'tileset.json', 'files' => 2, 'crs' => $crs, 'options' => []]);
     }
 
+    /**
+     * A converted IFC model, georeferenced or not.
+     *
+     * @param  array{lon: float, lat: float, headingDeg: float, source: string}|null  $georeference
+     */
+    public function bim(?array $georeference = null): self
+    {
+        return $this->state([
+            'kind' => ProjectAssetKind::Bim,
+            'name' => 'Shed',
+            'original_name' => 'shed.ifc',
+            'files' => 2,
+            'details' => ['elements' => 6, 'georeference' => $georeference],
+        ]);
+    }
+
     public function processing(): self
     {
         return $this->state(['status' => ProjectAssetStatus::Processing, 'entry' => '', 'files' => 0]);

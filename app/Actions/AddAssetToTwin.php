@@ -13,12 +13,23 @@ use InvalidArgumentException;
 
 final readonly class AddAssetToTwin
 {
+    private const array ORIGIN = ['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1];
+
+    /**
+     * A georeferenced model further than this from the twin's origin is
+     * probably meant for another site, so it starts at the origin instead.
+     */
+    private const float NEARBY_M = 50_000;
+
+    private const float EARTH_RADIUS_M = 6_378_137;
+
     public function __construct(private SaveTwinVersion $versions) {}
 
     /**
      * Shows a library upload in the twin as a new version: models at the
      * origin, ready to be placed, and tilesets where their own georeference
-     * puts them. A point cloud is a tileset; one without a coordinate system
+     * puts them. A converted IFC model starts where the file says it is, if
+     * that's near the twin. A point cloud is a tileset; one without a coordinate system
      * is in local metres, so it starts placed at the origin too. Terrain
      * becomes the twin's ground, replacing any it had. Null when the latest
      * version already shows it.
@@ -52,12 +63,49 @@ final readonly class AddAssetToTwin
 
         $layer = ['id' => 'upload-'.mb_substr($asset->id, -8), ...$layer];
 
-        if ($asset->kind === ProjectAssetKind::Model || ($asset->kind === ProjectAssetKind::PointCloud && $asset->crs === null)) {
-            $layer['placement'] = ['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1];
+        if ($asset->kind === ProjectAssetKind::Bim) {
+            $layer['placement'] = $this->placeModel($definition, $asset->details['georeference'] ?? null);
+        } elseif ($asset->kind === ProjectAssetKind::Model || ($asset->kind === ProjectAssetKind::PointCloud && $asset->crs === null)) {
+            $layer['placement'] = self::ORIGIN;
         }
 
         $definition[$field] = [...$layers, $layer];
 
         return $this->versions->handle($twin, $user, $definition, __('Added :name', ['name' => $asset->name]));
+    }
+
+    /**
+     * Where a georeferenced model's origin is in the twin, in metres east and
+     * north of the twin's origin (the viewer's local projection), facing the
+     * way the file says.
+     *
+     * @param  array<string, mixed>  $definition
+     * @param  array{lon: float, lat: float, headingDeg: float, source: string}|null  $georeference
+     * @return array{east: float|int, north: float|int, up: int, headingDeg: float|int, scale: int}
+     */
+    private function placeModel(array $definition, ?array $georeference): array
+    {
+        $origin = is_array($definition['origin'] ?? null) ? $definition['origin'] : [];
+        $lon = $origin['lon'] ?? null;
+        $lat = $origin['lat'] ?? null;
+
+        if ($georeference === null || ! is_numeric($lon) || ! is_numeric($lat)) {
+            return self::ORIGIN;
+        }
+
+        $north = deg2rad($georeference['lat'] - (float) $lat) * self::EARTH_RADIUS_M;
+        $east = deg2rad($georeference['lon'] - (float) $lon) * self::EARTH_RADIUS_M * cos(deg2rad((float) $lat));
+
+        if (hypot($east, $north) > self::NEARBY_M) {
+            return self::ORIGIN;
+        }
+
+        return [
+            'east' => round($east, 2),
+            'north' => round($north, 2),
+            'up' => 0,
+            'headingDeg' => round($georeference['headingDeg'], 2),
+            'scale' => 1,
+        ];
     }
 }
