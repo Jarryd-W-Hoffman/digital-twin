@@ -17,10 +17,10 @@ The sample twin, **Northshore Cold Chain Hub**, is a fictional refrigerated logi
 | **Projects and uploads**           | Projects group twins with a library of models (`.glb`), zipped 3D Tiles tilesets and point clouds that any of their twins can show, so one scan serves several twins. Archives are checked entry by entry before anything is written, and files are served only to members of the organisation.                           |
 | **Point clouds**                   | LAS, LAZ and E57 scans are converted to 3D Tiles by a queued job (PDAL, then py3dtiles), reprojected onto the globe from their own coordinate system or an EPSG code you give, and optionally thinned. Progress, a log and retries show in the library.                                                                   |
 | **Placement**                      | Models and local-coordinate tilesets are placed in metres east, north and up from the twin's origin, with heading and scale. Edits preview live in the scene, and **Place on map** moves a layer to wherever you click on the ground.                                                                                     |
-| **Custom asset types**             | Equipment the simulator has no physics for, described as data: metrics with units and defaults, a primary metric, a colour and a shape. Readings come from ingest, and rules can alert on them like any other metric.                                                                                                     |
+| **Custom asset types**             | Equipment the simulator has no physics for, described as data: metrics with units and defaults, a colour and a shape, plus behaviour written as safe expressions: derived metrics, states and transitions, setpoints operators can change, and power drawn from the feed tree.                                            |
 | **Live physics**                   | A microgrid power balance (solar, battery dispatch with peak shaving, grid, generator start delay, load shedding by priority) feeding a refrigeration plant (chiller capacity and COP that derate with ambient air, store thermal mass, door losses, stock spoilage). Vehicles drive their routes and queue for chargers. |
 | **3D scene**                       | The twin opens with a flight down from orbit, and **Globe** pulls back to the whole Earth, lit for the simulated time of day. Assets are extruded from their footprints. Energy and cooling flows animate along arcs, scaled by kW. Alerts raise a beacon over the asset. You can colour by status, temperature or power. |
-| **Alerting, time travel, what-if** | Threshold rules with hold times and hysteresis. A 24-hour history to scrub through. Forecasts that fork the current state and run it ahead with and without an event, then apply the event live if you choose.                                                                                                            |
+| **Alerting, time travel, what-if** | Threshold, rate-of-change and expression rules with hold times and hysteresis. A 24-hour history to scrub through. Forecasts that fork the current state and run it ahead with and without an event, then apply the event live if you choose.                                                                             |
 | **Gateway**                        | A Node service that runs the model, streams it over WebSocket, and takes readings from MQTT topics or `POST /ingest`. A reading pins its metric and the model integrates from it, so the twin follows reality where sensors report and fills the gaps where they don't.                                                   |
 
 ![Placing an uploaded pump skid](docs/images/layout-editor.png)
@@ -418,6 +418,8 @@ Positions are in metres east and north of `origin`. The [Northshore definition](
 
 **Asset kinds:** `site`, `weather`, `grid`, `solar`, `battery`, `genset`, `bus`, `chiller`, `coldstore`, `building`, `charger`, `vehicle` and `custom`. The metrics each built-in kind reports are in [`metrics.ts`](resources/js/twin/core/metrics.ts).
 
+Rules can also compare a metric's change over a window, or raise on an expression; see [Rules](#rules).
+
 **Fault types for scenarios:** `grid-outage`, `trip` (any asset with a target), `door-stuck`, `heatwave`, `bearing-wear`, `genset-fail` and `cloud-cover`. Each can have an `offsetS` and a `durationS`.
 
 ### Custom asset types
@@ -440,6 +442,98 @@ Positions are in metres east and north of `origin`. The [Northshore definition](
 Type ids are lowercase with `-` or `_`. Metric keys are camelCase like the built-in ones, and `state` is reserved. A custom asset is drawn as its type's shape and colour while it runs, lists its type's metrics in the inspector, and accepts readings for them at `/ingest`.
 
 ![A custom asset type in the inspector](docs/images/custom-type.png)
+
+### Behaviour as data
+
+A type can also say how its asset behaves, with no code: metrics worked out from expressions, states it moves between, setpoints operators can change, and power drawn from the bus it's fed by. Northshore's jockey pump keeps the fire main's pressure between two setpoints:
+
+```jsonc
+{
+    "id": "jockey-pump",
+    "name": "Jockey pump",
+    "primary": "powerKw",
+    "metrics": [
+        { "key": "powerKw", "unit": "kW", "expr": "running ? 7.5 : 0" },
+        {
+            "key": "runMin",
+            "unit": "min",
+            "expr": "running ? runMin + dt / 60 : 0",
+        },
+        {
+            "key": "startKpa",
+            "unit": "kPa",
+            "default": 650,
+            "setpoint": { "min": 550, "max": 720, "step": 10 },
+        },
+        {
+            "key": "stopKpa",
+            "unit": "kPa",
+            "default": 740,
+            "setpoint": { "min": 680, "max": 820, "step": 10 },
+        },
+    ],
+    "states": [
+        { "id": "idle", "label": "Idle", "status": "standby" },
+        { "id": "running", "label": "Running", "status": "running" },
+    ],
+    "transitions": [
+        {
+            "from": "idle",
+            "to": "running",
+            "when": "{fire-tank.pressureKpa} < startKpa && powered",
+        },
+        {
+            "from": "running",
+            "to": "idle",
+            "when": "{fire-tank.pressureKpa} >= stopKpa || !powered",
+        },
+    ],
+    "visual": { "color": "#5b8fb9", "shape": "box", "height": 3 },
+}
+```
+
+The tank's pressure is an expression too, leaking slowly and rising while the pump runs: `clamp(pressureKpa + ({jockey.powerKw} > 0 ? 12 : -1.5) * dt / 60, 0, 900)`.
+
+Each 5-second step, for every custom asset:
+
+```text
+take the first transition whose from is the current state (or *) and whose when holds
+for each metric with an expr, in the order listed:
+    value ← the expr, reading this step's values so far (its own last value included)
+    no value? (it read something missing, or divided by zero) keep the last one
+if the asset has fedBy and a powerKw metric: it draws that from the feed tree,
+    and is shed, tripped and blacked out like any other load
+state colour ← the current state's status (Off whenever its bus is down)
+```
+
+| In an expression      |                                                                                                                                                     |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Numbers and operators | `+ - * / % ^`, `< <= > >= == !=`, `&& \|\| !` and `c ? a : b`. True is 1 and false is 0; anything non-zero counts as true                           |
+| Functions             | `min`, `max`, `abs`, `clamp(x, lo, hi)`, `round`, `floor`, `ceil`, `sqrt`                                                                           |
+| Bare names            | The asset's own metrics; its type's state ids (1 in that state, 0 otherwise); `dt` (seconds per step), `hour` (site time), `ambientC` and `powered` |
+| `{asset.metric}`      | Another asset's metric, such as `{wx.ambientC}` or `{store.tempC}`                                                                                  |
+
+Expressions are parsed by hand in both TypeScript and PHP, so nothing in them can reach either language, and both validators report the same problems: syntax, names a type doesn't have, references to assets that don't exist, setpoints without a range, transitions to unknown states. A setpoint metric gets **−**, **+** and **Apply** in the inspector for operators, and the gateway clamps what it receives to the range.
+
+### Rules
+
+Three shapes of rule, each on one `asset` or every asset of a `kind`, with an optional `forS` hold:
+
+```jsonc
+"rules": [
+  // A metric against a threshold, clearing past clearAt.
+  { "id": "freezer-drift", "asset": "freezer", "metric": "tempC", "op": "gt", "threshold": -18,
+    "forS": 300, "clearAt": -18.6, "severity": "warning", "message": "{asset} is drifting above -18 °C" },
+  // How much a metric changed over a window.
+  { "id": "freezer-warming-fast", "asset": "freezer", "metric": "tempC", "change": { "overS": 600 },
+    "op": "gt", "threshold": 2, "severity": "warning", "message": "{asset} has warmed 2 °C in ten minutes" },
+  // An expression, raised while it holds and cleared when it stops (or once clearWhen holds).
+  { "id": "jockey-long-run", "asset": "jockey", "when": "running && runMin > 20",
+    "severity": "warning", "message": "{asset} has run for 20 minutes: check the ring main for a leak" }
+]
+```
+
+A change rule waits until it has a full window of readings. An expression rule reads the asset's metrics by name and others as `{asset.metric}`, and waits while anything it reads has no value.
 
 ### Models and tilesets
 
@@ -498,8 +592,8 @@ The default basemap is Natural Earth imagery bundled with Cesium. It makes no th
 
 ## Tests
 
-- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. Point clouds with PDAL and py3dtiles faked: the commands each step runs, the EPSG and thinning options, signatures, missing and empty files, the tail of a failing tool, the original kept for a retry, and clouds in local metres placed at the origin. With the real tools, inside the converter image, LAS and E57 scans of Auckland land within 0.01° of where they should (`docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 meridian-converter php vendor/bin/pest tests/Feature/Conversions`). Readings: gateway batches checked against the twin's assets and a recent time window, bucketed history with lows and highs, other organisations kept out, and pruning by retention. Devices: passwords shown once and reset, names unique per project, and only editors manage them. The broker's checks: device and gateway logins, publishing and subscribing only below the project's prefix (not `#`, `p/+/#`, `$SYS` or other projects), revoked tokens and deleted devices shut out, the shared secret, and the per-username login limit. The suite also runs in CI on TimescaleDB Postgres, where readings are a hypertable. The shared definition fixtures. Browser tests for the kit's account pages.
-- **Vitest:** power is conserved every step, including while islanded. Stores hold setpoint for a full day. Outages bridge on battery, start the generator and return to grid. Load sheds by priority. Runs are deterministic, and survive cloning and a JSON round trip. The forecast's baseline matches a straight run exactly. Rule hold times and hysteresis. The gateway's socket, commands, ingest, tokens, body limits and origins. MQTT topic matching and payload mapping, topics placed below the project's prefix, the gateway logging in as its twin and reporting the broker connection, the bridge following new mappings, and the readings outbox holding what the control plane refused. The shared definition fixtures.
+- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. Point clouds with PDAL and py3dtiles faked: the commands each step runs, the EPSG and thinning options, signatures, missing and empty files, the tail of a failing tool, the original kept for a retry, and clouds in local metres placed at the origin. With the real tools, inside the converter image, LAS and E57 scans of Auckland land within 0.01° of where they should (`docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 meridian-converter php vendor/bin/pest tests/Feature/Conversions`). Readings: gateway batches checked against the twin's assets and a recent time window, bucketed history with lows and highs, other organisations kept out, and pruning by retention. Devices: passwords shown once and reset, names unique per project, and only editors manage them. The broker's checks: device and gateway logins, publishing and subscribing only below the project's prefix (not `#`, `p/+/#`, `$SYS` or other projects), revoked tokens and deleted devices shut out, the shared secret, and the per-username login limit. The suite also runs in CI on TimescaleDB Postgres, where readings are a hypertable. The shared definition fixtures, and the shared expression fixtures: the PHP parser refuses exactly what the viewer's does, with the same message. Browser tests for the kit's account pages.
+- **Vitest:** power is conserved every step, including while islanded. Stores hold setpoint for a full day. Outages bridge on battery, start the generator and return to grid. Load sheds by priority. Runs are deterministic, and survive cloning and a JSON round trip. The forecast's baseline matches a straight run exactly. Rule hold times and hysteresis. The gateway's socket, commands, ingest, tokens, body limits and origins. MQTT topic matching and payload mapping, topics placed below the project's prefix, the gateway logging in as its twin and reporting the broker connection, the bridge following new mappings, and the readings outbox holding what the control plane refused. The shared definition fixtures. Expressions: precedence, short-circuiting, missing values and every parse error, against the same fixtures as PHP. Custom types with behaviour: derived metrics that integrate, transitions, power drawn from a bus and lost with it, setpoints clamped to range, and the jockey pump holding the fire main between its setpoints for six hours. Expression and change rules, including a window that restarts when time goes backwards.
 - **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A point cloud waits for the converter, shows why its conversion failed, and is retried with an EPSG code. A bad archive is refused with its reason. An owner adds a device, is shown its password and an example command once, resets it, is refused a duplicate name and deletes it. An owner maps an MQTT topic below the project's prefix (a bad filter is refused first) and sees recorded readings charted. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin, bad files, the gateway path including a real `POST /ingest`, and phone width.
 
 ## Project layout
@@ -528,7 +622,7 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 2. **Projects and a data library** (done): organisations hold projects, and projects hold twins and a shared library of uploads (models, tilesets and point clouds), so one scan can be placed into several twins. New twins start as an empty site at a chosen location (weather, a grid connection and a main board), a sample, or a definition file. Large files go straight to object storage in parts and are checked by a queued job.
 3. **Point cloud pipeline** (done): LAS, LAZ and E57 uploaded to the library and converted to 3D Tiles by a queued worker (PDAL to read, assign a coordinate system and thin; py3dtiles to reproject and tile), with progress, logs and retries in the UI, then placed into a twin like any tileset.
 4. **IoT: devices, MQTT and history** (done): devices registered per project with their own broker logins, a broker that asks the control plane who may publish and subscribe where, an MQTT bridge mapping topics onto any asset's metrics, gateways issued, rotated and watched from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
-5. **Customisation core:** behaviour for custom types as data (derived metrics written as safe expressions, simple state machines, setpoints), KPIs and panels declared in the definition instead of built in, expression and rate-of-change rules, and a type library per organisation.
+5. **Customisation core** (in progress): behaviour for custom types as data (derived metrics written as safe expressions, state machines, setpoints, power drawn from the feed tree) and expression and rate-of-change rules are done; KPIs and panels declared in the definition instead of built in, and a type library per organisation, are next.
 6. **Definition editor:** edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators.
 7. **Scene editing and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.
 8. **OPC UA and actuation:** read from OPC UA servers, and write back through the custom setpoints, off by default and audited.

@@ -1,3 +1,4 @@
+import { expressionError, namesIn, parseExpression } from './expr.ts';
 import type { AssetKind, TwinDefinition } from './types.ts';
 
 /**
@@ -21,6 +22,9 @@ const KINDS: readonly AssetKind[] = [
     'custom',
 ];
 const SHAPES = ['box', 'cylinder'];
+const STATUSES = ['running', 'standby', 'off', 'fault', 'maintenance'];
+/** Names every custom type's expressions can read besides its own. */
+export const TYPE_BUILTINS = ['dt', 'hour', 'ambientC', 'powered'];
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 /** Metric keys follow the built-in ones: camelCase like tempC or socPct. */
 const METRIC_KEY = /^[a-z][A-Za-z0-9_]{0,63}$/;
@@ -57,6 +61,31 @@ const show = (v: unknown): string =>
           : String(v as string | number | boolean | null | undefined);
 const isPoint = (v: unknown): boolean =>
     Array.isArray(v) && v.length === 2 && isNum(v[0]) && isNum(v[1]);
+
+/**
+ * Checks one expression: that it parses, and reads only names in `allowed`
+ * (when given). References to other assets are collected for checking once
+ * every asset is known.
+ */
+function checkExpression(
+    errors: string[],
+    owner: string,
+    src: unknown,
+    allowed: Set<string> | null,
+    refs: [string, string][],
+): void {
+    const error = expressionError(src);
+    if (error !== null) {
+        errors.push(`${owner}: ${error}`);
+        return;
+    }
+    const read = namesIn(parseExpression(src as string));
+    for (const name of read.names) {
+        if (allowed && !allowed.has(name))
+            errors.push(`${owner} uses unknown name ${name}`);
+    }
+    for (const ref of read.refs) refs.push([owner, ref.asset]);
+}
 
 function checkPlacement(errors: string[], owner: string, p: unknown): void {
     if (!isObj(p)) {
@@ -105,6 +134,7 @@ export function validateDefinition(input: unknown): string[] {
     // Custom asset types: data only, so a twin can describe equipment the
     // simulator has no physics for and feed it from real readings.
     const types = new Map<string, Obj>();
+    const refs: [owner: string, asset: string][] = [];
     for (const t of list(def.types)) {
         if (!isObj(t) || !isText(t.id) || !ID.test(t.id)) {
             errors.push(
@@ -143,6 +173,73 @@ export function validateDefinition(input: unknown): string[] {
         }
         if (typeof t.primary !== 'string' || !keys.has(t.primary))
             errors.push(`Type ${t.id}: primary must be one of its metrics`);
+
+        // Behaviour: states, then what each expression may read.
+        const states = new Set<string>();
+        for (const st of list(t.states)) {
+            if (
+                !isObj(st) ||
+                !isText(st.id) ||
+                !METRIC_KEY.test(st.id) ||
+                st.id === 'state'
+            ) {
+                errors.push(
+                    `Type ${t.id}: state ids must be camelCase identifiers other than state`,
+                );
+                continue;
+            }
+            if (states.has(st.id))
+                errors.push(`Type ${t.id}: duplicate state ${st.id}`);
+            states.add(st.id);
+            if (keys.has(st.id) || TYPE_BUILTINS.includes(st.id))
+                errors.push(
+                    `Type ${t.id}: state ${st.id} clashes with a metric or built-in name`,
+                );
+            if (!STATUSES.includes(show(st.status)))
+                errors.push(
+                    `Type ${t.id}: state ${st.id} status must be running, standby, off, fault or maintenance`,
+                );
+        }
+        const allowed = new Set([...keys, ...states, ...TYPE_BUILTINS]);
+        for (const m of objects(t.metrics)) {
+            if (!keys.has(show(m.key))) continue;
+            const owner = `Type ${t.id}: metric ${show(m.key)}`;
+            if (m.expr !== undefined && m.setpoint !== undefined)
+                errors.push(`${owner} can't have both an expr and a setpoint`);
+            else if (m.expr !== undefined)
+                checkExpression(errors, owner, m.expr, allowed, refs);
+            else if (m.setpoint !== undefined) {
+                const sp = isObj(m.setpoint) ? m.setpoint : {};
+                if (!isNum(sp.min) || !isNum(sp.max) || sp.min >= sp.max)
+                    errors.push(`${owner} setpoint needs a min below its max`);
+                if (sp.step !== undefined && !(isNum(sp.step) && sp.step > 0))
+                    errors.push(`${owner} setpoint step must be positive`);
+            }
+        }
+        const transitions = objects(t.transitions);
+        if (transitions.length > 0 && states.size === 0)
+            errors.push(`Type ${t.id}: transitions need states`);
+        else {
+            for (const tr of transitions) {
+                if (tr.from !== '*' && !states.has(show(tr.from)))
+                    errors.push(
+                        `Type ${t.id}: transition from unknown state ${show(tr.from)}`,
+                    );
+                if (!states.has(show(tr.to))) {
+                    errors.push(
+                        `Type ${t.id}: transition to unknown state ${show(tr.to)}`,
+                    );
+                    continue;
+                }
+                checkExpression(
+                    errors,
+                    `Type ${t.id}: transition to ${show(tr.to)}`,
+                    tr.when,
+                    allowed,
+                    refs,
+                );
+            }
+        }
         const visual = isObj(t.visual) ? t.visual : {};
         if (
             typeof visual.color !== 'string' ||
@@ -249,8 +346,37 @@ export function validateDefinition(input: unknown): string[] {
             errors.push(`Rule ${label(r.id)}: needs a kind or an asset`);
         if (r.asset !== undefined && !ids.has(show(r.asset)))
             errors.push(`Rule ${label(r.id)}: unknown asset ${show(r.asset)}`);
+        if (r.when !== undefined) {
+            // Which names an asset has depends on its kind, so only the
+            // gateway knows; here the expressions must parse.
+            checkExpression(
+                errors,
+                `Rule ${label(r.id)}: when`,
+                r.when,
+                null,
+                refs,
+            );
+            if (r.clearWhen !== undefined)
+                checkExpression(
+                    errors,
+                    `Rule ${label(r.id)}: clearWhen`,
+                    r.clearWhen,
+                    null,
+                    refs,
+                );
+            continue;
+        }
         if (r.op !== 'gt' && r.op !== 'lt')
             errors.push(`Rule ${label(r.id)}: op must be gt or lt`);
+        if (
+            r.change !== undefined &&
+            !(isObj(r.change) && isNum(r.change.overS) && r.change.overS > 0)
+        )
+            errors.push(`Rule ${label(r.id)}: change.overS must be positive`);
+    }
+    for (const [owner, asset] of refs) {
+        if (!ids.has(asset))
+            errors.push(`${owner} refers to unknown asset ${asset}`);
     }
     for (const s of objects(def.scenarios)) {
         for (const f of objects(s.faults)) {

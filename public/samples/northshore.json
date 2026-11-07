@@ -16,9 +16,28 @@
       "id": "water-tank", "name": "Fire water tank", "primary": "levelPct",
       "metrics": [
         { "key": "levelPct", "label": "Level", "unit": "%", "decimals": 0, "default": 92 },
-        { "key": "pressureKpa", "label": "Ring main pressure", "unit": "kPa", "decimals": 0, "default": 710 }
+        { "key": "pressureKpa", "label": "Ring main pressure", "unit": "kPa", "decimals": 0, "default": 710,
+          "expr": "clamp(pressureKpa + ({jockey.powerKw} > 0 ? 12 : -1.5) * dt / 60, 0, 900)" }
       ],
       "visual": { "color": "#3a7ca5", "shape": "cylinder", "height": 9 }
+    },
+    {
+      "id": "jockey-pump", "name": "Jockey pump", "primary": "powerKw",
+      "metrics": [
+        { "key": "powerKw", "label": "Power", "unit": "kW", "decimals": 1, "expr": "running ? 7.5 : 0" },
+        { "key": "runMin", "label": "Running for", "unit": "min", "decimals": 0, "expr": "running ? runMin + dt / 60 : 0" },
+        { "key": "startKpa", "label": "Start below", "unit": "kPa", "default": 650, "setpoint": { "min": 550, "max": 720, "step": 10 } },
+        { "key": "stopKpa", "label": "Stop above", "unit": "kPa", "default": 740, "setpoint": { "min": 680, "max": 820, "step": 10 } }
+      ],
+      "states": [
+        { "id": "idle", "label": "Idle", "status": "standby" },
+        { "id": "running", "label": "Running", "status": "running" }
+      ],
+      "transitions": [
+        { "from": "idle", "to": "running", "when": "{fire-tank.pressureKpa} < startKpa && powered" },
+        { "from": "running", "to": "idle", "when": "{fire-tank.pressureKpa} >= stopKpa || !powered" }
+      ],
+      "visual": { "color": "#5b8fb9", "shape": "box", "height": 3 }
     }
   ],
   "zones": [
@@ -30,6 +49,7 @@
   ],
   "assets": [
     { "id": "fire-tank", "name": "Fire water tank", "kind": "custom", "type": "water-tank", "zone": "plant", "position": [134, 70] },
+    { "id": "jockey", "name": "Jockey pump", "kind": "custom", "type": "jockey-pump", "zone": "plant", "fedBy": "db-site", "position": [142, 56] },
     { "id": "site", "name": "Northshore site", "kind": "site", "zone": "admin" },
     { "id": "wx", "name": "Weather mast", "kind": "weather", "zone": "admin", "position": [-205, 95], "height": 24 },
 
@@ -107,6 +127,8 @@
       "stops": [{ "at": 1, "dwellS": 240 }, { "at": 3, "dwellS": 300, "charger": "agv-dock" }] }
   ],
   "rules": [
+    { "id": "jockey-long-run", "name": "Jockey pump running long", "severity": "warning", "asset": "jockey", "when": "running && runMin > 20", "message": "{asset} has run for 20 minutes: check the ring main for a leak" },
+    { "id": "freezer-warming-fast", "name": "Freezer warming fast", "severity": "warning", "asset": "freezer", "metric": "tempC", "change": { "overS": 600 }, "op": "gt", "threshold": 2, "message": "{asset} has warmed 2 °C in ten minutes" },
     { "id": "fire-water-low", "name": "Fire water low", "severity": "warning", "asset": "fire-tank", "metric": "levelPct", "op": "lt", "threshold": 60, "clearAt": 65, "message": "{asset} is below 60%" },
     { "id": "store-warm", "name": "Store above temperature limit", "severity": "critical", "kind": "coldstore", "metric": "excursionMin", "op": "gt", "threshold": 0.5, "clearAt": 0, "message": "{asset} is above its temperature limit" },
     { "id": "freezer-drift", "name": "Freezer drifting warm", "severity": "warning", "asset": "freezer", "metric": "tempC", "op": "gt", "threshold": -18, "forS": 300, "clearAt": -18.6, "message": "{asset} is drifting above -18 °C" },

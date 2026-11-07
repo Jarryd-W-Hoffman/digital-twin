@@ -46,22 +46,58 @@ export interface AssetDef {
     type?: string;
 }
 
+/** The status a custom type's state shows as, in colour and in the inspector. */
+export type StatusName =
+    | 'running'
+    | 'standby'
+    | 'off'
+    | 'fault'
+    | 'maintenance';
+
+export interface TypeMetricDef {
+    key: string;
+    label?: string;
+    unit: string;
+    decimals?: number;
+    default?: number;
+    /**
+     * Worked out every step from other values, in the order the metrics are
+     * listed; it can read its own last value, so it can integrate.
+     */
+    expr?: string;
+    /** An operator may set this metric, between min and max. */
+    setpoint?: { min: number; max: number; step?: number };
+}
+
+export interface TypeStateDef {
+    /** Also a name in expressions: 1 while the asset is in this state. */
+    id: string;
+    label?: string;
+    status: StatusName;
+}
+
+export interface TypeTransitionDef {
+    /** A state id, or `*` for any other state. */
+    from: string;
+    to: string;
+    /** An expression; the first transition whose `when` holds is taken. */
+    when: string;
+}
+
 /**
- * Equipment the simulator has no physics for, described as data. Its metrics
- * hold their defaults until real readings arrive through ingest.
+ * Equipment the simulator has no physics for, described as data: its metrics,
+ * how some of them follow from others, the states it moves between, and what
+ * operators may set. Metrics without an `expr` hold until readings arrive.
  */
 export interface AssetTypeDef {
     id: string;
     name: string;
     /** The metric shown in lists and labels. */
     primary: string;
-    metrics: {
-        key: string;
-        label?: string;
-        unit: string;
-        decimals?: number;
-        default?: number;
-    }[];
+    metrics: TypeMetricDef[];
+    /** The first state is where an asset starts. */
+    states?: TypeStateDef[];
+    transitions?: TypeTransitionDef[];
     visual: { color: string; shape: 'box' | 'cylinder'; height?: number };
 }
 
@@ -89,6 +125,11 @@ export interface ZoneDef {
 export type Comparison = 'gt' | 'lt';
 export type Severity = 'info' | 'warning' | 'critical';
 
+/**
+ * When to raise an alert. A threshold rule compares `metric` (or how much it
+ * changed over `change.overS`) with `threshold`; an expression rule raises
+ * while `when` holds instead.
+ */
 export interface RuleDef {
     id: string;
     name: string;
@@ -96,9 +137,15 @@ export interface RuleDef {
     /** Applies to every asset of this kind, or to one named asset. */
     kind?: AssetKind;
     asset?: string;
-    metric: string;
-    op: Comparison;
-    threshold: number;
+    metric?: string;
+    op?: Comparison;
+    threshold?: number;
+    /** Compare the change in `metric` over this many seconds, not its value. */
+    change?: { overS: number };
+    /** An expression over the asset's metrics; raises while it holds. */
+    when?: string;
+    /** Clears once this holds; without it, once `when` stops holding. */
+    clearWhen?: string;
     /** Must stay breached this long before raising. */
     forS?: number;
     /** Value past which the alert clears; defaults to the threshold (no hysteresis). */
@@ -254,7 +301,8 @@ export interface SimState {
 }
 
 export type Command =
-    | { type: 'setpoint'; asset: string; value: number }
+    /** A cold store's setpoint, or a custom asset's setpoint `metric`. */
+    | { type: 'setpoint'; asset: string; value: number; metric?: string }
     | { type: 'maintenance'; asset: string; on: boolean }
     | { type: 'scenario'; scenario: string }
     | { type: 'clear-faults' };

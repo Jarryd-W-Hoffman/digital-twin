@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { stateLabelOf } from '../core/behaviour.ts';
 import {
     formatMetric,
     METRICS,
+    metricDefFor,
     metricsFor,
+    typeOf,
     type MetricDef,
 } from '../core/metrics.ts';
-import type { AssetDef } from '../core/types.ts';
+import type { AssetDef, TypeMetricDef } from '../core/types.ts';
 import {
     getHistory,
     alertsAt,
@@ -145,6 +148,7 @@ function AssetDetail({ asset }: { asset: AssetDef }) {
     const feeds = def.assets.filter((a) => a.fedBy === asset.id);
     const cools = (asset.cools ?? []).map(name).filter(Boolean) as AssetDef[];
     const cooledBy = def.assets.filter((a) => a.cools?.includes(asset.id));
+    const stateLabel = stateLabelOf(def, asset, v);
 
     return (
         <div className="inspector">
@@ -155,7 +159,10 @@ function AssetDetail({ asset }: { asset: AssetDef }) {
                 <h2>{asset.name}</h2>
                 <div className="inspector-sub">
                     <StatusBadge state={v[`${asset.id}.state`]} />
-                    <span className="muted">{asset.kind}</span>
+                    <span className="muted">
+                        {typeOf(def, asset)?.name ?? asset.kind}
+                        {stateLabel && ` · ${stateLabel}`}
+                    </span>
                 </div>
             </div>
 
@@ -320,6 +327,67 @@ function RecordedReadings({
     );
 }
 
+/** A custom type's setpoint: step it within range, then apply. */
+function SetpointRow({
+    asset,
+    metric,
+    format,
+    value,
+    disabled,
+}: {
+    asset: AssetDef;
+    metric: TypeMetricDef;
+    format: MetricDef | undefined;
+    value: number;
+    disabled: boolean;
+}) {
+    const send = useTwin((s) => s.send);
+    const [draft, setDraft] = useState<number | null>(null);
+    const { min, max, step = 1 } = metric.setpoint!;
+    const shown = draft ?? value;
+    const label = metric.label ?? metric.key;
+    const id = `setpoint-${metric.key}`;
+    const move = (by: number) =>
+        setDraft(Math.min(max, Math.max(min, shown + by)));
+    return (
+        <div className="control-row">
+            <label htmlFor={id}>{label}</label>
+            <div className="stepper">
+                <button
+                    aria-label={`Lower ${label}`}
+                    disabled={disabled || shown <= min}
+                    onClick={() => move(-step)}
+                >
+                    −
+                </button>
+                <output id={id}>{formatMetric(format, shown)}</output>
+                <button
+                    aria-label={`Raise ${label}`}
+                    disabled={disabled || shown >= max}
+                    onClick={() => move(step)}
+                >
+                    +
+                </button>
+            </div>
+            <button
+                className="primary"
+                disabled={disabled || draft === null || draft === value}
+                onClick={() => {
+                    send({
+                        type: 'setpoint',
+                        asset: asset.id,
+                        metric: metric.key,
+                        value: shown,
+                    });
+                    setDraft(null);
+                }}
+            >
+                Apply
+            </button>
+        </div>
+    );
+}
+
 function LinkGroup({ label, assets }: { label: string; assets: AssetDef[] }) {
     const select = useTwin((s) => s.select);
     return (
@@ -394,6 +462,7 @@ function MetricRow({
 }
 
 function Controls({ asset }: { asset: AssetDef }) {
+    const def = useTwin((s) => s.def);
     const view = useTwin((s) => s.view);
     const send = useTwin((s) => s.send);
     const replayT = useTwin((s) => s.replayT);
@@ -402,6 +471,25 @@ function Controls({ asset }: { asset: AssetDef }) {
     const canOperate = useTwin((s) => s.canOperate);
     const disabled = replayT !== null || !canOperate;
 
+    if (asset.kind === 'custom') {
+        const setpoints = (typeOf(def, asset)?.metrics ?? []).filter(
+            (m) => m.setpoint,
+        );
+        return (
+            <>
+                {setpoints.map((m) => (
+                    <SetpointRow
+                        key={m.key}
+                        asset={asset}
+                        metric={m}
+                        format={metricDefFor(def, asset, m.key)}
+                        value={v[`${asset.id}.${m.key}`] ?? 0}
+                        disabled={disabled}
+                    />
+                ))}
+            </>
+        );
+    }
     if (asset.kind === 'coldstore') {
         const setpoint = v[`${asset.id}.setpointC`] ?? 0;
         const shown = draft ?? setpoint;

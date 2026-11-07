@@ -268,6 +268,41 @@ describe('determinism and forking', () => {
     });
 });
 
+describe('custom types with behaviour', () => {
+    it('cycles the jockey pump to hold the ring main between its setpoints', () => {
+        const state = settled();
+        const v = state.values;
+        let starts = 0;
+        let wasRunning = v['jockey.powerKw']! > 0;
+        let low = Infinity;
+        let high = -Infinity;
+        for (let minute = 0; minute < 6 * 60; minute++) {
+            advance(model, state, 60);
+            const running = v['jockey.powerKw']! > 0;
+            if (running && !wasRunning) starts++;
+            wasRunning = running;
+            low = Math.min(low, v['fire-tank.pressureKpa']!);
+            high = Math.max(high, v['fire-tank.pressureKpa']!);
+            expect(v['jockey.runMin']!).toBeLessThan(20);
+        }
+        expect(starts).toBeGreaterThanOrEqual(4);
+        expect(low).toBeGreaterThan(645);
+        expect(high).toBeLessThan(745);
+    });
+
+    it("lets an operator move the pump's start pressure", () => {
+        const state = settled();
+        applyCommand(model, state, {
+            type: 'setpoint',
+            asset: 'jockey',
+            metric: 'startKpa',
+            value: 700,
+        });
+        advance(model, state, 3 * HOUR);
+        expect(state.values['fire-tank.pressureKpa']!).toBeGreaterThan(695);
+    });
+});
+
 describe('vehicles', () => {
     it('moves along its route and keeps charge across two days', () => {
         const state = settled();
