@@ -20,7 +20,7 @@ import { Viewer } from '@/twin/ui/Viewer';
 
 type Props = {
     twin: { id: string; name: string; description: string | null };
-    project: { id: string; name: string };
+    project: { id: string; name: string; topicPrefix: string };
     definition: TwinDefinition;
     version: number;
     versions: TwinVersionSummary[];
@@ -149,6 +149,7 @@ export default function ShowTwin({
                         versions={versions}
                         assets={assets}
                         gateway={gateway}
+                        topicPrefix={project.topicPrefix}
                         onClose={() => setEditing(false)}
                     />
                 )}

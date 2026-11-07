@@ -57,10 +57,12 @@ export function TwinEditor({
     versions,
     assets,
     gateway,
+    topicPrefix,
     onClose,
 }: {
     twinId: string;
     gateway: GatewayStatus;
+    topicPrefix: string;
     definition: TwinDefinition;
     versions: TwinVersionSummary[];
     assets: TwinAssetSummary[];
@@ -410,6 +412,7 @@ export function TwinEditor({
                 key={versions[0]?.id}
                 twinId={twinId}
                 definition={definition}
+                topicPrefix={topicPrefix}
             />
 
             <section>

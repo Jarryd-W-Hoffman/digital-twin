@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\OrganisationRole;
+use App\Models\Device;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use Illuminate\Support\Facades\Storage;
@@ -62,6 +63,8 @@ it('shows a project with its twins, library and abilities', function (Organisati
     [$user, $organisation] = member($role);
     $twin = twinIn($organisation);
     $asset = ProjectAsset::factory()->for($twin->project)->create();
+    $device = Device::factory()->for($twin->project)->create(['name' => 'Probe', 'last_seen_at' => now()]);
+    Device::factory()->create();
 
     $this->actingAs($user)->get(route('projects.show', $twin->project))
         ->assertOk()
@@ -75,6 +78,8 @@ it('shows a project with its twins, library and abilities', function (Organisati
             ->where('assets.0.status', 'ready')
             ->where('assets.0.progress', null)
             ->where('assets.0.crs', null)
+            ->where('devices', [['id' => $device->id, 'name' => 'Probe', 'username' => $device->mqttUsername(), 'lastSeenAt' => $device->last_seen_at?->toIso8601String()]])
+            ->where('mqtt', ['brokerUrl' => 'mqtt://localhost:1883', 'topicPrefix' => $twin->project->topicPrefix()])
             ->where('directUploads', false)
             ->where('can.update', $update));
 })->with([

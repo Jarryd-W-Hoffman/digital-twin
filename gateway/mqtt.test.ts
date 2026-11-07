@@ -1,12 +1,14 @@
 import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
+import type { IClientOptions } from 'mqtt';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TelemetryMapping } from '../resources/js/twin/core/types.ts';
 import { startGateway, type MqttClientLike } from './gateway.ts';
 import { MAX_BUFFERED, ReadingLog } from './readings.ts';
 
 const TOKEN = 'mgw_test-token';
+const PREFIX = 'p/harbour-x1y2/';
 const sample = JSON.parse(readFileSync('public/samples/harbour-depot.json', 'utf8')) as Record<string, unknown>;
 
 /** Records what the gateway subscribes to, and lets a test publish to it. */
@@ -34,7 +36,7 @@ class FakeBroker extends EventEmitter implements MqttClientLike {
 
 /** The control plane: serves a definition with `telemetry`, takes readings. */
 function controlPlane(telemetry: TelemetryMapping[]) {
-  const state = { version: 1, telemetry, batches: [] as unknown[][], status: 202 };
+  const state = { version: 1, telemetry, batches: [] as unknown[][], status: 202, checkIns: [] as (string | undefined)[] };
   const server: Server = createServer((req, res) => {
     if (req.headers.authorization !== `Bearer ${TOKEN}`) {
       res.writeHead(401).end();
@@ -49,13 +51,21 @@ function controlPlane(telemetry: TelemetryMapping[]) {
       });
       return;
     }
+    state.checkIns.push(req.headers['x-gateway-mqtt'] as string | undefined);
     const etag = `"v${state.version}"`;
     if (req.headers['if-none-match'] === etag) {
       res.writeHead(304, { etag }).end();
       return;
     }
     res.writeHead(200, { 'content-type': 'application/json', etag });
-    res.end(JSON.stringify({ twin: { id: 'twin-1' }, version: state.version, definition: { ...sample, telemetry: state.telemetry } }));
+    res.end(
+      JSON.stringify({
+        twin: { id: 'twin-1' },
+        version: state.version,
+        definition: { ...sample, telemetry: state.telemetry },
+        mqtt: { username: 'twin-twin-1', topicPrefix: PREFIX },
+      }),
+    );
   });
   return { state, server };
 }
@@ -68,17 +78,18 @@ afterEach(async () => {
   for (const c of cleanups.splice(0)) await c();
 });
 
-async function gatewayWith(telemetry: TelemetryMapping[]) {
+async function gatewayWith(telemetry: TelemetryMapping[], login: { username?: string; password?: string } = {}) {
   const cp = controlPlane(telemetry);
   const url = await listening(cp.server);
   const broker = new FakeBroker();
+  const connect = vi.fn((_url: string, _options: IClientOptions) => broker);
   const gateway = await startGateway({
     controlPlane: { url, token: TOKEN, pollMs: 50, flushMs: 60_000 },
-    mqtt: { url: 'mqtt://broker', connect: () => broker },
+    mqtt: { url: 'mqtt://broker', connect, ...login },
     port: 0,
   });
   cleanups.push(() => gateway.close(), () => void cp.server.close());
-  return { cp, broker, gateway, url };
+  return { cp, broker, gateway, url, connect };
 }
 
 describe('MQTT bridge', () => {
@@ -89,19 +100,25 @@ describe('MQTT bridge', () => {
     ]);
     expect(broker.subscribed).toEqual([]);
     broker.up();
-    expect(broker.subscribed).toEqual(['harbour/store/temp', 'harbour/+/power']);
+    expect(broker.subscribed).toEqual([`${PREFIX}harbour/store/temp`, `${PREFIX}harbour/+/power`]);
 
     const measure = vi.spyOn(gateway.runner, 'measure');
-    broker.publish('harbour/store/temp', '-11.5');
-    broker.publish('harbour/plant/power', '{"w": 52000}');
-    broker.publish('harbour/elsewhere', '1');
+    broker.publish(`${PREFIX}harbour/store/temp`, '-11.5');
+    broker.publish(`${PREFIX}harbour/plant/power`, '{"w": 52000}');
+    broker.publish(`${PREFIX}harbour/elsewhere`, '1');
 
     expect(measure.mock.calls).toEqual([
       ['store.tempC', -11.5, 900],
       ['plant.powerKw', 52, undefined],
     ]);
     const health = await (await fetch(`http://127.0.0.1:${gateway.port}/health`)).json();
-    expect(health.mqtt).toEqual({ connected: true, topics: ['harbour/store/temp', 'harbour/+/power'], received: 3, mapped: 2, unmapped: 1 });
+    expect(health.mqtt).toEqual({
+      connected: true,
+      topics: [`${PREFIX}harbour/store/temp`, `${PREFIX}harbour/+/power`],
+      received: 3,
+      mapped: 2,
+      unmapped: 1,
+    });
 
     await gateway.log!.flush();
     expect(cp.state.batches).toEqual([
@@ -120,7 +137,22 @@ describe('MQTT bridge', () => {
     cp.state.version = 2;
     await vi.waitFor(() => expect(gateway.version).toBe(2));
 
-    expect(broker.subscribed).toEqual(['b']);
+    expect(broker.subscribed).toEqual([`${PREFIX}b`]);
+  });
+
+  it("logs in as the twin with its token, and reports the broker connection on check-in", async () => {
+    const { broker, cp, connect } = await gatewayWith([]);
+
+    expect(connect.mock.calls[0][1]).toMatchObject({ username: 'twin-twin-1', password: TOKEN });
+    await vi.waitFor(() => expect(cp.state.checkIns).toContain('disconnected'));
+    broker.up();
+    await vi.waitFor(() => expect(cp.state.checkIns.at(-1)).toBe('connected'));
+  });
+
+  it('logs in with MQTT_USERNAME and MQTT_PASSWORD when given', async () => {
+    const { connect } = await gatewayWith([], { username: 'local', password: 'pw' });
+
+    expect(connect.mock.calls[0][1]).toMatchObject({ username: 'local', password: 'pw' });
   });
 
   it('skips mappings onto metrics the asset lacks, and ends the client on close', async () => {

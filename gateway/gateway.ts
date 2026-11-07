@@ -25,6 +25,9 @@ import { ticketKey, verifyTicket, type TicketAccess } from './tickets.ts';
  *
  * With an MQTT broker, it subscribes to the topics in the twin's `telemetry`
  * mappings and takes each message as a reading, as if posted to /ingest.
+ * With the control plane, those topics sit below the project's prefix
+ * (`p/<key>/`), and it logs in as the twin with its gateway token unless
+ * MQTT_USERNAME is set.
  *
  * Binds to localhost by default. To expose it, set GATEWAY_HOST, GATEWAY_TOKEN
  * (or use a control plane token) and GATEWAY_ORIGINS.
@@ -61,6 +64,7 @@ export interface MqttClientLike {
 export interface MqttOptions {
   /** The broker, e.g. mqtt://localhost:1883. */
   url: string;
+  /** Defaults to the control plane's login for the twin, with its gateway token as password. */
   username?: string;
   password?: string;
   /** Swaps in another client, for tests. */
@@ -95,13 +99,24 @@ interface Fetched {
   twinId: string;
   version: number;
   definition: TwinDefinition;
+  /** The broker login, and the prefix the project's topics sit below. */
+  mqtt: { username: string; topicPrefix: string } | null;
   etag: string | null;
 }
 
-/** Fetches the twin's latest version; null when it hasn't changed since `etag`. */
-export async function fetchDefinition(cp: ControlPlaneOptions, etag: string | null = null): Promise<Fetched | null> {
+/**
+ * Fetches the twin's latest version; null when it hasn't changed since `etag`.
+ * Each call checks in, reporting where browsers reach this gateway and
+ * whether it is connected to the broker.
+ */
+export async function fetchDefinition(
+  cp: ControlPlaneOptions,
+  etag: string | null = null,
+  mqtt?: 'connected' | 'disconnected',
+): Promise<Fetched | null> {
   const headers: Record<string, string> = { authorization: `Bearer ${cp.token}`, accept: 'application/json' };
   if (cp.publicUrl) headers['x-gateway-url'] = cp.publicUrl;
+  if (mqtt) headers['x-gateway-mqtt'] = mqtt;
   if (etag) headers['if-none-match'] = etag;
   // A hung request would otherwise stall every later poll, and the check-ins with them.
   const res = await fetch(`${cp.url.replace(/\/+$/, '')}/api/gateway/definition`, {
@@ -110,11 +125,17 @@ export async function fetchDefinition(cp: ControlPlaneOptions, etag: string | nu
   });
   if (res.status === 304) return null;
   if (!res.ok) throw new Error(`Control plane answered ${res.status} for the twin definition`);
-  const body = (await res.json()) as { twin: { id: string }; version: number; definition: unknown };
+  const body = (await res.json()) as {
+    twin: { id: string };
+    version: number;
+    definition: unknown;
+    mqtt?: Fetched['mqtt'];
+  };
   return {
     twinId: body.twin.id,
     version: body.version,
     definition: parseDefinition(body.definition),
+    mqtt: body.mqtt ?? null,
     etag: res.headers.get('etag'),
   };
 }
@@ -143,9 +164,10 @@ export async function startGateway(options: GatewayOptions = {}) {
   let runner!: SimRunner;
   let history!: History;
   let telemetry: Telemetry = compileTelemetry({ ...definition, telemetry: [] });
+  const topicPrefix = fetched?.mqtt?.topicPrefix ?? '';
   const boot = (def: TwinDefinition, now: number) => {
     definition = def;
-    const compiled = compileTelemetry(def);
+    const compiled = compileTelemetry(def, topicPrefix);
     for (const problem of compiled.skipped) console.warn(`Gateway: ${problem}`);
     const before = telemetry.topics;
     telemetry = compiled;
@@ -158,8 +180,8 @@ export async function startGateway(options: GatewayOptions = {}) {
   const mqttStats = { received: 0, mapped: 0, unmapped: 0 };
   const client = options.mqtt
     ? (options.mqtt.connect ?? (connectMqtt as unknown as NonNullable<MqttOptions['connect']>))(options.mqtt.url, {
-        username: options.mqtt.username,
-        password: options.mqtt.password,
+        username: options.mqtt.username ?? fetched?.mqtt?.username,
+        password: options.mqtt.username ? options.mqtt.password : (cp?.token ?? options.mqtt.password),
         reconnectPeriod: 2000,
         connectTimeout: 10_000,
       })
@@ -310,7 +332,11 @@ export async function startGateway(options: GatewayOptions = {}) {
         if (polling) return;
         polling = true;
         try {
-          const next = await fetchDefinition(cp, fetched?.etag ?? null);
+          const next = await fetchDefinition(
+            cp,
+            fetched?.etag ?? null,
+            client ? (client.connected ? 'connected' : 'disconnected') : undefined,
+          );
           if (next) {
             fetched = next;
             boot(next.definition, Date.now());

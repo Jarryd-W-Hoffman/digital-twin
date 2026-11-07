@@ -6,7 +6,7 @@ use App\Models\Twin;
 
 test('to array', function (): void {
     expect(array_keys(Twin::factory()->create()->refresh()->toArray()))
-        ->toBe(['id', 'organisation_id', 'name', 'description', 'created_at', 'updated_at', 'gateway_url', 'gateway_seen_at', 'project_id']);
+        ->toBe(['id', 'organisation_id', 'name', 'description', 'created_at', 'updated_at', 'gateway_url', 'gateway_seen_at', 'project_id', 'gateway_mqtt']);
 });
 
 it('never serialises its gateway token hash', function (): void {
@@ -31,4 +31,10 @@ it('belongs to a project in its own organisation', function (): void {
 
     expect($twin->project->organisation->is($organisation))->toBeTrue()
         ->and($twin->project->twins->sole()->is($twin))->toBeTrue();
+});
+
+it('logs in to the broker as its gateway', function (): void {
+    $twin = Twin::factory()->create();
+
+    expect($twin->mqttUsername())->toBe('twin-'.$twin->id);
 });

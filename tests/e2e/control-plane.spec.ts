@@ -120,6 +120,41 @@ test('an owner starts an empty twin at a location from the project page', async 
   expect(problems).toEqual([]);
 });
 
+test('an owner adds a device, is shown its broker login once, and can reset or delete it', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  const devices = page.getByRole('region', { name: 'Devices' });
+  const login = devices.getByRole('status', { name: 'Device login' });
+  const list = devices.getByRole('list', { name: 'Devices' });
+  await expect(devices.getByText(/below p\/pilot-sites-[a-z0-9]{4}\//)).toBeVisible();
+
+  await devices.getByLabel('Device name').fill('Freezer probe 1');
+  await devices.getByRole('button', { name: 'Add device' }).click();
+  await expect(login.getByLabel('Device password')).toHaveValue(/^mdv_[A-Za-z0-9]{40}$/);
+  const first = await login.getByLabel('Device password').inputValue();
+  await expect(login.getByLabel('Example command')).toHaveValue(
+    new RegExp(`^mosquitto_pub -h localhost -p 1883 -u device-[0-9a-f-]{36} -P ${first} -t 'p/pilot-sites-[a-z0-9]{4}/site/sensor/temp' -m 21.5$`),
+  );
+  await expect(list.getByText('Freezer probe 1')).toBeVisible();
+  await expect(list.getByText(/never connected/)).toBeVisible();
+
+  await page.reload();
+  await expect(login).toHaveCount(0);
+
+  page.once('dialog', (dialog) => void dialog.accept());
+  await list.getByRole('button', { name: 'Reset the password of Freezer probe 1' }).click();
+  await expect(login.getByLabel('Device password')).toHaveValue(/^mdv_/);
+  expect(await login.getByLabel('Device password').inputValue()).not.toBe(first);
+
+  await devices.getByLabel('Device name').fill('Freezer probe 1');
+  await devices.getByRole('button', { name: 'Add device' }).click();
+  await expect(devices.getByText('The name has already been taken.')).toBeVisible();
+
+  page.once('dialog', (dialog) => void dialog.accept());
+  await list.getByRole('button', { name: 'Delete Freezer probe 1' }).click();
+  await expect(devices.getByText('No devices yet.')).toBeVisible();
+  await expect(login).toHaveCount(0);
+});
+
 test('a point cloud waits for the converter, shows why it failed, and can be retried with an EPSG code', async ({ page }) => {
   await logIn(page, 'test@example.com');
 
@@ -179,6 +214,7 @@ test('an owner maps an MQTT topic to a metric, and sees what sensors recorded', 
   const version = Number((await page.locator('.version-chip').innerText()).slice(1));
   await page.getByRole('button', { name: 'Layout' }).click();
   const telemetry = page.getByRole('region', { name: 'Telemetry' });
+  await expect(telemetry.getByText(/below this project's p\/pilot-sites-[a-z0-9]{4}\//)).toBeVisible();
   await telemetry.getByRole('button', { name: 'Add mapping' }).click();
   await telemetry.getByLabel('Topic').fill('northshore/#/temp');
   await telemetry.getByLabel('Asset').selectOption({ label: 'Freezer hall' });

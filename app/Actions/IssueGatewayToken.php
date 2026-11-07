@@ -21,6 +21,7 @@ final readonly class IssueGatewayToken
             'gateway_token_hash' => hash('sha256', $token),
             'gateway_url' => null,
             'gateway_seen_at' => null,
+            'gateway_mqtt' => null,
         ]);
 
         return $token;

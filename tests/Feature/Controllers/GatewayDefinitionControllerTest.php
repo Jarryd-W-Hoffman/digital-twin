@@ -9,15 +9,17 @@ it("serves the latest version to the twin's gateway and records its check-in", f
     $this->freezeSecond();
     [$twin, $token] = gatewayTwin();
 
-    $this->withToken($token)->withHeader('X-Gateway-Url', 'ws://localhost:8788/ws')
+    $this->withToken($token)->withHeaders(['X-Gateway-Url' => 'ws://localhost:8788/ws', 'X-Gateway-Mqtt' => 'disconnected'])
         ->getJson(route('gateway.definition.show'))
         ->assertOk()
         ->assertHeader('ETag', '"v1"')
         ->assertJsonPath('twin.id', $twin->id)
         ->assertJsonPath('version', 1)
-        ->assertJsonPath('definition.id', $twin->id);
+        ->assertJsonPath('definition.id', $twin->id)
+        ->assertJsonPath('mqtt', ['username' => 'twin-'.$twin->id, 'topicPrefix' => $twin->project->topicPrefix()]);
 
     expect($twin->refresh()->gateway_url)->toBe('ws://localhost:8788/ws')
+        ->and($twin->gateway_mqtt)->toBe('disconnected')
         ->and($twin->gatewayOnline())->toBeTrue();
 });
 

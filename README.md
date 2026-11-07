@@ -345,11 +345,13 @@ Browsers get in with a ticket the control plane signs for each page view. The HM
 | `GATEWAY_PUBLIC_URL`             | Where browsers reach the socket, default `ws://127.0.0.1:<port>/ws` |
 | `GATEWAY_POLL_MS`                | How often to poll for new versions, default `5000`                  |
 | `MQTT_URL`                       | A broker to take readings from, e.g. `mqtt://localhost:1883`        |
-| `MQTT_USERNAME`, `MQTT_PASSWORD` | The broker login, if it needs one                                   |
+| `MQTT_USERNAME`, `MQTT_PASSWORD` | Another broker login; by default `twin-<id>` with the gateway token |
 
 ### MQTT and history
 
-A twin's `telemetry` maps MQTT topics onto asset metrics. Edit the mappings in the **Telemetry** section of the **Layout** panel; saving makes a new version, and the twin's gateway follows it, subscribing to new topics and dropping old ones.
+Every project has a topic prefix, `p/<key>/`, where the key is the project's first name as a slug plus four random characters (`p/pilot-sites-ayjl/`). It doesn't change when the project is renamed. Each project's MQTT traffic sits below its prefix.
+
+A twin's `telemetry` maps MQTT topics, written relative to that prefix, onto asset metrics. Edit the mappings in the **Telemetry** section of the **Layout** panel; saving makes a new version, and the twin's gateway follows it, subscribing to new topics and dropping old ones.
 
 ```json
 "telemetry": [
@@ -364,11 +366,25 @@ Every reading, from MQTT or `/ingest`, is also sent to the control plane at `POS
 
 Readings are kept for `MERIDIAN_READINGS_RETENTION_DAYS`. In Docker, Postgres runs TimescaleDB: readings become a hypertable in day chunks, compressed after a week, and old chunks are dropped automatically. On plain Postgres or SQLite they stay an ordinary table that the scheduled `model:prune` trims.
 
-The Docker `gateway` profile starts Mosquitto with it, published on `127.0.0.1:1883` and anonymous for now:
+### Devices and the broker
+
+Add devices under **Devices** on the project page. Each one gets a broker login, `device-<id>`, and a password that is shown once and can be reset; only its SHA-256 is kept. The page shows when each device last connected.
+
+Mosquitto asks the control plane about every login and topic, through [mosquitto-go-auth](https://github.com/iegomez/mosquitto-go-auth)'s HTTP backend:
+
+- **Devices** may publish below their project's prefix, and nothing else: no subscribing, and no other project's topics.
+- **Gateways** log in as `twin-<id>` with the twin's gateway token. They may subscribe to and receive their twin's project topics, and may not publish.
+- **Everyone else** is refused, including anonymous clients, and nobody can reach `$SYS`.
+
+The plugin calls `POST /api/mqtt/<secret>/user` and `/acl`. The secret is `MERIDIAN_MQTT_AUTH_SECRET`, which the broker and the app share; without it both routes answer 404. Logins are limited to 30 a minute per username. Each answer is cached for about 30 seconds, so a deleted device or reset password is shut out within a minute. Every check-in also reports whether the gateway is connected to the broker, and the twin's Gateway panel shows it.
+
+The Docker `gateway` profile starts the broker on port 1883. Set the same `MERIDIAN_MQTT_AUTH_SECRET` in `docker/.env` and the app's `.env`, add a device, and publish with the command shown next to its password:
 
 ```bash
-mosquitto_pub -h 127.0.0.1 -t depot/store/temp -m -17.5
+mosquitto_pub -h localhost -p 1883 -u device-<id> -P mdv_… -t 'p/pilot-sites-ayjl/depot/store/temp' -m -17.5
 ```
+
+The broker speaks plain MQTT. Put it behind TLS (port 8883) before devices connect over networks you don't control.
 
 ## Writing a twin
 
@@ -472,6 +488,8 @@ _Coloured by power after dark: solar has gone quiet, and the battery and grid ca
 | `MERIDIAN_POINT_CLOUD_JOBS`                    | Processes py3dtiles tiles with, default 2                                                                              |
 | `MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES`         | Longest each conversion step may run, default 240                                                                      |
 | `MERIDIAN_READINGS_RETENTION_DAYS`             | How long recorded readings are kept, default 365                                                                       |
+| `MERIDIAN_MQTT_AUTH_SECRET`                    | Shared with the MQTT broker, which uses it to ask who may log in and use which topics. Unset, those routes answer 404. |
+| `MERIDIAN_MQTT_BROKER_URL`                     | Where devices connect, shown on the project page, default `mqtt://localhost:1883`                                      |
 | `MERIDIAN_TILESET_MAX_FILES`                   | Most files in a tileset zip, default 20,000                                                                            |
 | `MERIDIAN_TILESET_MAX_BYTES`                   | Largest unpacked tileset, default 4 GB                                                                                 |
 | `VITE_BASEMAP_URL`, `VITE_BASEMAP_ATTRIBUTION` | A custom `{z}/{x}/{y}` tile provider and the attribution it requires                                                   |
@@ -480,9 +498,9 @@ The default basemap is Natural Earth imagery bundled with Cesium. It makes no th
 
 ## Tests
 
-- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. Point clouds with PDAL and py3dtiles faked: the commands each step runs, the EPSG and thinning options, signatures, missing and empty files, the tail of a failing tool, the original kept for a retry, and clouds in local metres placed at the origin. With the real tools, inside the converter image, LAS and E57 scans of Auckland land within 0.01° of where they should (`docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 meridian-converter php vendor/bin/pest tests/Feature/Conversions`). Readings: gateway batches checked against the twin's assets and a recent time window, bucketed history with lows and highs, other organisations kept out, and pruning by retention. The suite also runs in CI on TimescaleDB Postgres, where readings are a hypertable. The shared definition fixtures. Browser tests for the kit's account pages.
-- **Vitest:** power is conserved every step, including while islanded. Stores hold setpoint for a full day. Outages bridge on battery, start the generator and return to grid. Load sheds by priority. Runs are deterministic, and survive cloning and a JSON round trip. The forecast's baseline matches a straight run exactly. Rule hold times and hysteresis. The gateway's socket, commands, ingest, tokens, body limits and origins. MQTT topic matching and payload mapping, the bridge following new mappings, and the readings outbox holding what the control plane refused. The shared definition fixtures.
-- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A point cloud waits for the converter, shows why its conversion failed, and is retried with an EPSG code. A bad archive is refused with its reason. An owner maps an MQTT topic (a bad filter is refused first) and sees recorded readings charted. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin, bad files, the gateway path including a real `POST /ingest`, and phone width.
+- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. Point clouds with PDAL and py3dtiles faked: the commands each step runs, the EPSG and thinning options, signatures, missing and empty files, the tail of a failing tool, the original kept for a retry, and clouds in local metres placed at the origin. With the real tools, inside the converter image, LAS and E57 scans of Auckland land within 0.01° of where they should (`docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 meridian-converter php vendor/bin/pest tests/Feature/Conversions`). Readings: gateway batches checked against the twin's assets and a recent time window, bucketed history with lows and highs, other organisations kept out, and pruning by retention. Devices: passwords shown once and reset, names unique per project, and only editors manage them. The broker's checks: device and gateway logins, publishing and subscribing only below the project's prefix (not `#`, `p/+/#`, `$SYS` or other projects), revoked tokens and deleted devices shut out, the shared secret, and the per-username login limit. The suite also runs in CI on TimescaleDB Postgres, where readings are a hypertable. The shared definition fixtures. Browser tests for the kit's account pages.
+- **Vitest:** power is conserved every step, including while islanded. Stores hold setpoint for a full day. Outages bridge on battery, start the generator and return to grid. Load sheds by priority. Runs are deterministic, and survive cloning and a JSON round trip. The forecast's baseline matches a straight run exactly. Rule hold times and hysteresis. The gateway's socket, commands, ingest, tokens, body limits and origins. MQTT topic matching and payload mapping, topics placed below the project's prefix, the gateway logging in as its twin and reporting the broker connection, the bridge following new mappings, and the readings outbox holding what the control plane refused. The shared definition fixtures.
+- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A point cloud waits for the converter, shows why its conversion failed, and is retried with an EPSG code. A bad archive is refused with its reason. An owner adds a device, is shown its password and an example command once, resets it, is refused a duplicate name and deletes it. An owner maps an MQTT topic below the project's prefix (a bad filter is refused first) and sees recorded readings charted. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin, bad files, the gateway path including a real `POST /ingest`, and phone width.
 
 ## Project layout
 
@@ -509,7 +527,7 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 1. **Control plane and gateway** (done): organisations and roles, versioned twins, uploads, placement, custom types, Docker Compose with Postgres and RustFS, and gateways that load their twin from the control plane, follow new versions and admit browsers with signed tickets.
 2. **Projects and a data library** (done): organisations hold projects, and projects hold twins and a shared library of uploads (models, tilesets and point clouds), so one scan can be placed into several twins. New twins start as an empty site at a chosen location (weather, a grid connection and a main board), a sample, or a definition file. Large files go straight to object storage in parts and are checked by a queued job.
 3. **Point cloud pipeline** (done): LAS, LAZ and E57 uploaded to the library and converted to 3D Tiles by a queued worker (PDAL to read, assign a coordinate system and thin; py3dtiles to reproject and tile), with progress, logs and retries in the UI, then placed into a twin like any tileset.
-4. **IoT: devices, MQTT and history** (in progress; MQTT mapping and TimescaleDB history done): devices registered per project with their own tokens, an MQTT bridge with topic and tag mapping onto any asset's metrics, gateways managed from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
+4. **IoT: devices, MQTT and history** (done): devices registered per project with their own broker logins, a broker that asks the control plane who may publish and subscribe where, an MQTT bridge mapping topics onto any asset's metrics, gateways issued, rotated and watched from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
 5. **Customisation core:** behaviour for custom types as data (derived metrics written as safe expressions, simple state machines, setpoints), KPIs and panels declared in the definition instead of built in, expression and rate-of-change rules, and a type library per organisation.
 6. **Definition editor:** edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators.
 7. **Scene editing and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.

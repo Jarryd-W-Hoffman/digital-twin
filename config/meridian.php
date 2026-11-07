@@ -50,6 +50,17 @@ return [
         'retention_days' => (int) env('MERIDIAN_READINGS_RETENTION_DAYS', 365),
     ],
 
+    /*
+    | Devices and gateways log in to the MQTT broker, which asks the control
+    | plane through mosquitto-go-auth's HTTP backend. The broker sends the
+    | secret in the URLs it calls; without one, those URLs answer 404. The
+    | broker URL is shown to people setting up devices.
+    */
+    'mqtt' => [
+        'auth_secret' => env('MERIDIAN_MQTT_AUTH_SECRET'),
+        'broker_url' => env('MERIDIAN_MQTT_BROKER_URL', 'mqtt://localhost:1883'),
+    ],
+
     'tileset' => [
         'max_files' => (int) env('MERIDIAN_TILESET_MAX_FILES', 20000),
         'max_uncompressed_bytes' => (int) env('MERIDIAN_TILESET_MAX_BYTES', 4 * 1024 * 1024 * 1024),
