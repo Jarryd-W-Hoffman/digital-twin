@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\OrganisationController;
 use App\Http\Controllers\OrganisationMemberController;
+use App\Http\Controllers\OrganisationTypeController;
 use App\Http\Controllers\ProjectAssetController;
 use App\Http\Controllers\ProjectAssetConversionController;
 use App\Http\Controllers\ProjectAssetFileController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\TwinController;
 use App\Http\Controllers\TwinGatewayTokenController;
 use App\Http\Controllers\TwinLayerController;
 use App\Http\Controllers\TwinReadingController;
+use App\Http\Controllers\TwinTypeController;
 use App\Http\Controllers\TwinVersionController;
 use App\Http\Controllers\TwinVersionRestorationController;
 use App\Http\Controllers\UserController;
@@ -66,6 +68,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('twins/{twin}/assets', [TwinAssetController::class, 'store'])->name('twins.assets.store');
     Route::post('twins/{twin}/layers', [TwinLayerController::class, 'store'])->name('twins.layers.store');
     Route::delete('twins/{twin}/layers/{asset}', [TwinLayerController::class, 'destroy'])->name('twins.layers.destroy');
+    Route::post('twins/{twin}/types', [TwinTypeController::class, 'store'])->name('twins.types.store');
+    Route::put('twins/{twin}/types/{type}/library', [TwinTypeController::class, 'update'])->name('twins.types.library.update');
     Route::post('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'store'])->name('twins.gateway-token.store');
     Route::delete('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'destroy'])->name('twins.gateway-token.destroy');
 
@@ -76,6 +80,10 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('organisation/members', [OrganisationMemberController::class, 'store'])->name('organisation.members.store');
     Route::patch('organisation/members/{membership}', [OrganisationMemberController::class, 'update'])->name('organisation.members.update');
     Route::delete('organisation/members/{membership}', [OrganisationMemberController::class, 'destroy'])->name('organisation.members.destroy');
+    Route::get('organisation/types', [OrganisationTypeController::class, 'index'])->name('organisation.types.index');
+    Route::post('organisation/types', [OrganisationTypeController::class, 'store'])->name('organisation.types.store');
+    Route::get('organisation/types/{type}', [OrganisationTypeController::class, 'show'])->name('organisation.types.show');
+    Route::delete('organisation/types/{type}', [OrganisationTypeController::class, 'destroy'])->name('organisation.types.destroy');
 });
 
 Route::middleware('auth')->group(function (): void {

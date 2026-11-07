@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { GatewayStatus } from '@/components/gateway-panel';
 import {
     TwinEditor,
+    type LibraryTypeSummary,
     type TwinAssetSummary,
     type TwinVersionSummary,
 } from '@/components/twin-editor';
@@ -25,8 +26,9 @@ type Props = {
     version: number;
     versions: TwinVersionSummary[];
     assets: TwinAssetSummary[];
+    types: LibraryTypeSummary[];
     gateway: GatewayStatus;
-    can: { update: boolean; operate: boolean };
+    can: { update: boolean; operate: boolean; manageTypes: boolean };
 };
 
 export default function ShowTwin({
@@ -36,6 +38,7 @@ export default function ShowTwin({
     version,
     versions,
     assets,
+    types,
     gateway,
     can,
 }: Props) {
@@ -148,6 +151,8 @@ export default function ShowTwin({
                         definition={definition}
                         versions={versions}
                         assets={assets}
+                        types={types}
+                        canManageTypes={can.manageTypes}
                         gateway={gateway}
                         topicPrefix={project.topicPrefix}
                         onClose={() => setEditing(false)}

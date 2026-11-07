@@ -49,6 +49,16 @@ final class Organisation extends Model
     }
 
     /**
+     * The organisation's library of custom asset types.
+     *
+     * @return HasMany<AssetType, $this>
+     */
+    public function assetTypes(): HasMany
+    {
+        return $this->hasMany(AssetType::class);
+    }
+
+    /**
      * @return HasMany<Project, $this>
      */
     public function projects(): HasMany

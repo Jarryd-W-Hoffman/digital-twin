@@ -1192,6 +1192,14 @@
     gap: 8px;
     align-items: baseline;
 }
+.twin-root .editor-layer-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.twin-root .editor-layers + .editor-layers {
+    margin-top: 8px;
+}
 .twin-root .editor-check {
     display: flex;
     gap: 6px;

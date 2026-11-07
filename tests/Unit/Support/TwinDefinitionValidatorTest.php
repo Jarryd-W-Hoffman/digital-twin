@@ -63,3 +63,13 @@ it('describes non-string values the way JavaScript prints them', function (mixed
     [['a', 'b'], 'a,b'],
     [['x' => 1], '[object Object]'],
 ]);
+
+it('checks a type on its own, leaving the assets it reads to the twin', function (): void {
+    $validator = new TwinDefinitionValidator();
+
+    expect($validator->type(northshoreType('jockey-pump')))->toBe(['errors' => [], 'reads' => ['fire-tank']])
+        ->and($validator->type([...northshoreType('jockey-pump'), 'primary' => 'nope']))
+        ->toBe(['errors' => ['Type jockey-pump: primary must be one of its metrics'], 'reads' => ['fire-tank']])
+        ->and($validator->type(['id' => 'Bad']))->toBe(['errors' => ['A type needs an id of lowercase letters, digits, - or _'], 'reads' => []])
+        ->and($validator->type('pump'))->toBe(['errors' => ['A type must be a JSON object'], 'reads' => []]);
+});

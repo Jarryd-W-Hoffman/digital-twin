@@ -149,8 +149,9 @@ it('shows a twin with its definition, history, project library and abilities', f
             ->has('assets', 1)
             ->where('assets.0.id', $asset->id)
             ->where('assets.0.url', $asset->url())
+            ->where('types', [])
             ->where('gateway', null)
-            ->where('can', ['update' => $update, 'operate' => $operate]));
+            ->where('can', ['update' => $update, 'operate' => $operate, 'manageTypes' => $update]));
 })->with([
     [OrganisationRole::Owner, true, true],
     [OrganisationRole::Operator, false, true],

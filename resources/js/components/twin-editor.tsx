@@ -2,11 +2,14 @@ import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { GatewayPanel, type GatewayStatus } from '@/components/gateway-panel';
 import { TelemetryPanel } from '@/components/telemetry-panel';
+import { index as typeLibrary } from '@/routes/organisation/types';
 import { store as storeAsset } from '@/routes/twins/assets';
 import {
     destroy as removeLayer,
     store as addLayer,
 } from '@/routes/twins/layers';
+import { store as addType } from '@/routes/twins/types';
+import { update as saveTypeToLibrary } from '@/routes/twins/types/library';
 import {
     restore,
     show as showVersion,
@@ -35,6 +38,14 @@ export type TwinAssetSummary = {
     url: string;
 };
 
+/** A type in the organisation's library, and how it compares with this twin's type of that id. */
+export type LibraryTypeSummary = {
+    id: string;
+    slug: string;
+    name: string;
+    inTwin: 'same' | 'different' | null;
+};
+
 const FIELDS: { key: keyof Placement; label: string; step: number }[] = [
     { key: 'east', label: 'East (m)', step: 0.5 },
     { key: 'north', label: 'North (m)', step: 0.5 },
@@ -56,6 +67,8 @@ export function TwinEditor({
     definition,
     versions,
     assets,
+    types,
+    canManageTypes,
     gateway,
     topicPrefix,
     onClose,
@@ -66,12 +79,15 @@ export function TwinEditor({
     definition: TwinDefinition;
     versions: TwinVersionSummary[];
     assets: TwinAssetSummary[];
+    types: LibraryTypeSummary[];
+    canManageTypes: boolean;
     onClose: () => void;
 }) {
     const drafts = useTwin((s) => s.drafts);
     const placingLayer = useTwin((s) => s.placingLayer);
     const { setDraft, setPlacingLayer } = useTwin.getState();
     const [replaceErrors, setReplaceErrors] = useState<string[]>([]);
+    const [typeErrors, setTypeErrors] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
     const upload = useForm<{ name: string; file: File | null }>({
         name: '',
@@ -97,6 +113,19 @@ export function TwinEditor({
             a.id !== terrain?.assetId &&
             !layers.some((layer) => layer.assetId === a.id),
     );
+
+    const twinTypes = definition.types ?? [];
+    const libraryOnly = types.filter((t) => t.inTwin === null);
+    const takeType = (id: string) =>
+        router.post(
+            addType.url(twinId),
+            { type: id },
+            {
+                preserveScroll: true,
+                onStart: () => setTypeErrors([]),
+                onError: (e) => setTypeErrors(String(e.type ?? '').split('\n')),
+            },
+        );
 
     const save = () => {
         setSaving(true);
@@ -444,6 +473,116 @@ export function TwinEditor({
                                     </button>
                                 </div>
                             </li>
+                        ))}
+                    </ul>
+                )}
+            </section>
+
+            <section>
+                <h3>Types</h3>
+                <p className="muted hint">
+                    Custom asset types this twin defines, and the ones in the
+                    organisation's <a href={typeLibrary.url()}>type library</a>.
+                    Both ways copy, so changing one never changes the other.
+                </p>
+                {twinTypes.length > 0 && (
+                    <ul className="editor-layers" aria-label="Twin types">
+                        {twinTypes.map((type) => {
+                            const entry = types.find((t) => t.slug === type.id);
+                            return (
+                                <li key={type.id}>
+                                    <div className="editor-layer-head">
+                                        <span>
+                                            <strong>{type.name}</strong>
+                                            <span className="muted">
+                                                {' '}
+                                                · {type.id}
+                                                {entry?.inTwin === 'same' &&
+                                                    ' · in the library'}
+                                                {entry?.inTwin ===
+                                                    'different' &&
+                                                    ' · differs from the library'}
+                                            </span>
+                                        </span>
+                                        <span className="editor-layer-actions">
+                                            {entry?.inTwin === 'different' && (
+                                                <button
+                                                    className="link"
+                                                    onClick={() =>
+                                                        confirm(
+                                                            `Replace this twin's ${type.name} with the library's?`,
+                                                        ) && takeType(entry.id)
+                                                    }
+                                                >
+                                                    Take library's
+                                                </button>
+                                            )}
+                                            {canManageTypes &&
+                                                entry?.inTwin !== 'same' && (
+                                                    <button
+                                                        className="link"
+                                                        onClick={() =>
+                                                            (!entry ||
+                                                                confirm(
+                                                                    `Replace the library's ${entry.name} with this twin's?`,
+                                                                )) &&
+                                                            router.put(
+                                                                saveTypeToLibrary.url(
+                                                                    [
+                                                                        twinId,
+                                                                        type.id,
+                                                                    ],
+                                                                ),
+                                                                {},
+                                                                {
+                                                                    preserveScroll: true,
+                                                                },
+                                                            )
+                                                        }
+                                                    >
+                                                        Save to library
+                                                    </button>
+                                                )}
+                                        </span>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+                {libraryOnly.length > 0 && (
+                    <ul className="editor-layers" aria-label="Type library">
+                        {libraryOnly.map((type) => (
+                            <li key={type.id}>
+                                <div className="editor-layer-head">
+                                    <span>
+                                        <strong>{type.name}</strong>
+                                        <span className="muted">
+                                            {' '}
+                                            · {type.slug} · library
+                                        </span>
+                                    </span>
+                                    <button
+                                        className="link"
+                                        onClick={() => takeType(type.id)}
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {twinTypes.length === 0 && libraryOnly.length === 0 && (
+                    <p className="muted hint">
+                        No types yet. Import some into the library, or define
+                        them in the definition.
+                    </p>
+                )}
+                {typeErrors.length > 0 && (
+                    <ul className="editor-error" role="alert">
+                        {typeErrors.map((error) => (
+                            <li key={error}>{error}</li>
                         ))}
                     </ul>
                 )}

@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { BookOpen, FolderKanban, Globe, Users } from 'lucide-react';
+import { BookOpen, Boxes, FolderKanban, Globe, Users } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard, demo } from '@/routes';
 import { index as members } from '@/routes/organisation/members';
+import { index as types } from '@/routes/organisation/types';
 import { index as projects } from '@/routes/projects';
 import { index as twins } from '@/routes/twins';
 import type { NavItem } from '@/types';
@@ -30,6 +31,11 @@ const mainNavItems: NavItem[] = [
         title: 'Twins',
         href: twins(),
         icon: Globe,
+    },
+    {
+        title: 'Types',
+        href: types(),
+        icon: Boxes,
     },
     {
         title: 'Members',
