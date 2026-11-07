@@ -25,6 +25,8 @@ services:
       retries: 5
       start_period: 10s
     depends_on:
+      node-modules-permissions:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -33,6 +35,18 @@ services:
         condition: service_started
       rustfs:
         condition: service_healthy
+    networks:
+      - meridian
+
+  # Docker creates the node-modules volume owned by root, but npm runs as the
+  # php image's www user (uid 1000). Hands it over, touching only what isn't
+  # theirs already, so it's quick once done.
+  node-modules-permissions:
+    image: alpine:3.22
+    volumes:
+      - node-modules:/node_modules
+    command: ["sh", "-c", "find /node_modules ! -user 1000 -exec chown -h 1000:1000 {} +"]
+    restart: "no"
     networks:
       - meridian
 
@@ -75,6 +89,9 @@ services:
     volumes:
       - ${APP_CODE_PATH}:/var/www/html
       - node-modules:/var/www/html/node_modules
+    depends_on:
+      node-modules-permissions:
+        condition: service_completed_successfully
     profiles:
       - dev
     networks:

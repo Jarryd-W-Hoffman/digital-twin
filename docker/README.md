@@ -33,7 +33,7 @@ docker compose exec php npm run build      # or: docker compose --profile dev up
 
 Open http://localhost:8085 and log in as `test@example.com` / `password`. Mail is at http://localhost:8030 and the RustFS console at http://localhost:9015.
 
-`node_modules` lives in a named volume, because the containers are Alpine (musl) and a host install is glibc. Run npm through the `php` container.
+`node_modules` lives in a named volume, because the containers are Alpine (musl) and a host install is glibc. Run npm through the `php` container. Docker creates the volume owned by root, so the one-shot `node-modules-permissions` service hands it to the `www` user (uid 1000) before `php` or `vite` start; if `npm install` ever fails with `EACCES`, `docker compose up -d` runs it again.
 
 ## The gateway
 
