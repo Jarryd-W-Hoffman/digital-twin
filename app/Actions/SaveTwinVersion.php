@@ -20,7 +20,9 @@ final readonly class SaveTwinVersion
     public function handle(Twin $twin, ?User $user, array $definition, ?string $note = null): TwinVersion
     {
         return DB::transaction(function () use ($twin, $user, $definition, $note): TwinVersion {
-            $latest = TwinVersion::query()->where('twin_id', $twin->id)->lockForUpdate()->max('number');
+            // Locking the twin serialises saves; Postgres can't lock an aggregate.
+            Twin::query()->whereKey($twin->id)->lockForUpdate()->first();
+            $latest = TwinVersion::query()->where('twin_id', $twin->id)->max('number');
 
             return $twin->versions()->create([
                 'number' => (is_numeric($latest) ? (int) $latest : 0) + 1,

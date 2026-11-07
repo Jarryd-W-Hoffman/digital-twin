@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * @property-read string $id
@@ -87,11 +88,17 @@ final class Twin extends Model
     }
 
     /**
+     * The highest-numbered version, by a correlated subquery: ofMany() also
+     * takes max() of the uuid key, which Postgres doesn't have.
+     *
      * @return HasOne<TwinVersion, $this>
      */
     public function latestVersion(): HasOne
     {
-        return $this->hasOne(TwinVersion::class)->ofMany('number', 'max');
+        return $this->hasOne(TwinVersion::class)->where('twin_versions.number', fn (QueryBuilder $query): QueryBuilder => $query
+            ->selectRaw('max(latest.number)')
+            ->from('twin_versions', 'latest')
+            ->whereColumn('latest.twin_id', 'twin_versions.twin_id'));
     }
 
     /**
