@@ -13,6 +13,10 @@ export default function CesiumView() {
         if (!def || !container.current) return;
         const scene = new TwinScene(container.current, def);
         scene.onPick = (id) => useTwin.getState().select(id);
+        scene.sketch.onChange = (points) => {
+            const { sketch, setSketch } = useTwin.getState();
+            if (sketch) setSketch({ ...sketch, points });
+        };
 
         const placeOnClick = (layerId: string | null) => {
             scene.onGroundPick = layerId
@@ -37,6 +41,7 @@ export default function CesiumView() {
             scene.setBasemap(s.basemap);
             scene.setLayers(s.layers);
             scene.setSelected(s.selectedId);
+            scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
             if (s.view) {
                 scene.updateFrame(s.view, s.colorBy);
                 scene.setAlerts(alertsAt(s.alerts, s.view.t));
@@ -53,6 +58,8 @@ export default function CesiumView() {
             if (s.view && (s.alerts !== prev.alerts || s.view !== prev.view))
                 scene.setAlerts(alertsAt(s.alerts, s.view.t));
             if (s.globeRequest !== prev.globeRequest) scene.globeView();
+            if (s.sketch !== prev.sketch)
+                scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
             if (s.placingLayer !== prev.placingLayer)
                 placeOnClick(s.placingLayer);
             if (s.drafts !== prev.drafts) {

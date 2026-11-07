@@ -728,7 +728,7 @@ Everything a twin lists can also be edited in the app. **Definition** on the twi
 - Only the fields that apply are shown, such as a route for a vehicle, a type for a custom asset, or the stores a chiller cools.
 - Nested lists, such as a route's stops, a type's metrics, states and transitions, a scenario's faults and a panel's figures, are edited in place.
 - Pickers offer what the definition has: zones, routes, chargers, a rule's metrics for its asset, and a type's own metrics and states.
-- Footprints and paths are typed one point per line, as `east, north`.
+- Footprints and paths are typed one point per line, as `east, north`, or drawn: **Draw in scene** turns clicks on the ground into points (a tenth of a metre apart at finest), and a point can be dragged to move it. **Undo point** and **Start again** help while drawing. A position has **Place in scene**, where a click moves it.
 
 Every change is checked as you type, with the same messages the server gives, and **Save** stays disabled until there are none. Saving writes one version, with a note naming the lists that changed ("Edited types and rules"). **Discard** drops the draft. Strings in a saved definition are kept exactly as sent: Laravel's trimming and empty-to-null middleware skip requests that carry one, so an empty unit stays empty.
 
@@ -810,5 +810,5 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 5. **Customisation core** (done): behaviour for custom types as data (derived metrics written as safe expressions, state machines, setpoints, power drawn from the feed tree), expression and rate-of-change rules, KPIs and panels declared in the definition, and a type library per organisation that twins copy types from and save them to.
 6. **Terrain** (done): DEMs uploaded to the library and converted to quantized-mesh terrain by the conversions worker, which a twin can stand on.
 7. **Definition editor** (done): every list in a twin (zones, assets, routes, types, rules, scenarios, KPIs and panels) is edited in the app, with forms generated from one JSON Schema that also replaced the two hand-kept validators.
-8. **Scene editing and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.
+8. **Scene editing and BIM** (in progress): drawing footprints and routes in the scene, IFC import, binding tileset features to assets. Done: footprints, paths and positions drawn and dragged on the ground from the definition editor.
 9. **OPC UA and actuation:** read from OPC UA servers, and write back through the custom setpoints, off by default and audited.

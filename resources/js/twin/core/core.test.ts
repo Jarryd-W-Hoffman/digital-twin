@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { centroid, metresToLonLat, pointAlong } from './geo.ts';
+import { centroid, metresToLonLat, pointAlong, snapPoint } from './geo.ts';
 import { History } from './history.ts';
 import { formatMetric, METRICS } from './metrics.ts';
 import { activeAt, createRuleEngine } from './rules.ts';
@@ -171,6 +171,11 @@ describe('history', () => {
 });
 
 describe('geo', () => {
+    it('snaps a picked ground point to a tenth of a metre', () => {
+        expect(snapPoint([12.345, -0.04])).toEqual([12.3, -0]);
+        expect(snapPoint([-7.25, 3.96])).toEqual([-7.2, 4]);
+    });
+
     it('projects metres to degrees at the right scale', () => {
         expect(
             metresToLonLat({ lon: 0, lat: 0 }, [0, 111319.49]).lat,

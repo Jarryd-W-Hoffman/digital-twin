@@ -77,6 +77,7 @@ import {
     SEVERITY_COLOR,
     temperatureColor,
 } from './colors.ts';
+import { Sketch } from './Sketch.ts';
 
 const LABELLED = new Set<AssetDef['kind']>([
     'custom',
@@ -167,6 +168,8 @@ export class TwinScene {
     private readonly flows: Flow[] = [];
     private readonly beacons = new Map<string, Entity[]>();
     private readonly handler: ScreenSpaceEventHandler;
+    /** A footprint or path being drawn for the definition editor. */
+    readonly sketch: Sketch;
     private readonly sunLight = new SunLight({ intensity: 1.35 });
     private readonly moonLight = new DirectionalLight({
         direction: Cartesian3.normalize(
@@ -249,25 +252,21 @@ export class TwinScene {
             new PointPrimitiveCollection(),
         ) as PointPrimitiveCollection;
 
+        this.sketch = new Sketch(
+            this.viewer,
+            (position) => this.groundAt(position),
+            (p, height) => this.cart(p, height),
+            () => this.terrainLoaded,
+        );
         this.handler = new ScreenSpaceEventHandler(scene.canvas);
         this.handler.setInputAction((e: { position: Cartesian2 }) => {
+            if (this.sketch.active) {
+                this.sketch.click(e.position);
+                return;
+            }
             if (this.onGroundPick) {
-                const ground = this.terrainLoaded
-                    ? scene.globe.pick(
-                          this.viewer.camera.getPickRay(e.position)!,
-                          scene,
-                      )
-                    : this.viewer.camera.pickEllipsoid(e.position);
-                if (ground) {
-                    const c = Cartographic.fromCartesian(ground);
-                    this.onGroundPick(
-                        lonLatToMetres(
-                            this.origin,
-                            CesiumMath.toDegrees(c.longitude),
-                            CesiumMath.toDegrees(c.latitude),
-                        ),
-                    );
-                }
+                const ground = this.groundAt(e.position);
+                if (ground) this.onGroundPick(ground);
                 return;
             }
             const picked = scene.pick(e.position) as
@@ -342,6 +341,29 @@ export class TwinScene {
     /** Test hook: whether terrain loaded, and the ground height at the origin. */
     terrain(): { loaded: boolean; ground: number } {
         return { loaded: this.terrainLoaded, ground: this.ground };
+    }
+
+    /** Where a screen position meets the ground, in metres from the origin. */
+    private groundAt(position: Cartesian2): Point | null {
+        const { scene, camera } = this.viewer;
+        const ray = camera.getPickRay(position);
+        const ground =
+            this.terrainLoaded && ray
+                ? scene.globe.pick(ray, scene)
+                : camera.pickEllipsoid(position);
+        if (!ground) return null;
+        const c = Cartographic.fromCartesian(ground);
+        return lonLatToMetres(
+            this.origin,
+            CesiumMath.toDegrees(c.longitude),
+            CesiumMath.toDegrees(c.latitude),
+        );
+    }
+
+    /** Where a ground point, in metres from the origin, is on screen. */
+    screenAt(p: Point): { x: number; y: number } | null {
+        const at = this.viewer.scene.cartesianToCanvasCoordinates(this.cart(p));
+        return at ? { x: at.x, y: at.y } : null;
     }
 
     private cart(p: Point, height = 0): Cartesian3 {
@@ -1151,6 +1173,7 @@ export class TwinScene {
     destroy(): void {
         this.removePreRender?.();
         this.handler.destroy();
+        this.sketch.destroy();
         if (!this.viewer.isDestroyed()) this.viewer.destroy();
     }
 }
