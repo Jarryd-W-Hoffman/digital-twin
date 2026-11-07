@@ -13,6 +13,12 @@ declare module '@inertiajs/core' {
             toast?: FlashToast;
             /** A new gateway token, shown once. */
             gatewayToken?: string;
+            /** A new device password, shown once. */
+            deviceCredentials?: {
+                deviceId: string;
+                username: string;
+                password: string;
+            };
         };
         sharedPageProps: {
             name: string;

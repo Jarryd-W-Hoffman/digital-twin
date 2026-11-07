@@ -24,6 +24,7 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  * @property-read string|null $gateway_token_hash
  * @property-read string|null $gateway_url
  * @property-read CarbonInterface|null $gateway_seen_at
+ * @property-read string|null $gateway_mqtt
  * @property-read Organisation $organisation
  * @property-read Project $project
  * @property-read TwinVersion|null $latestVersion
@@ -58,6 +59,7 @@ final class Twin extends Model
             'gateway_token_hash' => 'string',
             'gateway_url' => 'string',
             'gateway_seen_at' => 'datetime',
+            'gateway_mqtt' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -109,5 +111,13 @@ final class Twin extends Model
         return $this->gateway_token_hash !== null
             && $this->gateway_url !== null
             && $this->gateway_seen_at?->isAfter(now()->subSeconds(self::GATEWAY_TIMEOUT_SECONDS)) === true;
+    }
+
+    /**
+     * The broker login its gateway uses, with the gateway token as password.
+     */
+    public function mqttUsername(): string
+    {
+        return 'twin-'.$this->id;
     }
 }

@@ -87,7 +87,7 @@ final readonly class TwinController
                 'name' => $twin->name,
                 'description' => $twin->description,
             ],
-            'project' => ['id' => $twin->project->id, 'name' => $twin->project->name],
+            'project' => ['id' => $twin->project->id, 'name' => $twin->project->name, 'topicPrefix' => $twin->project->topicPrefix()],
             'definition' => $latest->definition,
             'version' => $latest->number,
             'versions' => $twin->versions()->with('user:id,name')->latest('number')->limit(25)->get()
@@ -112,6 +112,7 @@ final readonly class TwinController
                 'online' => $online,
                 'url' => $online ? $twin->gateway_url : null,
                 'seenAt' => $twin->gateway_seen_at?->toIso8601String(),
+                'mqtt' => $online ? $twin->gateway_mqtt : null,
                 'ticket' => $online ? $tickets->handle($twin, $user, $canOperate) : null,
             ],
             'can' => [

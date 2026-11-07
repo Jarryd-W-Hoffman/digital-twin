@@ -9,6 +9,7 @@ export type GatewayStatus = {
     online: boolean;
     url: string | null;
     seenAt: string | null;
+    mqtt: 'connected' | 'disconnected' | null;
     ticket: string | null;
 } | null;
 
@@ -45,7 +46,7 @@ export function GatewayPanel({
                 {gateway === null
                     ? 'No token yet. A gateway runs the twin as a service and takes sensor readings.'
                     : gateway.online
-                      ? `Online at ${gateway.url}`
+                      ? `Online at ${gateway.url}${gateway.mqtt === 'connected' ? ', connected to the broker' : gateway.mqtt === 'disconnected' ? ', but not connected to the broker' : ''}`
                       : gateway.seenAt
                         ? `Offline, last seen ${new Date(gateway.seenAt).toLocaleString()}`
                         : 'Waiting for a gateway to connect with this token.'}

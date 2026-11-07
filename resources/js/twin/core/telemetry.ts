@@ -62,9 +62,14 @@ export interface Telemetry {
     ): { readings: Reading[]; problems: string[] };
 }
 
-/** Compiles a twin's mappings, dropping (and reporting) those whose metric doesn't exist. */
+/**
+ * Compiles a twin's mappings, dropping (and reporting) those whose metric
+ * doesn't exist. Mapping topics are relative to the project's `prefix`
+ * (`p/<key>/`), which the broker confines its devices and gateways to.
+ */
 export function compileTelemetry(
     def: TwinDefinition,
+    prefix = '',
 ): Telemetry & { skipped: string[] } {
     const assets = new Map(def.assets.map((a) => [a.id, a]));
     const skipped: string[] = [];
@@ -84,12 +89,12 @@ export function compileTelemetry(
     }
     return {
         skipped,
-        topics: [...new Set(mappings.map((m) => m.topic))],
+        topics: [...new Set(mappings.map((m) => prefix + m.topic))],
         read(topic, payload) {
             const readings: Reading[] = [];
             const problems: string[] = [];
             for (const m of mappings) {
-                if (!topicMatches(m.topic, topic)) continue;
+                if (!topicMatches(prefix + m.topic, topic)) continue;
                 const raw = valueFrom(payload, m.path);
                 if (raw === null) {
                     problems.push(

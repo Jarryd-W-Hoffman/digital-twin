@@ -11,15 +11,16 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
- * What a gateway polls: the latest version of the twin its token belongs to.
- * Each call is also its check-in. Answers 304 while the version is unchanged.
+ * What a gateway polls: the latest version of the twin its token belongs to,
+ * and how to log in to the broker for its telemetry. Each call is also its
+ * check-in. Answers 304 while the version is unchanged.
  */
 final readonly class GatewayDefinitionController
 {
     public function show(Request $request, RecordGatewayCheckIn $checkIn): JsonResponse|Response
     {
         $twin = AuthenticateGateway::twin($request);
-        $checkIn->handle($twin, $request->header('X-Gateway-Url'));
+        $checkIn->handle($twin, $request->header('X-Gateway-Url'), $request->header('X-Gateway-Mqtt'));
 
         $latest = $twin->latestVersion()->firstOrFail();
         $etag = '"v'.$latest->number.'"';
@@ -32,6 +33,7 @@ final readonly class GatewayDefinitionController
             'twin' => ['id' => $twin->id, 'name' => $twin->name],
             'version' => $latest->number,
             'definition' => $latest->definition,
+            'mqtt' => ['username' => $twin->mqttUsername(), 'topicPrefix' => $twin->project->topicPrefix()],
         ])->setEtag('v'.$latest->number);
     }
 }

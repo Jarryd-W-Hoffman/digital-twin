@@ -39,9 +39,11 @@ const toMapping = (r: Row): TelemetryMapping => ({
 export function TelemetryPanel({
     twinId,
     definition,
+    topicPrefix,
 }: {
     twinId: string;
     definition: TwinDefinition;
+    topicPrefix: string;
 }) {
     const [rows, setRows] = useState<Row[]>(() =>
         (definition.telemetry ?? []).map(toRow),
@@ -86,10 +88,11 @@ export function TelemetryPanel({
         <section aria-labelledby="telemetry-heading">
             <h3 id="telemetry-heading">Telemetry</h3>
             <p className="muted hint">
-                MQTT topics the gateway subscribes to. A message is a number, or
-                JSON with the number at <code>value</code> or the path given.{' '}
-                <code>+</code> matches one topic level, a final <code>#</code>{' '}
-                the rest.
+                MQTT topics the gateway subscribes to, below this project's{' '}
+                <code>{topicPrefix}</code>, where its devices publish. A message
+                is a number, or JSON with the number at <code>value</code> or
+                the path given. <code>+</code> matches one topic level, a final{' '}
+                <code>#</code> the rest.
             </p>
             {rows.length > 0 && (
                 <ul className="editor-layers" aria-label="Telemetry mappings">
@@ -98,7 +101,7 @@ export function TelemetryPanel({
                         return (
                             <li key={i} className="telemetry-row">
                                 <label>
-                                    <span>Topic</span>
+                                    <span>Topic, below {topicPrefix}</span>
                                     <input
                                         value={row.topic}
                                         placeholder="site/store/temp"

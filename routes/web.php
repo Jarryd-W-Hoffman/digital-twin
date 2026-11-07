@@ -8,6 +8,8 @@ use App\Http\Controllers\ProjectAssetController;
 use App\Http\Controllers\ProjectAssetConversionController;
 use App\Http\Controllers\ProjectAssetFileController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectDeviceController;
+use App\Http\Controllers\ProjectDevicePasswordController;
 use App\Http\Controllers\ProjectUploadCompletionController;
 use App\Http\Controllers\ProjectUploadController;
 use App\Http\Controllers\ProjectUploadPartController;
@@ -44,6 +46,9 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('projects/{project}/assets', [ProjectAssetController::class, 'store'])->name('projects.assets.store');
     Route::delete('projects/{project}/assets/{asset}', [ProjectAssetController::class, 'destroy'])->scopeBindings()->name('projects.assets.destroy');
     Route::post('projects/{project}/assets/{asset}/conversion', [ProjectAssetConversionController::class, 'store'])->scopeBindings()->name('projects.assets.conversion.store');
+    Route::post('projects/{project}/devices', [ProjectDeviceController::class, 'store'])->name('projects.devices.store');
+    Route::delete('projects/{project}/devices/{device}', [ProjectDeviceController::class, 'destroy'])->scopeBindings()->name('projects.devices.destroy');
+    Route::post('projects/{project}/devices/{device}/password', [ProjectDevicePasswordController::class, 'store'])->scopeBindings()->name('projects.devices.password.store');
     Route::post('projects/{project}/uploads', [ProjectUploadController::class, 'store'])->name('projects.uploads.store');
     Route::post('projects/{project}/uploads/{asset}/parts', [ProjectUploadPartController::class, 'store'])->scopeBindings()->name('projects.uploads.parts');
     Route::post('projects/{project}/uploads/{asset}/complete', [ProjectUploadCompletionController::class, 'store'])->scopeBindings()->name('projects.uploads.complete');

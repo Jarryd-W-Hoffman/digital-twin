@@ -139,7 +139,7 @@ it('shows a twin with its definition, history, project library and abilities', f
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('twins/show')
             ->where('twin.id', $twin->id)
-            ->where('project', ['id' => $twin->project_id, 'name' => $twin->project->name])
+            ->where('project', ['id' => $twin->project_id, 'name' => $twin->project->name, 'topicPrefix' => 'p/'.$twin->project->mqtt_key.'/'])
             ->where('definition.id', $twin->id)
             ->where('version', 2)
             ->has('versions', 2)
@@ -164,13 +164,14 @@ it('reports the gateway, and gives viewers a ticket while it is online', functio
     $token = resolve(IssueGatewayToken::class)->handle($twin);
 
     $this->actingAs($user)->get(route('twins.show', $twin))
-        ->assertInertia(fn ($page) => $page->where('gateway', ['online' => false, 'url' => null, 'seenAt' => null, 'ticket' => null]));
+        ->assertInertia(fn ($page) => $page->where('gateway', ['online' => false, 'url' => null, 'seenAt' => null, 'mqtt' => null, 'ticket' => null]));
 
-    resolve(RecordGatewayCheckIn::class)->handle($twin, 'ws://localhost:8788/ws');
+    resolve(RecordGatewayCheckIn::class)->handle($twin, 'ws://localhost:8788/ws', 'connected');
 
     $this->actingAs($user)->get(route('twins.show', $twin))
         ->assertInertia(fn ($page) => $page
             ->where('gateway.online', true)
+            ->where('gateway.mqtt', 'connected')
             ->where('gateway.url', 'ws://localhost:8788/ws')
             ->where('gateway.seenAt', now()->toIso8601String())
             ->where('gateway.ticket', fn (string $ticket): bool => json_decode(base64_decode(strtr(explode('.', $ticket)[0], '-_', '+/')), true)['operate'] === false));

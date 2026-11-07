@@ -198,19 +198,30 @@ services:
     networks:
       - meridian
 
+  # The MQTT broker devices publish to and gateways subscribe to. Logins and
+  # topics are checked by the app, through mosquitto-go-auth: set the same
+  # MERIDIAN_MQTT_AUTH_SECRET here (docker/.env) and in the app's .env.
   mosquitto:
-    image: eclipse-mosquitto:2.0.22
+    image: iegomez/mosquitto-go-auth:3.0.0-mosquitto_2.0.18
     container_name: ${COMPOSE_PROJECT_NAME:-meridian}-mosquitto
     restart: unless-stopped
+    entrypoint: ["/usr/bin/tini", "--", "/bin/sh", "/meridian/start.sh"]
+    environment:
+      MERIDIAN_AUTH_HOST: nginx
+      MERIDIAN_AUTH_PORT: 80
+      MERIDIAN_MQTT_AUTH_SECRET: ${MERIDIAN_MQTT_AUTH_SECRET:-}
     ports:
-      - "127.0.0.1:${FORWARD_MQTT_PORT:-1883}:1883"
+      - "${FORWARD_MQTT_PORT:-1883}:1883"
     volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto:/meridian:ro
       - mosquitto-data:/mosquitto/data
+    depends_on:
+      nginx:
+        condition: service_healthy
     profiles:
       - gateway
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/broker/uptime' -C 1 -W 3 > /dev/null || exit 1"]
+      test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/1883"]
       interval: 10s
       timeout: 5s
       retries: 5

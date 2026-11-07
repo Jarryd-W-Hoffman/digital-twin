@@ -125,4 +125,22 @@ describe('compiled mappings', () => {
         ]);
         expect(telemetry.topics).toEqual(['u']);
     });
+
+    it("places topics below the project's prefix", () => {
+        const telemetry = compileTelemetry(
+            harbour([
+                { topic: 'store/+/temp', asset: 'store', metric: 'tempC' },
+            ]),
+            'p/harbour-x1y2/',
+        );
+
+        expect(telemetry.topics).toEqual(['p/harbour-x1y2/store/+/temp']);
+        expect(
+            telemetry.read('p/harbour-x1y2/store/a/temp', '-18').readings,
+        ).toEqual([{ asset: 'store', metric: 'tempC', value: -18 }]);
+        expect(telemetry.read('store/a/temp', '-18').readings).toEqual([]);
+        expect(
+            telemetry.read('p/other-z9z9/store/a/temp', '-18').readings,
+        ).toEqual([]);
+    });
 });

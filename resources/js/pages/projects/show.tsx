@@ -5,6 +5,8 @@ import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import LibraryItem from '@/components/library-item';
 import type { LibraryAsset } from '@/components/library-item';
+import ProjectDevices from '@/components/project-devices';
+import type { ProjectDevice, ProjectMqtt } from '@/components/project-devices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,12 +39,16 @@ export default function ShowProject({
     project,
     twins,
     assets,
+    devices,
+    mqtt,
     directUploads,
     can,
 }: {
     project: { id: string; name: string; description: string | null };
     twins: TwinSummary[];
     assets: LibraryAsset[];
+    devices: ProjectDevice[];
+    mqtt: ProjectMqtt;
     directUploads: boolean;
     can: { update: boolean };
 }) {
@@ -354,6 +360,13 @@ export default function ShowProject({
                         </ul>
                     )}
                 </section>
+
+                <ProjectDevices
+                    projectId={project.id}
+                    devices={devices}
+                    mqtt={mqtt}
+                    canUpdate={can.update}
+                />
             </div>
         </>
     );

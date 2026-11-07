@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateProject;
 use App\Actions\DeleteProject;
 use App\Http\Requests\StoreProjectRequest;
+use App\Models\Device;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use App\Models\Twin;
@@ -97,6 +98,16 @@ final readonly class ProjectController
                 'crs' => $asset->crs,
                 'createdAt' => $asset->created_at->toIso8601String(),
             ]),
+            'devices' => $project->devices()->orderBy('name')->get()->map(fn (Device $device): array => [
+                'id' => $device->id,
+                'name' => $device->name,
+                'username' => $device->mqttUsername(),
+                'lastSeenAt' => $device->last_seen_at?->toIso8601String(),
+            ]),
+            'mqtt' => [
+                'brokerUrl' => config()->string('meridian.mqtt.broker_url'),
+                'topicPrefix' => $project->topicPrefix(),
+            ],
             'directUploads' => DirectUploads::enabled(),
             'can' => [
                 'update' => $user->can('update', $project),

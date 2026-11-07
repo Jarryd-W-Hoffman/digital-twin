@@ -29,12 +29,12 @@ it('replaces the token when issued again', function (): void {
 });
 
 it('revokes the token', function (): void {
-    $twin = Twin::factory()->create(['gateway_token_hash' => str_repeat('a', 64), 'gateway_url' => 'ws://x/ws', 'gateway_seen_at' => now()]);
+    $twin = Twin::factory()->create(['gateway_token_hash' => str_repeat('a', 64), 'gateway_url' => 'ws://x/ws', 'gateway_seen_at' => now(), 'gateway_mqtt' => 'connected']);
 
     resolve(RevokeGatewayToken::class)->handle($twin);
 
-    expect($twin->refresh()->only(['gateway_token_hash', 'gateway_url', 'gateway_seen_at']))
-        ->toBe(['gateway_token_hash' => null, 'gateway_url' => null, 'gateway_seen_at' => null]);
+    expect($twin->refresh()->only(['gateway_token_hash', 'gateway_url', 'gateway_seen_at', 'gateway_mqtt']))
+        ->toBe(['gateway_token_hash' => null, 'gateway_url' => null, 'gateway_seen_at' => null, 'gateway_mqtt' => null]);
 });
 
 it('records a check-in, keeping only socket addresses', function (?string $url, ?string $kept): void {
@@ -53,6 +53,19 @@ it('records a check-in, keeping only socket addresses', function (?string $url, 
     'broken' => ['ws://', null],
     'too long' => ['ws://example.com/'.str_repeat('a', 255), null],
     'missing' => [null, null],
+]);
+
+it('records whether the gateway is connected to the broker', function (?string $reported, ?string $kept): void {
+    $twin = Twin::factory()->create(['gateway_token_hash' => str_repeat('a', 64)]);
+
+    resolve(RecordGatewayCheckIn::class)->handle($twin, null, $reported);
+
+    expect($twin->refresh()->gateway_mqtt)->toBe($kept);
+})->with([
+    'connected' => ['connected', 'connected'],
+    'disconnected' => ['disconnected', 'disconnected'],
+    'anything else' => ['<b>yes</b>', null],
+    'no broker' => [null, null],
 ]);
 
 it('is online only while a gateway with the current token checks in', function (): void {
