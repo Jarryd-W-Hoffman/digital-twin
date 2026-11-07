@@ -1,0 +1,124 @@
+{
+    "id": "blank",
+    "name": "Blank site",
+    "description": "",
+    "origin": {
+        "lon": 174.76,
+        "lat": -36.85
+    },
+    "utcOffsetHours": 12.0,
+    "climate": {
+        "meanC": 15,
+        "swingC": 5
+    },
+    "camera": {
+        "headingDeg": 0,
+        "pitchDeg": -35,
+        "rangeM": 250
+    },
+    "tariff": {
+        "offPeakPerKwh": 0.15,
+        "peakPerKwh": 0.3,
+        "peakStartHour": 17,
+        "peakEndHour": 21,
+        "dieselPerLitre": 2,
+        "gridKgCo2PerKwh": 0.4,
+        "dieselKgCo2PerLitre": 2.68
+    },
+    "zones": [
+        {
+            "id": "site",
+            "name": "Site",
+            "footprint": [
+                [
+                    -50.0,
+                    -50.0
+                ],
+                [
+                    50.0,
+                    -50.0
+                ],
+                [
+                    50.0,
+                    50.0
+                ],
+                [
+                    -50.0,
+                    50.0
+                ]
+            ]
+        }
+    ],
+    "assets": [
+        {
+            "id": "site",
+            "name": "Site",
+            "kind": "site",
+            "zone": "site"
+        },
+        {
+            "id": "wx",
+            "name": "Weather",
+            "kind": "weather",
+            "zone": "site",
+            "position": [
+                40,
+                40
+            ],
+            "height": 6
+        },
+        {
+            "id": "grid",
+            "name": "Grid connection",
+            "kind": "grid",
+            "zone": "site",
+            "height": 4,
+            "footprint": [
+                [
+                    36.0,
+                    -44.0
+                ],
+                [
+                    44.0,
+                    -44.0
+                ],
+                [
+                    44.0,
+                    -36.0
+                ],
+                [
+                    36.0,
+                    -36.0
+                ]
+            ]
+        },
+        {
+            "id": "board",
+            "name": "Main board",
+            "kind": "bus",
+            "zone": "site",
+            "height": 3,
+            "footprint": [
+                [
+                    24.0,
+                    -44.0
+                ],
+                [
+                    32.0,
+                    -44.0
+                ],
+                [
+                    32.0,
+                    -36.0
+                ],
+                [
+                    24.0,
+                    -36.0
+                ]
+            ]
+        }
+    ],
+    "routes": [],
+    "rules": [],
+    "scenarios": []
+}

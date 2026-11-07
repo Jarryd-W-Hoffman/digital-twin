@@ -289,7 +289,7 @@ Browsers get in with a ticket the control plane signs for each page view. The HM
 
 ## Writing a twin
 
-Positions are in metres east and north of `origin`. The [Northshore definition](public/samples/northshore.json) uses every feature, and [Harbour Depot](public/samples/harbour-depot.json) is close to the minimum.
+Positions are in metres east and north of `origin`. The [Northshore definition](public/samples/northshore.json) uses every feature, and [Harbour Depot](public/samples/harbour-depot.json) is close to the minimum. The smallest twin that runs is what **New twin → An empty site at a location** creates (`app/Support/BlankTwin.php`, pinned in [tests/fixtures/blank-twin.json](tests/fixtures/blank-twin.json)): a site, weather, a grid connection and the one main bus every twin needs.
 
 ```jsonc
 {
@@ -416,7 +416,7 @@ tests/e2e/                Playwright specs
 Meridian is meant to be a tool teams run for their own sites: bring in scans, models and live data, organise them by project, and build twins from them, all managed from the control plane. The microgrid and cold chain physics stay as a reference domain, and each milestone moves more of what is fixed in code into data people control.
 
 1. **Control plane and gateway** (done): organisations and roles, versioned twins, uploads, placement, custom types, Docker Compose with Postgres and RustFS, and gateways that load their twin from the control plane, follow new versions and admit browsers with signed tickets.
-2. **Projects and a data library:** organisations hold projects, and projects hold twins and a shared library of uploads (models, tilesets, later point clouds), so one scan can be placed into several twins. Large files upload straight to object storage in parts rather than through PHP. Blank and template twins, so a new project doesn't start from JSON.
+2. **Projects and a data library:** organisations hold projects, and projects hold twins and a shared library of uploads (models, tilesets, later point clouds), so one scan can be placed into several twins. New twins start as an empty site at a chosen location (weather, a grid connection and a main board), a sample, or a definition file. Still to come: large files uploaded straight to object storage in parts rather than through PHP.
 3. **Point cloud pipeline:** LAS, LAZ and E57 uploaded to the library and converted to 3D Tiles by a queued worker (PDAL to reproject, filter and thin; py3dtiles to tile), with progress, logs and retries in the UI, then placed into a twin like any tileset.
 4. **IoT: devices, MQTT and history:** devices registered per project with their own tokens, an MQTT bridge with topic and tag mapping onto any asset's metrics, gateways managed from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
 5. **Customisation core:** behaviour for custom types as data (derived metrics written as safe expressions, simple state machines, setpoints), KPIs and panels declared in the definition instead of built in, expression and rate-of-change rules, and a type library per organisation.

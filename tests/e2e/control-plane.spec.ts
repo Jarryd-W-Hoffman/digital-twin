@@ -98,6 +98,28 @@ test('a project library upload is shared: added to a twin, then taken out again 
   await expect(page.getByText('Shared crane', { exact: true })).toBeVisible();
 });
 
+test('an owner starts an empty twin at a location from the project page', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  await logIn(page, 'test@example.com');
+
+  await page.getByRole('link', { name: 'New twin' }).click();
+  await expect(page.getByLabel('Project')).toHaveValue(/.+/);
+  await page.getByLabel('Name', { exact: true }).fill('Quay scan site');
+  await expect(page.getByLabel('An empty site at a location')).toBeChecked();
+  await page.getByLabel('Latitude').fill('-36.8442');
+  await page.getByLabel('Longitude').fill('174.7676');
+  await page.getByLabel('UTC offset (hours)').fill('13');
+  await page.getByRole('button', { name: 'Create twin' }).click();
+
+  await expect(page.locator('.twin-name')).toHaveText('Quay scan site');
+  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
+  await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Debug).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
+  await page.getByRole('link', { name: 'Back to Pilot sites' }).click();
+  await expect(page.getByRole('link', { name: /^Quay scan site/ })).toBeVisible();
+  expect(problems).toEqual([]);
+});
+
 test('a bad archive is refused with the reason', async ({ page }) => {
   await logIn(page, 'test@example.com');
   await openTwin(page, 'Northshore Cold Chain Hub');
