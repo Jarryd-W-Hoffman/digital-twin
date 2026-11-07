@@ -110,7 +110,8 @@ services:
       - meridian
 
   # Works the "conversions" queue: point clouds (LAS, LAZ, E57) to 3D Tiles
-  # with PDAL and py3dtiles, which only this image carries.
+  # with PDAL and py3dtiles, and DEMs to quantized-mesh terrain with
+  # meridian-terrain, which only this image carries.
   converter:
     build:
       context: ./converter

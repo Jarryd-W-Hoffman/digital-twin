@@ -16,6 +16,7 @@ The sample twin, **Northshore Cold Chain Hub**, is a fictional refrigerated logi
 | **Versioned twins**                | Each save appends an immutable version: a layout change, an upload, a replaced definition or a restore. Any version can be downloaded as JSON or restored as a new one.                                                                                                                                                   |
 | **Projects and uploads**           | Projects group twins with a library of models (`.glb`), zipped 3D Tiles tilesets and point clouds that any of their twins can show, so one scan serves several twins. Archives are checked entry by entry before anything is written, and files are served only to members of the organisation.                           |
 | **Point clouds**                   | LAS, LAZ and E57 scans are converted to 3D Tiles by a queued job (PDAL, then py3dtiles), reprojected onto the globe from their own coordinate system or an EPSG code you give, and optionally thinned. Progress, a log and retries show in the library.                                                                   |
+| **Terrain**                        | DEMs (GeoTIFF or ASCII grid) are converted to quantized-mesh terrain by the same queue (GDAL, pydelatin and quantized-mesh-encoder), and a twin can use one as its ground: the site is lifted onto it, zones and routes drape over it, and hills hide what's behind them.                                                 |
 | **Placement**                      | Models and local-coordinate tilesets are placed in metres east, north and up from the twin's origin, with heading and scale. Edits preview live in the scene, and **Place on map** moves a layer to wherever you click on the ground.                                                                                     |
 | **Custom asset types**             | Equipment the simulator has no physics for, described as data: metrics with units and defaults, a colour and a shape, plus behaviour written as safe expressions: derived metrics, states and transitions, setpoints operators can change, and power drawn from the feed tree.                                            |
 | **Live physics**                   | A microgrid power balance (solar, battery dispatch with peak shaving, grid, generator start delay, load shedding by priority) feeding a refrigeration plant (chiller capacity and COP that derate with ambient air, store thermal mass, door losses, stock spoilage). Vehicles drive their routes and queue for chargers. |
@@ -59,7 +60,7 @@ To try uploads, use `public/samples/models/pump-skid.glb` as a model, and zip `p
 (cd public/tilesets/context && zip -q ../../../context.zip tileset.json context.glb)
 ```
 
-Point clouds need PDAL and py3dtiles, and a worker on the conversions queue. The Docker stack's `converter` service has both. Without Docker, install them (`pdal` from conda-forge, `pip install "py3dtiles[las]"`) and run:
+Point clouds need PDAL and py3dtiles, terrain needs `meridian-terrain` (`docker/converter/meridian-terrain`, with GDAL, pydelatin and quantized-mesh-encoder), and both need a worker on the conversions queue. The Docker stack's `converter` service has all of them. Without Docker, install them (`pdal` from conda-forge, `pip install "py3dtiles[las]"`) and run:
 
 ```bash
 php artisan queue:work conversions --queue=conversions --timeout=14400
@@ -243,7 +244,7 @@ Cancelling, or deleting an item still uploading, aborts the multipart upload. Th
 ```mermaid
 flowchart TD
   U[LAS, LAZ or E57 upload] --> K[kept as uploaded, at uploads/asset/]
-  K --> J[ConvertUploadedPointCloud on the conversions queue]
+  K --> J[ConvertUpload on the conversions queue]
   J --> S{signature: LASF or ASTM-E57}
   S -->|no| F[failed, with the reason]
   S --> I[pdal info: point count, CRS]
@@ -258,6 +259,37 @@ flowchart TD
 ```
 
 The job runs only in the `converter` image (`docker/converter`): Alpine's PDAL has no E57 reader and py3dtiles needs glibc, so that image is Debian with PDAL from conda-forge and py3dtiles from PyPI. Conversions get their own queue connection, `conversions`, whose `retry_after` outlasts the four-hour job timeout; it uses the same driver as `QUEUE_CONNECTION`. A failed conversion keeps the original and the last lines from the tool that failed, and is tried once, so the reason is on screen rather than lost in a retry. py3dtiles is always run with `--pyproj-always-xy`: LAS stores easting as X whatever the CRS's axis order, and without it a northing-first system such as NZTM lands on the other side of the planet. A cloud with no coordinate system (common for E57) is tiled in its own metres and starts placed at the twin's origin.
+
+#### Terrain
+
+```mermaid
+flowchart TD
+  U[GeoTIFF or ASCII grid upload] --> K[kept as uploaded]
+  K --> J[ConvertUpload on the conversions queue]
+  J --> S{signature: TIFF, BigTIFF or ncols}
+  S -->|no| F[failed, with the reason]
+  S --> M[meridian-terrain]
+  M --> W[tiles copied into the library; original dropped]
+  W --> R[ready: a twin's terrain]
+  M -->|no CRS, unreadable, only no-data| F
+  F -->|Retry, maybe with an EPSG code| J
+```
+
+`meridian-terrain` is a short script in the converter image:
+
+```text
+reproject the DEM to WGS84 longitude and latitude (GDAL), with overviews
+deepest zoom ← where one tile's 256 cells are about as fine as the DEM's pixels
+for each zoom, each tile of Cesium's geographic grid over the DEM
+(and both whole-hemisphere tiles at zoom 0, so the globe is complete):
+    sample 257 × 257 heights over the tile; no data is 0, the ellipsoid
+    triangulate to half a cell of error at that zoom (Delatin)
+    write {z}/{x}/{y}.terrain with oct-encoded vertex normals
+write layer.json: the zooms and tile ranges available
+print the CRS, tile count, deepest zoom and height range
+```
+
+Heights are used as the DEM gives them, so a DEM in metres above sea level puts the ground a few tens of metres off the ellipsoid; the twin only cares about the height at its origin. The real-tool tests tile a DEM of Auckland with a hill 400 m north of its centre and check the summit lands north, at 100 m: pydelatin counts rows from the south, and getting that wrong flips every tile.
 
 #### The library
 
@@ -558,6 +590,14 @@ The top bar and site summary can be declared too. Each figure is an expression o
 
 With no `kpis`, the top bar shows site load, solar, grid, battery and the tightest store, as before. A chart is drawn from the history the twin keeps, so it works in replay too. Figures read only `{asset.metric}`, and the validators refuse bare names and references to assets that don't exist.
 
+### Terrain
+
+```jsonc
+"terrain": { "name": "Site lidar", "url": "/assets/.../files/layer.json", "assetId": "..." }
+```
+
+Quantized-mesh terrain to stand the site on; without it, the site sits on the plain ellipsoid. The viewer samples the terrain's height at the origin and builds the site level at that height, so pick an origin on the pad the site stands on. Zones and routes drape over the ground, and hills hide what's behind them. Choosing **Use as terrain** on a converted DEM in the twin editor writes this for you; a twin has one terrain, so choosing another replaces it. Harbour Depot uses a synthetic one (`scripts/generate-terrain.py`): a 12 m pad, a ridge to the south-west and the harbour to the north.
+
 ### Models and tilesets
 
 ```jsonc
@@ -604,6 +644,9 @@ _Coloured by power after dark: solar has gone quiet, and the battery and grid ca
 | `MERIDIAN_PDAL`, `MERIDIAN_PY3DTILES`          | The point cloud tools, default `pdal` and `py3dtiles` on the `PATH`                                                    |
 | `MERIDIAN_POINT_CLOUD_JOBS`                    | Processes py3dtiles tiles with, default 2                                                                              |
 | `MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES`         | Longest each conversion step may run, default 240                                                                      |
+| `MERIDIAN_TERRAIN_TILER`                       | The terrain tiler, default `meridian-terrain` on the `PATH`                                                            |
+| `MERIDIAN_TERRAIN_JOBS`                        | Processes it tiles with, default 2                                                                                     |
+| `MERIDIAN_TERRAIN_TIMEOUT_MINUTES`             | Longest a terrain conversion may run, default 240                                                                      |
 | `MERIDIAN_READINGS_RETENTION_DAYS`             | How long recorded readings are kept, default 365                                                                       |
 | `MERIDIAN_MQTT_AUTH_SECRET`                    | Shared with the MQTT broker, which uses it to ask who may log in and use which topics. Unset, those routes answer 404. |
 | `MERIDIAN_MQTT_BROKER_URL`                     | Where devices connect, shown on the project page, default `mqtt://localhost:1883`                                      |
@@ -615,9 +658,9 @@ The default basemap is Natural Earth imagery bundled with Cesium. It makes no th
 
 ## Tests
 
-- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. Point clouds with PDAL and py3dtiles faked: the commands each step runs, the EPSG and thinning options, signatures, missing and empty files, the tail of a failing tool, the original kept for a retry, and clouds in local metres placed at the origin. With the real tools, inside the converter image, LAS and E57 scans of Auckland land within 0.01° of where they should (`docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 meridian-converter php vendor/bin/pest tests/Feature/Conversions`). Readings: gateway batches checked against the twin's assets and a recent time window, bucketed history with lows and highs, other organisations kept out, and pruning by retention. Devices: passwords shown once and reset, names unique per project, and only editors manage them. The broker's checks: device and gateway logins, publishing and subscribing only below the project's prefix (not `#`, `p/+/#`, `$SYS` or other projects), revoked tokens and deleted devices shut out, the shared secret, and the per-username login limit. The suite also runs in CI on TimescaleDB Postgres, where readings are a hypertable. The shared definition fixtures, and the shared expression fixtures: the PHP parser refuses exactly what the viewer's does, with the same message. Browser tests for the kit's account pages.
+- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. Point clouds with PDAL and py3dtiles faked: the commands each step runs, the EPSG and thinning options, signatures, missing and empty files, the tail of a failing tool, the original kept for a retry, and clouds in local metres placed at the origin. DEMs with the tiler faked: TIFF, BigTIFF and ASCII grid signatures, the EPSG option passed on, the tiler's reason kept, a run that writes no `layer.json`, and terrain set, replaced and removed as a twin's ground. With the real tools, inside the converter image, LAS and E57 scans of Auckland land within 0.01° of where they should, and a DEM of Auckland tiles to zoom 16 with its summit at 100 m, north of centre where it belongs, or asks for an EPSG code when it has no coordinate system (`docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 meridian-converter php vendor/bin/pest tests/Feature/Conversions`). Readings: gateway batches checked against the twin's assets and a recent time window, bucketed history with lows and highs, other organisations kept out, and pruning by retention. Devices: passwords shown once and reset, names unique per project, and only editors manage them. The broker's checks: device and gateway logins, publishing and subscribing only below the project's prefix (not `#`, `p/+/#`, `$SYS` or other projects), revoked tokens and deleted devices shut out, the shared secret, and the per-username login limit. The suite also runs in CI on TimescaleDB Postgres, where readings are a hypertable. The shared definition fixtures, and the shared expression fixtures: the PHP parser refuses exactly what the viewer's does, with the same message. Browser tests for the kit's account pages.
 - **Vitest:** power is conserved every step, including while islanded. Stores hold setpoint for a full day. Outages bridge on battery, start the generator and return to grid. Load sheds by priority. Runs are deterministic, and survive cloning and a JSON round trip. The forecast's baseline matches a straight run exactly. Rule hold times and hysteresis. The gateway's socket, commands, ingest, tokens, body limits and origins. MQTT topic matching and payload mapping, topics placed below the project's prefix, the gateway logging in as its twin and reporting the broker connection, the bridge following new mappings, and the readings outbox holding what the control plane refused. The shared definition fixtures. Expressions: precedence, short-circuiting, missing values and every parse error, against the same fixtures as PHP. Custom types with behaviour: derived metrics that integrate, transitions, power drawn from a bus and lost with it, setpoints clamped to range, and the jockey pump holding the fire main between its setpoints for six hours. Expression and change rules, including a window that restarts when time goes backwards.
-- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A point cloud waits for the converter, shows why its conversion failed, and is retried with an EPSG code. A bad archive is refused with its reason. An owner adds a device, is shown its password and an example command once, resets it, is refused a duplicate name and deletes it. An owner maps an MQTT topic below the project's prefix (a bad filter is refused first) and sees recorded readings charted. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin, bad files, the gateway path including a real `POST /ingest`, and phone width.
+- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A point cloud waits for the converter, shows why its conversion failed, and is retried with an EPSG code. A DEM shows only the EPSG option, converts on the queue, and shows why it failed. A bad archive is refused with its reason. An owner adds a device, is shown its password and an example command once, resets it, is refused a duplicate name and deletes it. An owner maps an MQTT topic below the project's prefix (a bad filter is refused first) and sees recorded readings charted. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin standing on its terrain's 12 m pad, bad files, the gateway path including a real `POST /ingest`, and phone width.
 
 ## Project layout
 
@@ -646,6 +689,7 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 3. **Point cloud pipeline** (done): LAS, LAZ and E57 uploaded to the library and converted to 3D Tiles by a queued worker (PDAL to read, assign a coordinate system and thin; py3dtiles to reproject and tile), with progress, logs and retries in the UI, then placed into a twin like any tileset.
 4. **IoT: devices, MQTT and history** (done): devices registered per project with their own broker logins, a broker that asks the control plane who may publish and subscribe where, an MQTT bridge mapping topics onto any asset's metrics, gateways issued, rotated and watched from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
 5. **Customisation core** (in progress): behaviour for custom types as data (derived metrics written as safe expressions, state machines, setpoints, power drawn from the feed tree), expression and rate-of-change rules, and KPIs and panels declared in the definition are done; a type library per organisation is next.
-6. **Definition editor:** edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators.
-7. **Scene editing and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.
-8. **OPC UA and actuation:** read from OPC UA servers, and write back through the custom setpoints, off by default and audited.
+6. **Terrain** (done): DEMs uploaded to the library and converted to quantized-mesh terrain by the conversions worker, which a twin can stand on.
+7. **Definition editor:** edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators.
+8. **Scene editing and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.
+9. **OPC UA and actuation:** read from OPC UA servers, and write back through the custom setpoints, off by default and audited.

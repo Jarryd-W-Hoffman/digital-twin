@@ -9,6 +9,7 @@ enum ProjectAssetKind: string
     case Model = 'model';
     case Tileset = 'tileset';
     case PointCloud = 'pointcloud';
+    case Terrain = 'terrain';
 
     /**
      * Kinds are told apart by extension; the file's contents are checked when
@@ -19,6 +20,7 @@ enum ProjectAssetKind: string
         return match (mb_strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
             'zip' => self::Tileset,
             'las', 'laz', 'e57' => self::PointCloud,
+            'tif', 'tiff', 'asc' => self::Terrain,
             default => self::Model,
         };
     }
@@ -28,6 +30,14 @@ enum ProjectAssetKind: string
      */
     public function isTileset(): bool
     {
-        return $this !== self::Model;
+        return $this === self::Tileset || $this === self::PointCloud;
+    }
+
+    /**
+     * Point clouds and DEMs are kept as uploaded and converted on the queue.
+     */
+    public function isConverted(): bool
+    {
+        return $this === self::PointCloud || $this === self::Terrain;
     }
 }

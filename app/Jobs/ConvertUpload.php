@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Actions\ConvertPointCloud;
+use App\Actions\ConvertTerrain;
+use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
-use App\Exceptions\PointCloudConversionFailed;
+use App\Exceptions\ConversionFailed;
 use App\Models\ProjectAsset;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -15,13 +17,14 @@ use Illuminate\Queue\Attributes\Tries;
 use Throwable;
 
 /**
- * Converts a library point cloud on the "conversions" queue, which only the
- * converter (with PDAL and py3dtiles) works. It is tried once: a failure is
- * shown on the library item, which can be retried from there.
+ * Converts a library point cloud or DEM on the "conversions" queue, which
+ * only the converter (with PDAL, py3dtiles and meridian-terrain) works. It
+ * is tried once: a failure is shown on the library item, which can be
+ * retried from there.
  */
 #[Timeout(14400)]
 #[Tries(1)]
-final class ConvertUploadedPointCloud implements ShouldQueue
+final class ConvertUpload implements ShouldQueue
 {
     use Queueable;
 
@@ -30,12 +33,14 @@ final class ConvertUploadedPointCloud implements ShouldQueue
         $this->onConnection('conversions')->onQueue('conversions');
     }
 
-    public function handle(ConvertPointCloud $convert): void
+    public function handle(ConvertPointCloud $pointCloud, ConvertTerrain $terrain): void
     {
         try {
-            $convert->handle($this->asset);
-        } catch (PointCloudConversionFailed $pointCloudConversionFailed) {
-            $this->asset->update(['status' => ProjectAssetStatus::Failed, 'error' => $pointCloudConversionFailed->getMessage()]);
+            $this->asset->kind === ProjectAssetKind::Terrain
+                ? $terrain->handle($this->asset)
+                : $pointCloud->handle($this->asset);
+        } catch (ConversionFailed $conversionFailed) {
+            $this->asset->update(['status' => ProjectAssetStatus::Failed, 'error' => $conversionFailed->getMessage()]);
         }
     }
 

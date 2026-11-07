@@ -6,7 +6,7 @@ namespace App\Actions;
 
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
-use App\Jobs\ConvertUploadedPointCloud;
+use App\Jobs\ConvertUpload;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use Illuminate\Http\UploadedFile;
@@ -22,10 +22,10 @@ final readonly class StoreProjectAsset
     /**
      * Adds a file uploaded through the app to the project's library. A GLB
      * model or zipped 3D Tiles tileset is checked and stored now; a point
-     * cloud is kept as uploaded and queued for conversion. Nothing is shown
+     * cloud or DEM is kept as uploaded and queued for conversion. Nothing is shown
      * in a twin until it is added to one.
      *
-     * @param  array{epsg?: int, spacing?: float}  $options  Point cloud conversion options.
+     * @param  array{epsg?: int, spacing?: float}  $options  Conversion options.
      */
     public function handle(Project $project, UploadedFile $file, string $name, array $options = []): ProjectAsset
     {
@@ -43,13 +43,13 @@ final readonly class StoreProjectAsset
                 'bytes' => (int) $file->getSize(),
                 'files' => 0,
                 'status' => ProjectAssetStatus::Processing,
-                'options' => $kind === ProjectAssetKind::PointCloud ? $options : null,
+                'options' => $kind->isConverted() ? $options : null,
             ]);
 
-            if ($kind === ProjectAssetKind::PointCloud) {
+            if ($kind->isConverted()) {
                 $key = $asset->sourceKey();
                 Storage::disk(config()->string('meridian.assets_disk'))->putFileAs(dirname($key), $file, basename($key));
-                dispatch(new ConvertUploadedPointCloud($asset))->afterCommit();
+                dispatch(new ConvertUpload($asset))->afterCommit();
 
                 return $asset;
             }

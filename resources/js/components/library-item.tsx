@@ -3,6 +3,7 @@ import {
     Box,
     Layers,
     Loader2,
+    Mountain,
     RotateCcw,
     ScanLine,
     Trash2,
@@ -18,7 +19,7 @@ import { destroy as abortUpload } from '@/routes/projects/uploads';
 export type LibraryAsset = {
     id: string;
     name: string;
-    kind: 'model' | 'tileset' | 'pointcloud';
+    kind: 'model' | 'tileset' | 'pointcloud' | 'terrain';
     originalName: string;
     bytes: number;
     files: number;
@@ -42,6 +43,8 @@ const ready: Record<LibraryAsset['kind'], (asset: LibraryAsset) => string> = {
     tileset: (asset) => `Tileset · ${asset.files} files`,
     pointcloud: (asset) =>
         `Point cloud · ${asset.files} files · ${asset.crs ?? 'local metres'}`,
+    terrain: (asset) =>
+        `Terrain · ${asset.files} files · ${asset.crs ?? 'unknown CRS'}`,
 };
 
 function describe(asset: LibraryAsset): string {
@@ -53,7 +56,7 @@ function describe(asset: LibraryAsset): string {
         case 'uploading':
             return 'Uploading';
         default:
-            return asset.kind === 'pointcloud'
+            return asset.kind === 'pointcloud' || asset.kind === 'terrain'
                 ? `Converting ${asset.progress ?? 0}%`
                 : 'Processing';
     }
@@ -72,6 +75,8 @@ function Icon({ asset }: { asset: LibraryAsset }) {
 
     return asset.kind === 'pointcloud' ? (
         <ScanLine className={className} />
+    ) : asset.kind === 'terrain' ? (
+        <Mountain className={className} />
     ) : asset.kind === 'tileset' ? (
         <Layers className={className} />
     ) : (
@@ -159,7 +164,7 @@ export default function LibraryItem({
                     </details>
                 )}
                 {canUpdate &&
-                    asset.kind === 'pointcloud' &&
+                    (asset.kind === 'pointcloud' || asset.kind === 'terrain') &&
                     asset.status === 'failed' && (
                         <RetryConversion projectId={projectId} asset={asset} />
                     )}

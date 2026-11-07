@@ -42,6 +42,17 @@ return [
     ],
 
     /*
+    | DEMs (GeoTIFF, ASCII grid) are converted to quantized-mesh terrain by the
+    | same queue, which runs meridian-terrain (GDAL, pydelatin and
+    | quantized-mesh-encoder). The Docker converter service has it.
+    */
+    'terrain' => [
+        'tiler' => env('MERIDIAN_TERRAIN_TILER', 'meridian-terrain'),
+        'jobs' => (int) env('MERIDIAN_TERRAIN_JOBS', 2),
+        'timeout_minutes' => (int) env('MERIDIAN_TERRAIN_TIMEOUT_MINUTES', 240),
+    ],
+
+    /*
     | Readings gateways report (from MQTT or POST /ingest) are kept this long
     | for history charts. TimescaleDB drops older chunks itself; elsewhere the
     | scheduled model:prune does.

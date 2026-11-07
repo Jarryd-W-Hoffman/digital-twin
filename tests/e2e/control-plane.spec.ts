@@ -182,6 +182,25 @@ test('a point cloud waits for the converter, shows why it failed, and can be ret
   await expect(page.getByRole('list', { name: 'Library' }).getByText('quay')).toHaveCount(0);
 });
 
+test('a DEM converts to terrain on the queue, with only an EPSG option', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+
+  await page.getByLabel(/^File \(/).setInputFiles({ name: 'ground.tif', mimeType: 'image/tiff', buffer: Buffer.from('II*\0 not really a DEM') });
+  await expect(page.getByLabel('EPSG code')).toBeVisible();
+  await expect(page.getByLabel('Thin to spacing (m)')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  const item = page.getByRole('listitem').filter({ hasText: 'ground.tif' });
+  await expect(item).toContainText('Converting 0%');
+
+  // meridian-terrain only lives in the converter image, so here it fails.
+  // Drain the queue: an earlier test may have left a retried scan on it.
+  execFileSync('php', ['artisan', 'queue:work', 'conversions', '--queue=conversions', '--stop-when-empty'], {
+    env: { ...process.env, DB_DATABASE: resolve('database/e2e.sqlite') },
+  });
+  await expect(item).toContainText('The DEM could not be tiled', { timeout: 10_000 });
+  await expect(item.getByRole('button', { name: 'Retry' })).toBeVisible();
+});
+
 test('a bad archive is refused with the reason', async ({ page }) => {
   await logIn(page, 'test@example.com');
   await openTwin(page, 'Northshore Cold Chain Hub');

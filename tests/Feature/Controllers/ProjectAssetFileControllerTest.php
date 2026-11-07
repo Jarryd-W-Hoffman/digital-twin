@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Actions\StoreProjectAsset;
 use App\Enums\OrganisationRole;
+use App\Enums\ProjectAssetKind;
+use App\Models\ProjectAsset;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(fn () => Storage::fake('local'));
@@ -28,6 +30,17 @@ it('serves tileset files with fixed types and a locked-down policy', function (s
     ['tiles/1.b3dm', 'application/octet-stream'],
     ['tex/a.png', 'image/png'],
 ]);
+
+it('serves terrain tiles as quantized-mesh', function (): void {
+    [$user, $organisation] = member(OrganisationRole::Viewer);
+    $twin = twinIn($organisation);
+    $asset = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Terrain, 'entry' => 'layer.json']);
+    Storage::disk('local')->put($asset->directory.'/12/4033/2610.terrain', 'mesh');
+
+    $this->actingAs($user)->get(route('assets.files.show', [$asset, '12/4033/2610.terrain']))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'application/vnd.quantized-mesh');
+});
 
 it('serves nothing outside the asset', function (string $path): void {
     [$user, $organisation] = member();

@@ -6,6 +6,7 @@ import {
     Cartesian2,
     Cartesian3,
     Cesium3DTileset,
+    CesiumTerrainProvider,
     Color,
     Credit,
     ColorGeometryInstanceAttribute,
@@ -38,6 +39,7 @@ import {
     ScreenSpaceEventHandler,
     ScreenSpaceEventType,
     ShadowMode,
+    sampleTerrainMostDetailed,
     SunLight,
     TileMapServiceImageryProvider,
     Transforms,
@@ -175,12 +177,20 @@ export class TwinScene {
         intensity: 1.4,
     });
     private selection?: Entity;
+    /** Kept so a selection made while terrain loads shows once it's built. */
+    private selectedId: string | null = null;
     /** Uploaded and bundled context: tilesets and placed models, by layer id. */
     private readonly layerPrimitives = new Map<
         string,
         Cesium3DTileset | Model
     >();
     private contextShown = true;
+    /**
+     * The terrain's height at the origin. The site is built level at that
+     * height, so it sits on the ground; 0 on the plain ellipsoid.
+     */
+    private ground = 0;
+    private terrainLoaded = false;
     private basemapLayer?: ImageryLayer;
     private basemapName?: Basemap;
     private removePreRender?: () => void;
@@ -239,18 +249,16 @@ export class TwinScene {
             new PointPrimitiveCollection(),
         ) as PointPrimitiveCollection;
 
-        this.buildZones();
-        this.buildRoutes();
-        for (const a of def.assets) this.buildAsset(a);
-        this.buildBodies();
-        this.buildFlows();
-        this.buildSelection();
-        void this.loadLayers();
 
         this.handler = new ScreenSpaceEventHandler(scene.canvas);
         this.handler.setInputAction((e: { position: Cartesian2 }) => {
             if (this.onGroundPick) {
-                const ground = this.viewer.camera.pickEllipsoid(e.position);
+                const ground = this.terrainLoaded
+                    ? scene.globe.pick(
+                          this.viewer.camera.getPickRay(e.position)!,
+                          scene,
+                      )
+                    : this.viewer.camera.pickEllipsoid(e.position);
                 if (ground) {
                     const c = Cartographic.fromCartesian(ground);
                     this.onGroundPick(
@@ -281,16 +289,65 @@ export class TwinScene {
         this.removePreRender = scene.preRender.addEventListener(() =>
             this.animate(),
         );
-        // Arrive from orbit: start over the whole Earth, then descend to the site.
+        // Arrive from orbit: start over the whole Earth, then descend to the
+        // site once it's built. With terrain, that waits for its height at
+        // the origin.
         this.globeView(0);
-        this.home(OPENING_FLIGHT_S);
+        if (def.terrain) void this.loadTerrain().then(() => this.build());
+        else this.build();
     }
 
     // Construction --------------------------------------------------------------
 
+    private build(): void {
+        if (this.viewer.isDestroyed()) return;
+        this.buildZones();
+        this.buildRoutes();
+        for (const a of this.def.assets) this.buildAsset(a);
+        this.buildBodies();
+        this.buildFlows();
+        this.buildSelection();
+        void this.loadLayers();
+        if (this.lastFrame) this.updateFrame(this.lastFrame, this.colorBy);
+        this.setSelected(this.selectedId);
+        this.home(OPENING_FLIGHT_S);
+    }
+
+    /**
+     * Quantized-mesh terrain from the definition's layer.json, and its height
+     * at the origin. Terrain that fails to load leaves the plain ellipsoid, so
+     * the twin still runs.
+     */
+    private async loadTerrain(): Promise<void> {
+        const url = resolveUrl(this.def.terrain!.url).replace(
+            /layer\.json(\?.*)?$/,
+            '',
+        );
+        try {
+            const provider = await CesiumTerrainProvider.fromUrl(url, {
+                requestVertexNormals: true,
+            });
+            if (this.viewer.isDestroyed()) return;
+            this.viewer.terrainProvider = provider;
+            this.viewer.scene.globe.depthTestAgainstTerrain = true;
+            const [origin] = await sampleTerrainMostDetailed(provider, [
+                Cartographic.fromDegrees(this.origin.lon, this.origin.lat),
+            ]);
+            this.ground = Number.isFinite(origin?.height) ? origin!.height : 0;
+            this.terrainLoaded = true;
+        } catch (error) {
+            console.warn('Could not load the terrain', error);
+        }
+    }
+
+    /** Test hook: whether terrain loaded, and the ground height at the origin. */
+    terrain(): { loaded: boolean; ground: number } {
+        return { loaded: this.terrainLoaded, ground: this.ground };
+    }
+
     private cart(p: Point, height = 0): Cartesian3 {
         const { lon, lat } = metresToLonLat(this.origin, p);
-        return Cartesian3.fromDegrees(lon, lat, height);
+        return Cartesian3.fromDegrees(lon, lat, this.ground + height);
     }
 
     private ring(points: Point[]): number[] {
@@ -348,10 +405,11 @@ export class TwinScene {
                     hierarchy: Cartesian3.fromDegreesArray(
                         this.ring(z.footprint),
                     ),
-                    height: 0.2,
+                    // Draped over terrain; just above the plain ellipsoid.
+                    height: this.terrainLoaded ? undefined : 0.2,
                     material:
                         Color.fromCssColorString('#1c2733').withAlpha(0.72),
-                    outline: true,
+                    outline: !this.terrainLoaded,
                     outlineColor: Color.fromCssColorString('#4a5a6c'),
                 },
             });
@@ -382,7 +440,10 @@ export class TwinScene {
                     positions: closed.map((p) => this.cart(p, 0.4)),
                     width: 5,
                     material: Color.fromCssColorString('#3a4757'),
-                    arcType: ArcType.NONE,
+                    arcType: this.terrainLoaded
+                        ? ArcType.GEODESIC
+                        : ArcType.NONE,
+                    clampToGround: this.terrainLoaded,
                 },
             });
         }
@@ -478,8 +539,8 @@ export class TwinScene {
                             id: b.id,
                             geometry: new PolygonGeometry({
                                 polygonHierarchy: hierarchy(b.footprint),
-                                height: b.base,
-                                extrudedHeight: b.top,
+                                height: this.ground + b.base,
+                                extrudedHeight: this.ground + b.top,
                                 vertexFormat:
                                     PerInstanceColorAppearance.VERTEX_FORMAT,
                             }),
@@ -504,8 +565,8 @@ export class TwinScene {
                             id: `${b.id}#edge`,
                             geometry: new PolygonOutlineGeometry({
                                 polygonHierarchy: hierarchy(b.footprint),
-                                height: b.base,
-                                extrudedHeight: b.top,
+                                height: this.ground + b.base,
+                                extrudedHeight: this.ground + b.top,
                             }),
                             attributes: {
                                 color: ColorGeometryInstanceAttribute.fromColor(
@@ -724,7 +785,7 @@ export class TwinScene {
     placementMatrix(p: Placement): Matrix4 {
         const { lon, lat } = metresToLonLat(this.origin, [p.east, p.north]);
         const frame = Transforms.headingPitchRollToFixedFrame(
-            Cartesian3.fromDegrees(lon, lat, p.up),
+            Cartesian3.fromDegrees(lon, lat, this.ground + p.up),
             new HeadingPitchRoll(CesiumMath.toRadians(p.headingDeg), 0, 0),
         );
         return Matrix4.multiplyByUniformScale(frame, p.scale, frame);
@@ -934,6 +995,7 @@ export class TwinScene {
     }
 
     setSelected(id: string | null): void {
+        this.selectedId = id;
         if (!this.selection) return;
         const a = id ? this.def.assets.find((x) => x.id === id) : undefined;
         const footprint =

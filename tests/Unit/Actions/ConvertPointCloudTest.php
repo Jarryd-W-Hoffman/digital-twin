@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Actions\ConvertPointCloud;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
-use App\Exceptions\PointCloudConversionFailed;
+use App\Exceptions\ConversionFailed;
 use App\Models\ProjectAsset;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
@@ -88,7 +88,7 @@ it('refuses files that are not point clouds', function (): void {
     Storage::disk('local')->put($this->asset->sourceKey(), 'PK zip');
 
     resolve(ConvertPointCloud::class)->handle($this->asset);
-})->throws(PointCloudConversionFailed::class, 'That is not a LAS, LAZ or E57 point cloud.');
+})->throws(ConversionFailed::class, 'That is not a LAS, LAZ or E57 point cloud.');
 
 it('accepts E57 scans', function (): void {
     fakeConverter();
@@ -103,20 +103,20 @@ it('explains a missing original', function (): void {
     Storage::disk('local')->delete($this->asset->sourceKey());
 
     resolve(ConvertPointCloud::class)->handle($this->asset);
-})->throws(PointCloudConversionFailed::class, 'The uploaded file is missing.');
+})->throws(ConversionFailed::class, 'The uploaded file is missing.');
 
 it('refuses an empty cloud', function (): void {
     fakeConverter(points: 0);
 
     resolve(ConvertPointCloud::class)->handle($this->asset);
-})->throws(PointCloudConversionFailed::class, 'The file has no points.');
+})->throws(ConversionFailed::class, 'The file has no points.');
 
 it('passes on the tail of a failing tool, keeping the original for a retry', function (string $step, string $message): void {
     fakeConverter(fail: [$step => "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nboom"]);
     Storage::disk('local')->put($this->asset->directory.'/stale.pnts', 'x');
 
     expect(fn () => resolve(ConvertPointCloud::class)->handle($this->asset))
-        ->toThrow(PointCloudConversionFailed::class, $message.":\nline 3\nline 4\nline 5\nline 6\nboom");
+        ->toThrow(ConversionFailed::class, $message.":\nline 3\nline 4\nline 5\nline 6\nboom");
 
     expect(Storage::disk('local')->exists($this->asset->sourceKey()))->toBeTrue()
         ->and(Storage::disk('local')->allFiles($this->asset->directory))->toBe([])
@@ -132,14 +132,14 @@ it('says so when a tool fails silently', function (): void {
     Process::fake(["'pdal' 'info'*" => Process::result(exitCode: 1)]);
 
     resolve(ConvertPointCloud::class)->handle($this->asset);
-})->throws(PointCloudConversionFailed::class, 'PDAL could not read the file.');
+})->throws(ConversionFailed::class, 'PDAL could not read the file.');
 
 it('refuses a run that wrote no tileset', function (): void {
     fakeConverter();
     Process::fake(["'py3dtiles'*" => 'done']);
 
     resolve(ConvertPointCloud::class)->handle($this->asset);
-})->throws(PointCloudConversionFailed::class, 'py3dtiles wrote no tileset.json.');
+})->throws(ConversionFailed::class, 'py3dtiles wrote no tileset.json.');
 
 it('starts each run with a clean log and no error', function (): void {
     fakeConverter();

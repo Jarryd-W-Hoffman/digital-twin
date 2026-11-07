@@ -1,7 +1,8 @@
 name: converter
 
-# Builds the converter image and runs real point cloud conversions in it
-# (PDAL and py3dtiles), only when the image or the conversion code changes.
+# Builds the converter image and runs real point cloud and terrain
+# conversions in it (PDAL, py3dtiles and meridian-terrain), only when the
+# image or the conversion code changes.
 on:
   push:
     branches:
@@ -9,7 +10,9 @@ on:
     paths:
       - docker/converter/**
       - app/Actions/ConvertPointCloud.php
-      - app/Jobs/ConvertUploadedPointCloud.php
+      - app/Actions/ConvertTerrain.php
+      - app/Support/Converter.php
+      - app/Jobs/ConvertUpload.php
       - tests/Feature/Conversions/**
       - composer.lock
       - .github/workflows/converter.yml
@@ -19,7 +22,9 @@ on:
     paths:
       - docker/converter/**
       - app/Actions/ConvertPointCloud.php
-      - app/Jobs/ConvertUploadedPointCloud.php
+      - app/Actions/ConvertTerrain.php
+      - app/Support/Converter.php
+      - app/Jobs/ConvertUpload.php
       - tests/Feature/Conversions/**
       - composer.lock
       - .github/workflows/converter.yml
@@ -54,7 +59,7 @@ jobs:
       - name: Build Converter Image
         run: docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t meridian-converter docker/converter
 
-      - name: Convert Real Scans
+      - name: Convert Real Scans and DEMs
         run: |
           docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 \
             meridian-converter php -d memory_limit=1G vendor/bin/pest tests/Feature/Conversions

@@ -25,6 +25,7 @@ final readonly class ProjectAssetFileController
         'jpeg' => 'image/jpeg',
         'webp' => 'image/webp',
         'ktx2' => 'image/ktx2',
+        'terrain' => 'application/vnd.quantized-mesh',
     ];
 
     public function show(ProjectAsset $asset, string $path): StreamedResponse

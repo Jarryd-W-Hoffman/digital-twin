@@ -8,7 +8,7 @@ use App\Support\PointCloudOptions;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-final class RetryPointCloudConversionRequest extends FormRequest
+final class RetryConversionRequest extends FormRequest
 {
     /**
      * @return array<string, ValidationRule|array<mixed>|string>

@@ -21,7 +21,12 @@ final readonly class RemoveAssetFromTwin
     public function handle(Twin $twin, ?User $user, ProjectAsset $asset): ?TwinVersion
     {
         $definition = $twin->latestVersion()->firstOrFail()->definition;
-        $changed = false;
+        $terrain = $definition['terrain'] ?? null;
+        $changed = is_array($terrain) && ($terrain['assetId'] ?? null) === $asset->id;
+
+        if ($changed) {
+            unset($definition['terrain']);
+        }
 
         foreach (['tilesets', 'models'] as $field) {
             $layers = is_array($definition[$field] ?? null) ? array_values($definition[$field]) : [];

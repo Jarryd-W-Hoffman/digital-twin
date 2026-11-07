@@ -34,6 +34,7 @@ type TwinSummary = {
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Projects', href: index() }];
 
 const pointCloud = /\.(las|laz|e57)$/i;
+const terrain = /\.(tif|tiff|asc)$/i;
 
 export default function ShowProject({
     project,
@@ -64,6 +65,7 @@ export default function ShowProject({
         spacing: '',
     });
     const isPointCloud = pointCloud.test(upload.data.file?.name ?? '');
+    const isTerrain = terrain.test(upload.data.file?.name ?? '');
     const [direct, setDirect] = useState<{ percent: number } | null>(null);
     const cancel = useRef<AbortController | null>(null);
     const busy = assets.some(
@@ -104,7 +106,9 @@ export default function ShowProject({
                           epsg: upload.data.epsg || null,
                           spacing: upload.data.spacing || null,
                       }
-                    : {},
+                    : isTerrain
+                      ? { epsg: upload.data.epsg || null }
+                      : {},
                 signal: cancel.current.signal,
                 onProgress: (fraction) =>
                     setDirect({ percent: Math.round(fraction * 100) }),
@@ -239,13 +243,14 @@ export default function ShowProject({
                         >
                             <div className="grid min-w-48 flex-1 gap-2">
                                 <Label htmlFor="upload-file">
-                                    File (.glb, a zipped 3D Tiles tileset, or a
-                                    .las, .laz or .e57 point cloud)
+                                    File (.glb, a zipped 3D Tiles tileset, a
+                                    .las, .laz or .e57 point cloud, or a .tif or
+                                    .asc elevation model)
                                 </Label>
                                 <Input
                                     id="upload-file"
                                     type="file"
-                                    accept=".glb,.zip,.las,.laz,.e57"
+                                    accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc"
                                     required
                                     onChange={(e) => {
                                         const file =
@@ -256,7 +261,7 @@ export default function ShowProject({
                                             name:
                                                 data.name ||
                                                 (file?.name.replace(
-                                                    /\.(glb|zip|las|laz|e57)$/i,
+                                                    /\.(glb|zip|las|laz|e57|tif|tiff|asc)$/i,
                                                     '',
                                                 ) ??
                                                     ''),
@@ -277,7 +282,7 @@ export default function ShowProject({
                                 />
                                 <InputError message={upload.errors.name} />
                             </div>
-                            {isPointCloud && (
+                            {(isPointCloud || isTerrain) && (
                                 <>
                                     <div className="grid w-40 gap-2">
                                         <Label htmlFor="upload-epsg">
@@ -299,26 +304,28 @@ export default function ShowProject({
                                             message={upload.errors.epsg}
                                         />
                                     </div>
-                                    <div className="grid w-40 gap-2">
-                                        <Label htmlFor="upload-spacing">
-                                            Thin to spacing (m)
-                                        </Label>
-                                        <Input
-                                            id="upload-spacing"
-                                            inputMode="decimal"
-                                            placeholder="Keep every point"
-                                            value={upload.data.spacing}
-                                            onChange={(e) =>
-                                                upload.setData(
-                                                    'spacing',
-                                                    e.target.value,
-                                                )
-                                            }
-                                        />
-                                        <InputError
-                                            message={upload.errors.spacing}
-                                        />
-                                    </div>
+                                    {isPointCloud && (
+                                        <div className="grid w-40 gap-2">
+                                            <Label htmlFor="upload-spacing">
+                                                Thin to spacing (m)
+                                            </Label>
+                                            <Input
+                                                id="upload-spacing"
+                                                inputMode="decimal"
+                                                placeholder="Keep every point"
+                                                value={upload.data.spacing}
+                                                onChange={(e) =>
+                                                    upload.setData(
+                                                        'spacing',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                            />
+                                            <InputError
+                                                message={upload.errors.spacing}
+                                            />
+                                        </div>
+                                    )}
                                 </>
                             )}
                             <Button

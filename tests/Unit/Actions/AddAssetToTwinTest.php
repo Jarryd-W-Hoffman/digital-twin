@@ -84,3 +84,19 @@ it('places a point cloud in local metres at the origin', function (): void {
 
     expect($layers[0]['placement'])->toBe(['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1]);
 });
+
+it("makes terrain the twin's ground, replacing any it had", function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $first = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Terrain, 'entry' => 'layer.json', 'name' => 'Lidar DEM']);
+    $second = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Terrain, 'entry' => 'layer.json', 'name' => 'Survey DEM']);
+    $action = resolve(AddAssetToTwin::class);
+
+    $version = $action->handle($twin, $user, $first);
+
+    expect($version?->note)->toBe('Set the terrain to Lidar DEM')
+        ->and($version?->definition['terrain'])->toBe(['name' => 'Lidar DEM', 'url' => $first->url(), 'assetId' => $first->id])
+        ->and($version?->definition)->not->toHaveKey('tilesets')
+        ->and($action->handle($twin, $user, $first))->toBeNull()
+        ->and($action->handle($twin, $user, $second)?->definition['terrain']['assetId'])->toBe($second->id);
+});
