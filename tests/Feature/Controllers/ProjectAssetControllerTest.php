@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 use App\Actions\AddAssetToTwin;
 use App\Enums\OrganisationRole;
+use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
-use App\Jobs\ConvertUploadedPointCloud;
+use App\Jobs\ConvertUpload;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use Illuminate\Http\UploadedFile;
@@ -79,6 +80,18 @@ it('takes point clouds with conversion options and says they are converting', fu
     expect($project->assets()->sole()->options)->toBe(['epsg' => 2193, 'spacing' => 0.05]);
 });
 
+it('takes DEMs and says they are converting to terrain', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Ground', 'file' => UploadedFile::fake()->createWithContent('ground.tif', "II*\0"), 'epsg' => '2193',
+    ])->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Ground uploaded. Converting it to terrain…']);
+
+    expect($project->assets()->sole()->kind)->toBe(ProjectAssetKind::Terrain);
+});
+
 it('checks conversion options', function (): void {
     [$user, $organisation] = member();
     $project = Project::factory()->for($organisation)->create();
@@ -99,7 +112,7 @@ it('retries a failed conversion', function (): void {
         ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Converting '.$asset->name.' again.']);
 
     expect($asset->refresh()->options)->toBe(['epsg' => 2193]);
-    Queue::assertPushed(ConvertUploadedPointCloud::class);
+    Queue::assertPushed(ConvertUpload::class);
 });
 
 it('only retries failed point clouds, for those who can change the project', function (): void {

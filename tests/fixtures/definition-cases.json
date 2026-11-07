@@ -225,6 +225,9 @@
                 "A panel needs a title",
                 "KPI Ghost: value refers to unknown asset ghost"
             ]
-        }
+        },
+        { "name": "terrain with a url", "ops": [{ "set": "terrain", "value": { "name": "Ground", "url": "/assets/x/files/layer.json" } }], "errors": [] },
+        { "name": "terrain without a url", "ops": [{ "set": "terrain", "value": { "name": "Ground" } }, { "set": "telemetry", "value": [{}] }], "errors": ["Terrain needs a url", "A telemetry mapping has no topic"] },
+        { "name": "terrain not an object", "ops": [{ "set": "terrain", "value": "hills" }], "errors": ["Terrain needs a url"] }
     ]
 }

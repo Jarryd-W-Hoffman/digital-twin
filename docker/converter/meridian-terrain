@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""
+Tiles a digital elevation model (GeoTIFF, ASCII grid, anything GDAL reads)
+as Cesium quantized-mesh terrain:
+
+    reproject to WGS84 longitude and latitude, with overviews
+    pick the deepest zoom from the DEM's resolution
+    for each zoom, for each tile in the geographic TMS that covers the DEM
+    (and both whole-hemisphere tiles at zoom 0, so the globe is complete):
+        sample a 257 x 257 grid of heights over the tile; no data is 0 (the ellipsoid)
+        triangulate it to an error budget for that zoom (Delatin)
+        write {z}/{x}/{y}.terrain with oct-encoded vertex normals
+    write layer.json listing what's available
+
+Heights are written as the DEM gives them. Prints a one-line JSON summary.
+"""
+
+import argparse
+import json
+import math
+import os
+import sys
+from concurrent.futures import ProcessPoolExecutor
+
+import numpy as np
+from osgeo import gdal, osr
+from pydelatin import Delatin
+from quantized_mesh_encoder import VertexNormalsExtension, encode
+
+gdal.UseExceptions()
+
+GRID = 256  # Intervals per tile side, so GRID + 1 samples.
+NODATA = -32768.0
+MAX_ZOOM = 20
+METRES_PER_DEGREE = 111_320.0
+
+_source = None
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    sys.exit(2)
+
+
+def tile_size(z: int) -> float:
+    return 180.0 / 2**z
+
+
+def tile_bounds(z: int, x: int, y: int) -> tuple[float, float, float, float]:
+    size = tile_size(z)
+    west = -180.0 + x * size
+    south = -90.0 + y * size
+    return west, south, west + size, south + size
+
+
+def tile_range(z: int, bounds: tuple[float, float, float, float]) -> tuple[int, int, int, int]:
+    """The tiles at zoom z that overlap bounds, as x0, y0, x1, y1 inclusive."""
+    if z == 0:
+        return 0, 0, 1, 0
+    size = tile_size(z)
+    west, south, east, north = bounds
+    last_x, last_y = 2 ** (z + 1) - 1, 2**z - 1
+    x0 = min(last_x, max(0, math.floor((west + 180.0) / size)))
+    x1 = min(last_x, max(0, math.ceil((east + 180.0) / size) - 1))
+    y0 = min(last_y, max(0, math.floor((south + 90.0) / size)))
+    y1 = min(last_y, max(0, math.ceil((north + 90.0) / size) - 1))
+    return x0, y0, x1, y1
+
+
+def crs_label(wkt: str) -> str:
+    reference = osr.SpatialReference(wkt=wkt)
+    authority, code = reference.GetAuthorityName(None), reference.GetAuthorityCode(None)
+    return f"{authority}:{code}" if authority and code else (reference.GetName() or "Custom")
+
+
+def prepare(source: str, work: str, srs: str | None) -> tuple[str, tuple[float, float, float, float], float, str, tuple[float, float]]:
+    dataset = gdal.Open(source)
+    if dataset.RasterCount < 1:
+        fail("The file has no elevation band.")
+    if srs is None and not dataset.GetProjection():
+        fail("The DEM has no coordinate system. Retry with its EPSG code.")
+    band = dataset.GetRasterBand(1)
+    crs = srs or crs_label(dataset.GetProjection())
+
+    geographic = os.path.join(work, "geographic.tif")
+    gdal.Warp(
+        geographic,
+        dataset,
+        format="GTiff",
+        srcSRS=srs,
+        dstSRS="EPSG:4326",
+        srcNodata=band.GetNoDataValue(),
+        dstNodata=NODATA,
+        outputType=gdal.GDT_Float32,
+        resampleAlg="bilinear",
+        creationOptions=["TILED=YES", "COMPRESS=DEFLATE", "BIGTIFF=IF_SAFER"],
+        multithread=True,
+    )
+
+    warped = gdal.Open(geographic, gdal.GA_Update)
+    width, height = warped.RasterXSize, warped.RasterYSize
+    levels, factor = [], 2
+    while max(width, height) // factor >= GRID:
+        levels.append(factor)
+        factor *= 2
+    if levels:
+        warped.BuildOverviews("AVERAGE", levels)
+
+    try:
+        low, high = warped.GetRasterBand(1).ComputeRasterMinMax(False)
+    except RuntimeError:
+        fail("The DEM has no heights, only no-data.")
+    west, res_x, _, north, _, res_y = warped.GetGeoTransform()
+    bounds = (west, north + res_y * height, west + res_x * width, north)
+    resolution = min(abs(res_x), abs(res_y))
+    warped = None
+    return geographic, bounds, resolution, crs, (low, high)
+
+
+def deepest_zoom(resolution: float, cap: int) -> int:
+    """The zoom at which one tile's grid is about as fine as the DEM."""
+    return max(0, min(cap, math.ceil(math.log2(180.0 / (GRID * resolution)))))
+
+
+def open_source(path: str) -> None:
+    global _source
+    _source = gdal.Open(path)
+
+
+def heights(z: int, x: int, y: int) -> np.ndarray:
+    west, south, east, north = tile_bounds(z, x, y)
+    grid = gdal.Warp(
+        "",
+        _source,
+        format="MEM",
+        outputBounds=(west, south, east, north),
+        width=GRID + 1,
+        height=GRID + 1,
+        srcNodata=NODATA,
+        dstNodata=NODATA,
+        resampleAlg="bilinear",
+        outputType=gdal.GDT_Float32,
+    )
+    values = grid.GetRasterBand(1).ReadAsArray().astype(np.float32)
+    values[(values == NODATA) | ~np.isfinite(values)] = 0.0
+    return values
+
+
+def write_tile(job: tuple[str, int, int, int]) -> None:
+    out, z, x, y = job
+    values = heights(z, x, y)
+    west, south, east, north = tile_bounds(z, x, y)
+
+    # Half a grid cell, in metres, at this zoom: finer than that can't show.
+    max_error = max(0.1, tile_size(z) * METRES_PER_DEGREE / GRID * 0.5)
+    tin = Delatin(values, width=GRID + 1, height=GRID + 1, max_error=max_error)
+    vertices, triangles = tin.vertices, tin.triangles
+
+    positions = np.empty((len(vertices), 3), dtype=np.float64)
+    # Delatin counts columns from the west and rows from the south.
+    positions[:, 0] = west + vertices[:, 0] / GRID * (east - west)
+    positions[:, 1] = south + vertices[:, 1] / GRID * (north - south)
+    positions[:, 2] = vertices[:, 2]
+    indices = triangles.astype(np.uint32).flatten()
+
+    folder = os.path.join(out, str(z), str(x))
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, f"{y}.terrain"), "wb") as f:
+        encode(
+            f,
+            positions,
+            indices,
+            bounds=(west, south, east, north),
+            extensions=(VertexNormalsExtension(positions=positions, indices=indices),),
+        )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Tiles a DEM as quantized-mesh terrain.")
+    parser.add_argument("source")
+    parser.add_argument("out")
+    parser.add_argument("--srs", help="The DEM's coordinate system, when it carries none (EPSG:2193)")
+    parser.add_argument("--max-zoom", type=int, default=MAX_ZOOM)
+    parser.add_argument("--jobs", type=int, default=2)
+    args = parser.parse_args()
+
+    os.makedirs(args.out, exist_ok=True)
+    work = os.path.join(args.out, ".work")
+    os.makedirs(work, exist_ok=True)
+
+    try:
+        geographic, bounds, resolution, crs, (low, high) = prepare(args.source, work, args.srs)
+    except RuntimeError as error:
+        fail(f"GDAL could not read the DEM: {error}")
+
+    max_zoom = deepest_zoom(resolution, args.max_zoom)
+    available, jobs = [], []
+    for z in range(max_zoom + 1):
+        x0, y0, x1, y1 = tile_range(z, bounds)
+        available.append([{"startX": x0, "startY": y0, "endX": x1, "endY": y1}])
+        jobs += [(args.out, z, x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)]
+
+    with ProcessPoolExecutor(max_workers=max(1, args.jobs), initializer=open_source, initargs=(geographic,)) as pool:
+        for _ in pool.map(write_tile, jobs, chunksize=16):
+            pass
+
+    layer = {
+        "tilejson": "2.1.0",
+        "name": os.path.basename(args.source),
+        "version": "1.0.0",
+        "format": "quantized-mesh-1.0",
+        "scheme": "tms",
+        "tiles": ["{z}/{x}/{y}.terrain"],
+        "projection": "EPSG:4326",
+        "bounds": [-180, -90, 180, 90],
+        "minzoom": 0,
+        "maxzoom": max_zoom,
+        "available": available,
+        "extensions": ["octvertexnormals"],
+    }
+    with open(os.path.join(args.out, "layer.json"), "w") as f:
+        json.dump(layer, f)
+
+    os.remove(geographic)
+    for name in os.listdir(work):
+        os.remove(os.path.join(work, name))
+    os.rmdir(work)
+
+    print(json.dumps({
+        "crs": crs,
+        "tiles": len(jobs),
+        "maxZoom": max_zoom,
+        "bounds": [round(b, 7) for b in bounds],
+        "heights": [round(low, 2), round(high, 2)],
+    }))
+
+
+if __name__ == "__main__":
+    main()

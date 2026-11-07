@@ -195,6 +195,31 @@ function fakeConverter(?int $epsg = 2193, int $points = 1200, array $fail = []):
 }
 
 /**
+ * Fakes meridian-terrain: it writes a layer.json and one tile, then prints
+ * its summary, unless $fail gives it error output to fail with.
+ */
+function fakeTerrainTiler(?string $fail = null, bool $writes = true, string $summary = '{"crs": "EPSG:2193", "tiles": 120, "maxZoom": 16, "bounds": [174.74, -36.86, 174.77, -36.84], "heights": [20.04, 100]}'): void
+{
+    Process::fake([
+        "'meridian-terrain'*" => function (PendingProcess $process) use ($fail, $writes, $summary): ProcessResult|string {
+            if ($fail !== null) {
+                return Process::result(errorOutput: $fail, exitCode: 2);
+            }
+
+            if ($writes) {
+                /** @var list<string> $command */
+                $command = $process->command;
+                File::ensureDirectoryExists($command[2].'/0/1');
+                file_put_contents($command[2].'/layer.json', '{"format": "quantized-mesh-1.0"}');
+                file_put_contents($command[2].'/0/1/0.terrain', 'mesh');
+            }
+
+            return "progress\n".$summary;
+        },
+    ]);
+}
+
+/**
  * A twin with a gateway token, and the token.
  *
  * @return array{0: Twin, 1: string}

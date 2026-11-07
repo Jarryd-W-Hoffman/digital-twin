@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Actions\StoreProjectAsset;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
-use App\Jobs\ConvertUploadedPointCloud;
+use App\Jobs\ConvertUpload;
 use App\Models\Project;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
@@ -73,7 +73,20 @@ it('keeps a point cloud as uploaded and queues its conversion', function (): voi
         ->and($asset->status)->toBe(ProjectAssetStatus::Processing)
         ->and($asset->options)->toBe(['epsg' => 2193])
         ->and(Storage::disk('local')->get($asset->sourceKey()))->toBe('LASF');
-    Queue::assertPushed(ConvertUploadedPointCloud::class, fn (ConvertUploadedPointCloud $job): bool => $job->asset->is($asset) && $job->connection === 'conversions');
+    Queue::assertPushed(ConvertUpload::class, fn (ConvertUpload $job): bool => $job->asset->is($asset) && $job->connection === 'conversions');
+});
+
+it('keeps a DEM as uploaded and queues its conversion to terrain', function (): void {
+    Queue::fake();
+    [, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $asset = resolve(StoreProjectAsset::class)->handle($project, UploadedFile::fake()->createWithContent('Site DEM.tif', "II*\0"), 'Site', ['epsg' => 2193]);
+
+    expect($asset->kind)->toBe(ProjectAssetKind::Terrain)
+        ->and($asset->status)->toBe(ProjectAssetStatus::Processing)
+        ->and($asset->options)->toBe(['epsg' => 2193]);
+    Queue::assertPushed(ConvertUpload::class, fn (ConvertUpload $job): bool => $job->asset->is($asset));
 });
 
 it('ignores conversion options for other kinds', function (): void {

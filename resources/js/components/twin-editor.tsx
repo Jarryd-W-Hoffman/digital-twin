@@ -27,7 +27,7 @@ export type TwinVersionSummary = {
 
 export type TwinAssetSummary = {
     id: string;
-    kind: 'model' | 'tileset' | 'pointcloud';
+    kind: 'model' | 'tileset' | 'pointcloud' | 'terrain';
     name: string;
     originalName: string;
     bytes: number;
@@ -89,9 +89,13 @@ export function TwinEditor({
         })),
     ];
     const dirty = Object.keys(drafts).length > 0;
+    const terrain = definition.terrain;
+    const terrainAsset = assets.find((a) => a.id === terrain?.assetId);
     // Library uploads this twin doesn't show yet.
     const unused = assets.filter(
-        (a) => !layers.some((layer) => layer.assetId === a.id),
+        (a) =>
+            a.id !== terrain?.assetId &&
+            !layers.some((layer) => layer.assetId === a.id),
     );
 
     const save = () => {
@@ -183,7 +187,7 @@ export function TwinEditor({
                     <input
                         aria-label="Upload file"
                         type="file"
-                        accept=".glb,.zip,.las,.laz,.e57"
+                        accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc"
                         required
                         onChange={(e) => {
                             const file = e.target.files?.[0] ?? null;
@@ -193,7 +197,7 @@ export function TwinEditor({
                                 name:
                                     data.name ||
                                     (file?.name.replace(
-                                        /\.(glb|zip|las|laz|e57)$/i,
+                                        /\.(glb|zip|las|laz|e57|tif|tiff|asc)$/i,
                                         '',
                                     ) ??
                                         ''),
@@ -219,10 +223,45 @@ export function TwinEditor({
 
             <section>
                 <h3>Layers</h3>
-                {layers.length === 0 && (
+                {layers.length === 0 && !terrain && (
                     <p className="muted hint">Nothing uploaded yet.</p>
                 )}
                 <ul className="editor-layers">
+                    {terrain && (
+                        <li>
+                            <div className="editor-layer-head">
+                                <span>
+                                    <strong>{terrain.name ?? 'Terrain'}</strong>
+                                    <span className="muted">
+                                        {' '}
+                                        · Terrain
+                                        {terrainAsset
+                                            ? ` · ${size(terrainAsset.bytes)}`
+                                            : ''}
+                                    </span>
+                                </span>
+                                {terrainAsset && (
+                                    <button
+                                        className="link"
+                                        onClick={() =>
+                                            confirm(
+                                                `Remove ${terrainAsset.name} from this twin? The site goes back to the plain globe, and the terrain stays in the project library.`,
+                                            ) &&
+                                            router.delete(
+                                                removeLayer.url([
+                                                    twinId,
+                                                    terrainAsset.id,
+                                                ]),
+                                                { preserveScroll: true },
+                                            )
+                                        }
+                                    >
+                                        Remove
+                                    </button>
+                                )}
+                            </div>
+                        </li>
+                    )}
                     {layers.map((layer) => {
                         const asset = assets.find(
                             (a) => a.id === layer.assetId,
@@ -397,7 +436,11 @@ export function TwinEditor({
                                             )
                                         }
                                     >
-                                        Add
+                                        {asset.kind === 'terrain'
+                                            ? terrain
+                                                ? 'Use as terrain instead'
+                                                : 'Use as terrain'
+                                            : 'Add'}
                                     </button>
                                 </div>
                             </li>

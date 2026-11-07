@@ -238,6 +238,14 @@ export interface TelemetryMapping {
     ttlS?: number;
 }
 
+/** A quantized-mesh terrain tileset: the URL of its layer.json. */
+export interface TerrainDef {
+    name?: string;
+    url: string;
+    /** The project library upload it came from. */
+    assetId?: string;
+}
+
 /**
  * A figure worked out from the twin's values: an expression that reads
  * other assets as `{asset.metric}`, with how to show it.
@@ -274,6 +282,8 @@ export interface TwinDefinition {
     scenarios: ScenarioDef[];
     tilesets?: TilesetDef[];
     models?: ModelDef[];
+    /** Quantized-mesh terrain the site sits on; the ellipsoid without it. */
+    terrain?: TerrainDef;
     types?: AssetTypeDef[];
     telemetry?: TelemetryMapping[];
     /** Replaces the built-in figures in the top bar. */

@@ -8,7 +8,7 @@ use App\Actions\SignDirectUploadParts;
 use App\Actions\StartDirectUpload;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
-use App\Jobs\ConvertUploadedPointCloud;
+use App\Jobs\ConvertUpload;
 use App\Jobs\ProcessDirectUpload;
 use App\Models\Project;
 use App\Models\ProjectAsset;
@@ -93,7 +93,7 @@ it('queues a directly uploaded point cloud for conversion instead', function ():
 
     resolve(CompleteDirectUpload::class)->handle($asset, [['PartNumber' => 1, 'ETag' => '"a"']]);
 
-    Queue::assertPushed(ConvertUploadedPointCloud::class);
+    Queue::assertPushed(ConvertUpload::class);
     Queue::assertNotPushed(ProcessDirectUpload::class);
 });
 

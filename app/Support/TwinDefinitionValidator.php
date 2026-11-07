@@ -652,6 +652,14 @@ final readonly class TwinDefinitionValidator
                 }
             }
         }
+
+        if (array_key_exists('terrain', $definition)) {
+            $terrain = $definition['terrain'];
+
+            if (! $this->isObject($terrain) || ! $this->isText($terrain['url'] ?? null)) {
+                $errors[] = 'Terrain needs a url';
+            }
+        }
     }
 
     /**

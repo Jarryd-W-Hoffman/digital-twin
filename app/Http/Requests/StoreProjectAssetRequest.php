@@ -17,7 +17,7 @@ final class StoreProjectAssetRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'file' => ['required', 'file', 'extensions:glb,zip,las,laz,e57', 'max:'.config()->integer('meridian.max_upload_kb')],
+            'file' => ['required', 'file', 'extensions:glb,zip,las,laz,e57,tif,tiff,asc', 'max:'.config()->integer('meridian.max_upload_kb')],
             ...PointCloudOptions::rules(),
         ];
     }

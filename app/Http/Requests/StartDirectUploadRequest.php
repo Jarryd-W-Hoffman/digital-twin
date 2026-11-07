@@ -17,7 +17,7 @@ final class StartDirectUploadRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'filename' => ['required', 'string', 'max:200', 'regex:/^[^\/\\\\]+\.(glb|zip|las|laz|e57)$/i'],
+            'filename' => ['required', 'string', 'max:200', 'regex:/^[^\/\\\\]+\.(glb|zip|las|laz|e57|tif|tiff|asc)$/i'],
             'bytes' => ['required', 'integer', 'min:1', 'max:'.config()->integer('meridian.direct_uploads.max_upload_gb') * 1024 ** 3],
             ...PointCloudOptions::rules(),
         ];

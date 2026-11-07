@@ -37,10 +37,21 @@ it('tells models from tileset archives by extension', function (string $filename
     ['quay.las', ProjectAssetKind::PointCloud],
     ['quay.LAZ', ProjectAssetKind::PointCloud],
     ['room.e57', ProjectAssetKind::PointCloud],
+    ['site.tif', ProjectAssetKind::Terrain],
+    ['site.TIFF', ProjectAssetKind::Terrain],
+    ['grid.asc', ProjectAssetKind::Terrain],
 ]);
 
 it('shows point clouds and tilesets as tilesets', function (): void {
     expect(ProjectAssetKind::Tileset->isTileset())->toBeTrue()
         ->and(ProjectAssetKind::PointCloud->isTileset())->toBeTrue()
-        ->and(ProjectAssetKind::Model->isTileset())->toBeFalse();
+        ->and(ProjectAssetKind::Model->isTileset())->toBeFalse()
+        ->and(ProjectAssetKind::Terrain->isTileset())->toBeFalse();
+});
+
+it('converts point clouds and DEMs on the queue', function (): void {
+    expect(ProjectAssetKind::PointCloud->isConverted())->toBeTrue()
+        ->and(ProjectAssetKind::Terrain->isConverted())->toBeTrue()
+        ->and(ProjectAssetKind::Tileset->isConverted())->toBeFalse()
+        ->and(ProjectAssetKind::Model->isConverted())->toBeFalse();
 });

@@ -19,8 +19,9 @@ final readonly class AddAssetToTwin
      * Shows a library upload in the twin as a new version: models at the
      * origin, ready to be placed, and tilesets where their own georeference
      * puts them. A point cloud is a tileset; one without a coordinate system
-     * is in local metres, so it starts placed at the origin too. Null when
-     * the latest version already shows it.
+     * is in local metres, so it starts placed at the origin too. Terrain
+     * becomes the twin's ground, replacing any it had. Null when the latest
+     * version already shows it.
      */
     public function handle(Twin $twin, ?User $user, ProjectAsset $asset): ?TwinVersion
     {
@@ -28,6 +29,20 @@ final readonly class AddAssetToTwin
         throw_unless($asset->isReady(), InvalidArgumentException::class, 'The upload is not ready yet.');
 
         $definition = $twin->latestVersion()->firstOrFail()->definition;
+        $layer = ['name' => $asset->name, 'url' => $asset->url(), 'assetId' => $asset->id];
+
+        if ($asset->kind === ProjectAssetKind::Terrain) {
+            $current = $definition['terrain'] ?? null;
+
+            if (is_array($current) && ($current['assetId'] ?? null) === $asset->id) {
+                return null;
+            }
+
+            $definition['terrain'] = $layer;
+
+            return $this->versions->handle($twin, $user, $definition, __('Set the terrain to :name', ['name' => $asset->name]));
+        }
+
         $field = $asset->kind->isTileset() ? 'tilesets' : 'models';
         $layers = is_array($definition[$field] ?? null) ? array_values($definition[$field]) : [];
 
@@ -35,7 +50,7 @@ final readonly class AddAssetToTwin
             return null;
         }
 
-        $layer = ['id' => 'upload-'.mb_substr($asset->id, -8), 'name' => $asset->name, 'url' => $asset->url(), 'assetId' => $asset->id];
+        $layer = ['id' => 'upload-'.mb_substr($asset->id, -8), ...$layer];
 
         if ($asset->kind === ProjectAssetKind::Model || ($asset->kind === ProjectAssetKind::PointCloud && $asset->crs === null)) {
             $layer['placement'] = ['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1];

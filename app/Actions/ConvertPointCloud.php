@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\ProjectAssetStatus;
-use App\Exceptions\PointCloudConversionFailed;
+use App\Exceptions\ConversionFailed;
 use App\Models\ProjectAsset;
-use Illuminate\Contracts\Filesystem\Filesystem;
-use Illuminate\Http\File as LocalFile;
+use App\Support\Converter;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -28,7 +26,7 @@ use Throwable;
  */
 final readonly class ConvertPointCloud
 {
-    private const int LOG_LIMIT = 16_000;
+    public function __construct(private Converter $converter) {}
 
     public function handle(ProjectAsset $asset): ProjectAsset
     {
@@ -41,28 +39,28 @@ final readonly class ConvertPointCloud
             $asset->update(['status' => ProjectAssetStatus::Processing, 'progress' => 0, 'error' => null, 'log' => null]);
 
             $source = $work.'/source.'.mb_strtolower(pathinfo($asset->original_name, PATHINFO_EXTENSION));
-            $this->download($disk, $asset->sourceKey(), $source);
+            $this->converter->download($disk, $asset->sourceKey(), $source);
             $this->checkSignature($source);
-            $this->note($asset, 5, __('Downloaded :name', ['name' => $asset->original_name]));
+            $this->converter->note($asset, 5, __('Downloaded :name', ['name' => $asset->original_name]));
 
             [$points, $crs] = $this->inspect($asset, $source);
-            $this->note($asset, 15, __(':points points, :crs', [
+            $this->converter->note($asset, 15, __(':points points, :crs', [
                 'points' => number_format($points),
                 'crs' => $crs ?? __('no coordinate system (placed as local metres)'),
             ]));
 
             $prepared = $this->prepare($asset, $source, $work);
-            $this->note($asset, 45, __('Prepared for tiling'));
+            $this->converter->note($asset, 45, __('Prepared for tiling'));
 
             $tiles = $this->tile($prepared, $work, $crs !== null);
-            $this->note($asset, 85, __('Tiled'));
+            $this->converter->note($asset, 85, __('Tiled'));
 
             $disk->deleteDirectory($asset->directory);
-            $stored = $this->store($disk, $tiles, $asset->directory);
+            $stored = $this->converter->store($disk, $tiles, $asset->directory, 'tileset.json');
             $disk->deleteDirectory(dirname($asset->sourceKey()));
 
             $asset->update([...$stored, 'crs' => $crs, 'status' => ProjectAssetStatus::Ready, 'progress' => 100, 'error' => null]);
-            $this->note($asset, 100, __(':files files written', ['files' => number_format($stored['files'])]));
+            $this->converter->note($asset, 100, __(':files files written', ['files' => number_format($stored['files'])]));
 
             return $asset;
         } catch (Throwable $throwable) {
@@ -74,34 +72,16 @@ final readonly class ConvertPointCloud
         }
     }
 
-    private function download(Filesystem $disk, string $key, string $path): void
-    {
-        $from = $disk->readStream($key);
-        throw_if($from === null, PointCloudConversionFailed::class, __('The uploaded file is missing. Upload it again.'));
-
-        $to = fopen($path, 'wb');
-        throw_if($to === false, PointCloudConversionFailed::class, __('Could not make a working copy of the upload.'));
-
-        stream_copy_to_stream($from, $to);
-        fclose($to);
-        fclose($from);
-    }
-
     /**
      * LAS and LAZ start "LASF"; E57 starts "ASTM-E57".
      */
     private function checkSignature(string $path): void
     {
-        $handle = fopen($path, 'rb');
-        $header = $handle === false ? false : fread($handle, 8);
-
-        if ($handle !== false) {
-            fclose($handle);
-        }
+        $header = $this->converter->header($path, 8);
 
         throw_unless(
-            is_string($header) && (str_starts_with($header, 'LASF') || $header === 'ASTM-E57'),
-            PointCloudConversionFailed::class,
+            str_starts_with($header, 'LASF') || $header === 'ASTM-E57',
+            ConversionFailed::class,
             __('That is not a LAS, LAZ or E57 point cloud.'),
         );
     }
@@ -117,7 +97,7 @@ final readonly class ConvertPointCloud
         $info = json_decode($output, true) ?: [];
         $points = (int) ($info['summary']['num_points'] ?? 0);
 
-        throw_if($points === 0, PointCloudConversionFailed::class, __('The file has no points.'));
+        throw_if($points === 0, ConversionFailed::class, __('The file has no points.'));
 
         $epsg = $asset->options['epsg'] ?? null;
 
@@ -177,26 +157,9 @@ final readonly class ConvertPointCloud
 
         $this->run($georeferenced ? [...$command, '--srs_out', '4978'] : $command, __('py3dtiles could not tile the points'));
 
-        throw_unless(File::exists($tiles.'/tileset.json'), PointCloudConversionFailed::class, __('py3dtiles wrote no tileset.json.'));
+        throw_unless(File::exists($tiles.'/tileset.json'), ConversionFailed::class, __('py3dtiles wrote no tileset.json.'));
 
         return $tiles;
-    }
-
-    /**
-     * @return array{entry: string, bytes: int, files: int}
-     */
-    private function store(Filesystem $disk, string $tiles, string $directory): array
-    {
-        $bytes = 0;
-        $files = File::allFiles($tiles);
-
-        foreach ($files as $file) {
-            $folder = $file->getRelativePath();
-            $disk->putFileAs($folder === '' ? $directory : $directory.'/'.$folder, new LocalFile($file->getPathname()), $file->getFilename());
-            $bytes += $file->getSize();
-        }
-
-        return ['entry' => 'tileset.json', 'bytes' => $bytes, 'files' => count($files)];
     }
 
     /**
@@ -204,24 +167,6 @@ final readonly class ConvertPointCloud
      */
     private function run(array $command, string $failure): string
     {
-        $result = Process::timeout(config()->integer('meridian.point_clouds.timeout_minutes') * 60)->run($command);
-
-        if ($result->failed()) {
-            $detail = collect(explode("\n", mb_trim($result->errorOutput()."\n".$result->output())))
-                ->filter()
-                ->take(-5)
-                ->implode("\n");
-
-            throw new PointCloudConversionFailed($failure.($detail === '' ? '.' : ":\n".$detail));
-        }
-
-        return $result->output();
-    }
-
-    private function note(ProjectAsset $asset, int $progress, string $line): void
-    {
-        $log = mb_ltrim(($asset->log ?? '')."\n".$line);
-
-        $asset->update(['progress' => $progress, 'log' => mb_substr($log, -self::LOG_LIMIT)]);
+        return $this->converter->run($command, $failure, config()->integer('meridian.point_clouds.timeout_minutes'));
     }
 }

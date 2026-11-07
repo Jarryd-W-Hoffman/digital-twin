@@ -472,6 +472,12 @@ export function validateDefinition(input: unknown): string[] {
         }
     }
 
+    if (
+        def.terrain !== undefined &&
+        !(isObj(def.terrain) && isText(def.terrain.url))
+    )
+        errors.push('Terrain needs a url');
+
     // Telemetry: which MQTT topics feed which metrics. Only the gateway knows
     // every kind's metrics, so it checks the metric when it applies one.
     for (const t of list(def.telemetry)) {

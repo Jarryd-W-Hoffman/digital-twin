@@ -38,7 +38,7 @@ final readonly class StartDirectUpload
                 'bytes' => $bytes,
                 'files' => 0,
                 'status' => ProjectAssetStatus::Uploading,
-                'options' => $kind === ProjectAssetKind::PointCloud ? $options : null,
+                'options' => $kind->isConverted() ? $options : null,
             ]);
 
             $asset->update(['upload_id' => $this->uploads->start($asset->sourceKey())]);

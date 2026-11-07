@@ -7,8 +7,9 @@ namespace App\Support;
 use Illuminate\Http\Request;
 
 /**
- * How a point cloud is converted: the EPSG code of its coordinates when the
- * file doesn't say, and a spacing in metres to thin it to.
+ * How a point cloud or DEM is converted: the EPSG code of its coordinates
+ * when the file doesn't say, and (point clouds only) a spacing in metres to
+ * thin it to.
  */
 final class PointCloudOptions
 {
