@@ -25,7 +25,9 @@ export default function CreateTwin({
     project: string | null;
     samples: { id: string; name: string }[];
 }) {
-    const [source, setSource] = useState<'sample' | 'file'>('sample');
+    const [source, setSource] = useState<'blank' | 'sample' | 'file'>('blank');
+    // The browser's own offset, a good guess for a site nearby.
+    const [utcOffset] = useState(() => -new Date().getTimezoneOffset() / 60);
 
     if (projects.length === 0) {
         return (
@@ -52,7 +54,7 @@ export default function CreateTwin({
             <div className="max-w-xl p-4 md:p-6">
                 <Heading
                     title="New twin"
-                    description="Start from a sample site or upload a twin definition (JSON)."
+                    description="Start from an empty site on the map, a sample, or a twin definition (JSON)."
                 />
                 <Form {...TwinController.store.form()} className="space-y-6">
                     {({ processing, errors }) => (
@@ -88,25 +90,87 @@ export default function CreateTwin({
                                 <legend className="mb-2 text-sm font-medium">
                                     Start from
                                 </legend>
-                                <label className="flex items-center gap-2 text-sm">
-                                    <input
-                                        type="radio"
-                                        checked={source === 'sample'}
-                                        onChange={() => setSource('sample')}
-                                    />
-                                    A sample site
-                                </label>
-                                <label className="flex items-center gap-2 text-sm">
-                                    <input
-                                        type="radio"
-                                        checked={source === 'file'}
-                                        onChange={() => setSource('file')}
-                                    />
-                                    A definition file
-                                </label>
+                                {(
+                                    [
+                                        [
+                                            'blank',
+                                            'An empty site at a location',
+                                        ],
+                                        ['sample', 'A sample site'],
+                                        ['file', 'A definition file'],
+                                    ] as const
+                                ).map(([value, label]) => (
+                                    <label
+                                        key={value}
+                                        className="flex items-center gap-2 text-sm"
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="source"
+                                            value={value}
+                                            checked={source === value}
+                                            onChange={() => setSource(value)}
+                                        />
+                                        {label}
+                                    </label>
+                                ))}
+                                <InputError message={errors.source} />
                             </fieldset>
 
-                            {source === 'sample' ? (
+                            {source === 'blank' && (
+                                <div className="grid gap-4 sm:grid-cols-3">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="lat">Latitude</Label>
+                                        <Input
+                                            id="lat"
+                                            name="lat"
+                                            type="number"
+                                            step="any"
+                                            min={-90}
+                                            max={90}
+                                            required
+                                        />
+                                        <InputError message={errors.lat} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="lon">Longitude</Label>
+                                        <Input
+                                            id="lon"
+                                            name="lon"
+                                            type="number"
+                                            step="any"
+                                            min={-180}
+                                            max={180}
+                                            required
+                                        />
+                                        <InputError message={errors.lon} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="utc_offset">
+                                            UTC offset (hours)
+                                        </Label>
+                                        <Input
+                                            id="utc_offset"
+                                            name="utc_offset"
+                                            type="number"
+                                            step="0.25"
+                                            min={-12}
+                                            max={14}
+                                            defaultValue={utcOffset}
+                                        />
+                                        <InputError
+                                            message={errors.utc_offset}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground sm:col-span-3">
+                                        The site gets weather, a grid connection
+                                        and a main board. Add models, scans and
+                                        equipment from its Layout panel.
+                                    </p>
+                                </div>
+                            )}
+
+                            {source === 'sample' && (
                                 <div className="grid gap-2">
                                     <Label htmlFor="sample">Sample</Label>
                                     <select
@@ -122,7 +186,9 @@ export default function CreateTwin({
                                     </select>
                                     <InputError message={errors.sample} />
                                 </div>
-                            ) : (
+                            )}
+
+                            {source === 'file' && (
                                 <div className="grid gap-2">
                                     <Label htmlFor="definition">
                                         Definition (.json)

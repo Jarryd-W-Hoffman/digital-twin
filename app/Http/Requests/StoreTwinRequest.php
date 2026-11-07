@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 use App\Models\Project;
 use App\Models\User;
 use App\Rules\ValidTwinDefinition;
+use App\Support\BlankTwin;
 use App\Support\SampleTwins;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -27,8 +28,12 @@ final class StoreTwinRequest extends FormRequest
             'project' => ['required', 'uuid', Rule::exists(Project::class, 'id')->where('organisation_id', $user->organisation()->id)],
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'sample' => ['required_without:definition', 'nullable', 'string', Rule::in(array_keys(resolve(SampleTwins::class)->all()))],
-            'definition' => ['bail', 'required_without:sample', 'nullable', 'file', 'max:4096', 'extensions:json', new ValidTwinDefinition()],
+            'source' => ['required', Rule::in(['blank', 'sample', 'file'])],
+            'lat' => ['exclude_unless:source,blank', 'required', 'numeric', 'between:-90,90'],
+            'lon' => ['exclude_unless:source,blank', 'required', 'numeric', 'between:-180,180'],
+            'utc_offset' => ['exclude_unless:source,blank', 'nullable', 'numeric', 'between:-12,14'],
+            'sample' => ['exclude_unless:source,sample', 'required', 'string', Rule::in(array_keys(resolve(SampleTwins::class)->all()))],
+            'definition' => ['exclude_unless:source,file', 'bail', 'required', 'file', 'max:4096', 'extensions:json', new ValidTwinDefinition()],
         ];
     }
 
@@ -38,10 +43,20 @@ final class StoreTwinRequest extends FormRequest
     }
 
     /**
+     * The starting definition: a blank site at a place, a sample, or a file.
+     *
      * @return array<string, mixed>
      */
     public function definition(): array
     {
+        if ($this->string('source')->value() === 'blank') {
+            return resolve(BlankTwin::class)->definition(
+                $this->float('lat'),
+                $this->float('lon'),
+                $this->filled('utc_offset') ? $this->float('utc_offset') : null,
+            );
+        }
+
         $file = $this->file('definition');
 
         if ($file instanceof UploadedFile) {

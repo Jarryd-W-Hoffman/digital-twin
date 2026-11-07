@@ -48,14 +48,14 @@ it('keeps operators and viewers from creating', function (OrganisationRole $role
     $project = Project::factory()->for($organisation)->create();
 
     $this->actingAs($user)->get(route('twins.create'))->assertForbidden();
-    $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'X', 'sample' => 'northshore'])->assertForbidden();
+    $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'X', 'source' => 'sample', 'sample' => 'northshore'])->assertForbidden();
 })->with([OrganisationRole::Operator, OrganisationRole::Viewer]);
 
 it('creates a twin from a sample', function (): void {
     [$user, $organisation] = member();
     $project = Project::factory()->for($organisation)->create();
 
-    $response = $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'North', 'description' => 'Hub', 'sample' => 'northshore']);
+    $response = $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'North', 'description' => 'Hub', 'source' => 'sample', 'sample' => 'northshore']);
 
     $twin = $project->twins()->sole();
     $response->assertRedirectToRoute('twins.show', $twin);
@@ -63,12 +63,38 @@ it('creates a twin from a sample', function (): void {
         ->and($twin->latestVersion?->definition['tilesets'][0]['id'])->toBe('context');
 });
 
+it('creates a blank twin at a place', function (): void {
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('twins.store'), [
+        'project' => $project->id, 'name' => 'Quay', 'source' => 'blank', 'lat' => '-36.85', 'lon' => '174.76', 'utc_offset' => '13',
+    ])->assertRedirect();
+
+    $definition = $project->twins()->sole()->latestVersion?->definition;
+    expect($definition['origin'])->toBe(['lon' => 174.76, 'lat' => -36.85])
+        ->and($definition['utcOffsetHours'])->toEqual(13)
+        ->and($definition['name'])->toBe('Quay')
+        ->and(array_column($definition['assets'], 'kind'))->toBe(['site', 'weather', 'grid', 'bus']);
+});
+
+it("guesses a blank twin's offset from its longitude, and checks the place", function (): void {
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'Lisbon', 'source' => 'blank', 'lat' => 38.7, 'lon' => -9.1]);
+    expect($project->twins()->sole()->latestVersion?->definition['utcOffsetHours'])->toEqual(-1);
+
+    $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'X', 'source' => 'blank', 'lat' => 91, 'lon' => 'east', 'utc_offset' => 20])
+        ->assertSessionHasErrors(['lat', 'lon', 'utc_offset']);
+});
+
 it('creates a twin from an uploaded definition', function (): void {
     [$user, $organisation] = member();
     $project = Project::factory()->for($organisation)->create();
     $file = UploadedFile::fake()->createWithContent('site.json', (string) file_get_contents(public_path('samples/harbour-depot.json')));
 
-    $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'Mine', 'definition' => $file])->assertRedirect();
+    $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'Mine', 'source' => 'file', 'definition' => $file])->assertRedirect();
 
     expect($organisation->twins()->sole()->description)->toBeNull();
 });
@@ -77,7 +103,7 @@ it("only creates twins in the organisation's own projects", function (): void {
     [$user] = member();
     $elsewhere = Project::factory()->create();
 
-    $this->actingAs($user)->post(route('twins.store'), ['project' => $elsewhere->id, 'name' => 'X', 'sample' => 'northshore'])
+    $this->actingAs($user)->post(route('twins.store'), ['project' => $elsewhere->id, 'name' => 'X', 'source' => 'sample', 'sample' => 'northshore'])
         ->assertSessionHasErrors('project');
 });
 
@@ -85,7 +111,7 @@ it('reports every problem in an uploaded definition', function (): void {
     [$user] = member();
     $file = UploadedFile::fake()->createWithContent('site.json', '{"assets": []}');
 
-    $this->actingAs($user)->fromRoute('twins.create')->post(route('twins.store'), ['name' => 'Bad', 'definition' => $file])
+    $this->actingAs($user)->fromRoute('twins.create')->post(route('twins.store'), ['name' => 'Bad', 'source' => 'file', 'definition' => $file])
         ->assertRedirectToRoute('twins.create')
         ->assertSessionHasErrors('definition');
 
@@ -95,8 +121,11 @@ it('reports every problem in an uploaded definition', function (): void {
 it('needs a sample or a definition', function (): void {
     [$user] = member();
 
-    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Empty'])->assertSessionHasErrors(['project', 'sample', 'definition']);
-    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Odd', 'sample' => '../../.env'])->assertSessionHasErrors('sample');
+    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Empty'])->assertSessionHasErrors(['project', 'source']);
+    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Empty', 'source' => 'sample'])->assertSessionHasErrors('sample')->assertSessionDoesntHaveErrors('definition');
+    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Empty', 'source' => 'file'])->assertSessionHasErrors('definition')->assertSessionDoesntHaveErrors('sample');
+    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Odd', 'source' => 'sample', 'sample' => '../../.env'])->assertSessionHasErrors('sample');
+    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Odd', 'source' => 'other'])->assertSessionHasErrors('source');
 });
 
 it('shows a twin with its definition, history, project library and abilities', function (OrganisationRole $role, bool $update, bool $operate): void {
