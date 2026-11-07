@@ -249,7 +249,6 @@ export class TwinScene {
             new PointPrimitiveCollection(),
         ) as PointPrimitiveCollection;
 
-
         this.handler = new ScreenSpaceEventHandler(scene.canvas);
         this.handler.setInputAction((e: { position: Cartesian2 }) => {
             if (this.onGroundPick) {
