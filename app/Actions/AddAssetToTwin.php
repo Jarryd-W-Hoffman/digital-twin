@@ -18,7 +18,9 @@ final readonly class AddAssetToTwin
     /**
      * Shows a library upload in the twin as a new version: models at the
      * origin, ready to be placed, and tilesets where their own georeference
-     * puts them. Null when the latest version already shows it.
+     * puts them. A point cloud is a tileset; one without a coordinate system
+     * is in local metres, so it starts placed at the origin too. Null when
+     * the latest version already shows it.
      */
     public function handle(Twin $twin, ?User $user, ProjectAsset $asset): ?TwinVersion
     {
@@ -26,7 +28,7 @@ final readonly class AddAssetToTwin
         throw_unless($asset->isReady(), InvalidArgumentException::class, 'The upload is not ready yet.');
 
         $definition = $twin->latestVersion()->firstOrFail()->definition;
-        $field = $asset->kind === ProjectAssetKind::Tileset ? 'tilesets' : 'models';
+        $field = $asset->kind->isTileset() ? 'tilesets' : 'models';
         $layers = is_array($definition[$field] ?? null) ? array_values($definition[$field]) : [];
 
         if (array_any($layers, fn (mixed $layer): bool => is_array($layer) && ($layer['assetId'] ?? null) === $asset->id)) {
@@ -35,7 +37,7 @@ final readonly class AddAssetToTwin
 
         $layer = ['id' => 'upload-'.mb_substr($asset->id, -8), 'name' => $asset->name, 'url' => $asset->url(), 'assetId' => $asset->id];
 
-        if ($asset->kind === ProjectAssetKind::Model) {
+        if ($asset->kind === ProjectAssetKind::Model || ($asset->kind === ProjectAssetKind::PointCloud && $asset->crs === null)) {
             $layer['placement'] = ['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1];
         }
 

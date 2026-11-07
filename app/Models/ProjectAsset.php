@@ -30,6 +30,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read ProjectAssetStatus $status
  * @property-read string|null $error
  * @property-read string|null $upload_id
+ * @property-read array{epsg?: int, spacing?: float}|null $options
+ * @property-read int|null $progress
+ * @property-read string|null $log
+ * @property-read string|null $crs
  * @property-read Project $project
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -59,6 +63,10 @@ final class ProjectAsset extends Model
             'status' => ProjectAssetStatus::class,
             'error' => 'string',
             'upload_id' => 'string',
+            'options' => 'array',
+            'progress' => 'integer',
+            'log' => 'string',
+            'crs' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

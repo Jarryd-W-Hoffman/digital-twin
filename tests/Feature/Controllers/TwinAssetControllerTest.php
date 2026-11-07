@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\OrganisationRole;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(fn () => Storage::fake('local'));
@@ -34,4 +35,17 @@ it('keeps operators from uploading', function (): void {
     $twin = twinIn($organisation);
 
     $this->actingAs($user)->post(route('twins.assets.store', $twin), ['name' => 'P', 'file' => glbUpload()])->assertForbidden();
+});
+
+it('leaves a point cloud in the library until it is converted', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+
+    $this->actingAs($user)->post(route('twins.assets.store', $twin), ['name' => 'Quay', 'file' => UploadedFile::fake()->createWithContent('quay.laz', 'LASF')])
+        ->assertRedirectToRoute('twins.show', $twin)
+        ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Quay is converting. Add it from the library once it is ready.']);
+
+    expect($twin->project->assets()->sole()->isReady())->toBeFalse()
+        ->and($twin->versions()->count())->toBe(1);
 });

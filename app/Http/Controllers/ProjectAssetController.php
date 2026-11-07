@@ -10,6 +10,7 @@ use App\Http\Requests\StoreProjectAssetRequest;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use App\Models\User;
+use App\Support\PointCloudOptions;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -28,9 +29,11 @@ final readonly class ProjectAssetController
         $file = $request->file('file');
         assert($file instanceof UploadedFile);
 
-        $asset = $action->handle($project, $file, $request->string('name')->value());
+        $asset = $action->handle($project, $file, $request->string('name')->value(), PointCloudOptions::from($request));
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __(':name uploaded.', ['name' => $asset->name])]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => $asset->isReady()
+            ? __(':name uploaded.', ['name' => $asset->name])
+            : __(':name uploaded. Converting it to 3D Tiles…', ['name' => $asset->name])]);
 
         return to_route('projects.show', $project);
     }

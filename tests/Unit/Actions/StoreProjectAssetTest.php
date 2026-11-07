@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 use App\Actions\StoreProjectAsset;
 use App\Enums\ProjectAssetKind;
+use App\Enums\ProjectAssetStatus;
+use App\Jobs\ConvertUploadedPointCloud;
 use App\Models\Project;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -56,4 +60,25 @@ it('cleans up the files when saving fails', function (): void {
 
     expect(fn () => resolve(StoreProjectAsset::class)->handle($unsaved, glbUpload(), 'Pump'))->toThrow(QueryException::class)
         ->and(Storage::disk('local')->allFiles())->toBe([]);
+});
+
+it('keeps a point cloud as uploaded and queues its conversion', function (): void {
+    Queue::fake();
+    [, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $asset = resolve(StoreProjectAsset::class)->handle($project, UploadedFile::fake()->createWithContent('Quay.LAZ', 'LASF'), 'Quay', ['epsg' => 2193]);
+
+    expect($asset->kind)->toBe(ProjectAssetKind::PointCloud)
+        ->and($asset->status)->toBe(ProjectAssetStatus::Processing)
+        ->and($asset->options)->toBe(['epsg' => 2193])
+        ->and(Storage::disk('local')->get($asset->sourceKey()))->toBe('LASF');
+    Queue::assertPushed(ConvertUploadedPointCloud::class, fn (ConvertUploadedPointCloud $job): bool => $job->asset->is($asset) && $job->connection === 'conversions');
+});
+
+it('ignores conversion options for other kinds', function (): void {
+    [, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    expect(resolve(StoreProjectAsset::class)->handle($project, glbUpload(), 'Pump', ['epsg' => 2193])->options)->toBeNull();
 });

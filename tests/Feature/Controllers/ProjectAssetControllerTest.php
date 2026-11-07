@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 use App\Actions\AddAssetToTwin;
 use App\Enums\OrganisationRole;
+use App\Enums\ProjectAssetStatus;
+use App\Jobs\ConvertUploadedPointCloud;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(fn () => Storage::fake('local'));
@@ -62,4 +65,50 @@ it('only finds uploads through their own project', function (): void {
     $elsewhere = ProjectAsset::factory()->create();
 
     $this->actingAs($user)->delete(route('projects.assets.destroy', [$project, $elsewhere]))->assertNotFound();
+});
+
+it('takes point clouds with conversion options and says they are converting', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Quay', 'file' => UploadedFile::fake()->createWithContent('quay.las', 'LASF'), 'epsg' => '2193', 'spacing' => '0.05',
+    ])->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Quay uploaded. Converting it to 3D Tiles…']);
+
+    expect($project->assets()->sole()->options)->toBe(['epsg' => 2193, 'spacing' => 0.05]);
+});
+
+it('checks conversion options', function (): void {
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Quay', 'file' => UploadedFile::fake()->createWithContent('quay.las', 'LASF'), 'epsg' => '12', 'spacing' => '0',
+    ])->assertSessionHasErrors(['epsg', 'spacing']);
+});
+
+it('retries a failed conversion', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+    $asset = ProjectAsset::factory()->for($project)->pointCloud(null)->create(['status' => ProjectAssetStatus::Failed]);
+
+    $this->actingAs($user)->post(route('projects.assets.conversion.store', [$project, $asset]), ['epsg' => 2193])
+        ->assertRedirectToRoute('projects.show', $project)
+        ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Converting '.$asset->name.' again.']);
+
+    expect($asset->refresh()->options)->toBe(['epsg' => 2193]);
+    Queue::assertPushed(ConvertUploadedPointCloud::class);
+});
+
+it('only retries failed point clouds, for those who can change the project', function (): void {
+    [$user, $organisation] = member();
+    $ready = ProjectAsset::factory()->for(Project::factory()->for($organisation))->pointCloud()->create();
+    [$operator, $operated] = member(OrganisationRole::Operator);
+    $project = Project::factory()->for($operated)->create();
+    $failed = ProjectAsset::factory()->for($project)->pointCloud()->create(['status' => ProjectAssetStatus::Failed]);
+
+    $this->actingAs($user)->post(route('projects.assets.conversion.store', [$ready->project, $ready]))->assertConflict();
+    $this->actingAs($operator)->post(route('projects.assets.conversion.store', [$project, $failed]))->assertForbidden();
 });

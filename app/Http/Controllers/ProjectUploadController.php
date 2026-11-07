@@ -11,6 +11,7 @@ use App\Http\Requests\StartDirectUploadRequest;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use App\Support\DirectUploads;
+use App\Support\PointCloudOptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,6 +32,7 @@ final readonly class ProjectUploadController
             $request->string('name')->value(),
             $request->string('filename')->value(),
             $request->integer('bytes'),
+            PointCloudOptions::from($request),
         );
 
         return response()->json([

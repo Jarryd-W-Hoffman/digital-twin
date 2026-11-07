@@ -15,6 +15,8 @@ export type DirectUploadRoutes = {
 export type DirectUploadOptions = {
     file: Blob & { name: string };
     name: string;
+    /** More fields for the start request, such as conversion options. */
+    fields?: Record<string, unknown>;
     routes: DirectUploadRoutes;
     onProgress?: (fraction: number) => void;
     signal?: AbortSignal;
@@ -97,6 +99,7 @@ export async function directUpload(
     };
 
     const started = (await json<Started>('POST', options.routes.start, {
+        ...options.fields,
         name: options.name,
         filename: options.file.name,
         bytes: options.file.size,

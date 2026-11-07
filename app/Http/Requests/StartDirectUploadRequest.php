@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Support\PointCloudOptions;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -16,8 +17,9 @@ final class StartDirectUploadRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'filename' => ['required', 'string', 'max:200', 'regex:/^[^\/\\\\]+\.(glb|zip)$/i'],
+            'filename' => ['required', 'string', 'max:200', 'regex:/^[^\/\\\\]+\.(glb|zip|las|laz|e57)$/i'],
             'bytes' => ['required', 'integer', 'min:1', 'max:'.config()->integer('meridian.direct_uploads.max_upload_gb') * 1024 ** 3],
+            ...PointCloudOptions::rules(),
         ];
     }
 
@@ -26,6 +28,6 @@ final class StartDirectUploadRequest extends FormRequest
      */
     public function messages(): array
     {
-        return ['filename.regex' => __('Upload a .glb model or a zipped 3D Tiles tileset.')];
+        return ['filename.regex' => __('Upload a .glb model, a zipped 3D Tiles tileset, or a LAS, LAZ or E57 point cloud.')];
     }
 }

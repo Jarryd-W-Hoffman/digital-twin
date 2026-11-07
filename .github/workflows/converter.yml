@@ -1,0 +1,60 @@
+name: converter
+
+# Builds the converter image and runs real point cloud conversions in it
+# (PDAL and py3dtiles), only when the image or the conversion code changes.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docker/converter/**
+      - app/Actions/ConvertPointCloud.php
+      - app/Jobs/ConvertUploadedPointCloud.php
+      - tests/Feature/Conversions/**
+      - composer.lock
+      - .github/workflows/converter.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - docker/converter/**
+      - app/Actions/ConvertPointCloud.php
+      - app/Jobs/ConvertUploadedPointCloud.php
+      - tests/Feature/Conversions/**
+      - composer.lock
+      - .github/workflows/converter.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  converter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.5
+          tools: composer:v2
+          coverage: none
+
+      - name: Install Dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Environment
+        run: cp .env.example .env && php artisan key:generate
+
+      # The runner's user, so the container can write to the checkout.
+      - name: Build Converter Image
+        run: docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t meridian-converter docker/converter
+
+      - name: Convert Real Scans
+        run: |
+          docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 \
+            meridian-converter php -d memory_limit=1G vendor/bin/pest tests/Feature/Conversions

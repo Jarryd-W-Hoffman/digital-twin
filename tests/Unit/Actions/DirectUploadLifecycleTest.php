@@ -8,6 +8,7 @@ use App\Actions\SignDirectUploadParts;
 use App\Actions\StartDirectUpload;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
+use App\Jobs\ConvertUploadedPointCloud;
 use App\Jobs\ProcessDirectUpload;
 use App\Models\Project;
 use App\Models\ProjectAsset;
@@ -84,3 +85,26 @@ it('only works on uploads still open', function (string $action, array $argument
     [CompleteDirectUpload::class, [[['PartNumber' => 1, 'ETag' => 'e']]]],
     [AbortDirectUpload::class, []],
 ])->throws(LogicException::class, 'not open');
+
+it('queues a directly uploaded point cloud for conversion instead', function (): void {
+    Queue::fake();
+    fakeDirectUploads();
+    $asset = ProjectAsset::factory()->uploading()->create(['kind' => ProjectAssetKind::PointCloud, 'original_name' => 'scan.e57']);
+
+    resolve(CompleteDirectUpload::class)->handle($asset, [['PartNumber' => 1, 'ETag' => '"a"']]);
+
+    Queue::assertPushed(ConvertUploadedPointCloud::class);
+    Queue::assertNotPushed(ProcessDirectUpload::class);
+});
+
+it('keeps conversion options for a point cloud only', function (): void {
+    fakeDirectUploads(['CreateMultipartUpload' => new Result(['UploadId' => 'u'])]);
+    $project = Project::factory()->create();
+
+    $cloud = resolve(StartDirectUpload::class)->handle($project, 'Scan', 'scan.e57', 10, ['spacing' => 0.1])['asset'];
+    $model = resolve(StartDirectUpload::class)->handle($project, 'Pump', 'pump.glb', 10, ['spacing' => 0.1])['asset'];
+
+    expect($cloud->kind)->toBe(ProjectAssetKind::PointCloud)
+        ->and($cloud->refresh()->options)->toBe(['spacing' => 0.1])
+        ->and($model->refresh()->options)->toBeNull();
+});

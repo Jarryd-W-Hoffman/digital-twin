@@ -109,6 +109,31 @@ services:
     networks:
       - meridian
 
+  # Works the "conversions" queue: point clouds (LAS, LAZ, E57) to 3D Tiles
+  # with PDAL and py3dtiles, which only this image carries.
+  converter:
+    build:
+      context: ./converter
+      args:
+        UID: 1000
+        GID: 1000
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-converter
+    restart: unless-stopped
+    working_dir: /var/www/html
+    # py3dtiles shares point batches between its worker processes in /dev/shm.
+    shm_size: 2gb
+    volumes:
+      - ${APP_CODE_PATH}:/var/www/html
+    depends_on:
+      php:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - meridian
+
   # Streams one twin. It loads the definition from the control plane with a
   # gateway token (issued in the twin's Layout panel) and follows new versions.
   # Start it once you have a token: set MERIDIAN_GATEWAY_TOKEN in .env, then

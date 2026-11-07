@@ -73,6 +73,8 @@ it('shows a project with its twins, library and abilities', function (Organisati
             ->where('assets.0.kind', 'model')
             ->where('assets.0.bytes', 1024)
             ->where('assets.0.status', 'ready')
+            ->where('assets.0.progress', null)
+            ->where('assets.0.crs', null)
             ->where('directUploads', false)
             ->where('can.update', $update));
 })->with([
