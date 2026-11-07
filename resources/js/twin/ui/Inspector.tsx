@@ -8,7 +8,8 @@ import {
     typeOf,
     type MetricDef,
 } from '../core/metrics.ts';
-import type { AssetDef, TypeMetricDef } from '../core/types.ts';
+import { compileReadout } from '../core/readouts.ts';
+import type { AssetDef, PanelDef, TypeMetricDef } from '../core/types.ts';
 import {
     getHistory,
     alertsAt,
@@ -106,10 +107,69 @@ function SiteOverview() {
                     </dl>
                 </>
             )}
+            {def.panels?.map((panel) => (
+                <DefinedPanel key={panel.title} panel={panel} />
+            ))}
             <p className="muted hint">
                 Select a building in the scene, or an asset on the left.
             </p>
         </div>
+    );
+}
+
+/** A section of the site summary declared in the definition. */
+function DefinedPanel({ panel }: { panel: PanelDef }) {
+    const def = useTwin((s) => s.def)!;
+    const view = useTwin((s) => s.view);
+    const historyVersion = useTwin((s) => s.historyVersion);
+    const v = view?.values ?? {};
+    const items = useMemo(
+        () => (panel.items ?? []).map((i) => compileReadout(i)),
+        [panel],
+    );
+    const chart = useMemo(
+        () => (panel.chart ? compileReadout(panel.chart, panel.title) : null),
+        [panel],
+    );
+    const points = useMemo(
+        () =>
+            chart
+                ? getHistory().seriesOf(chart.value, -Infinity, Infinity, 200)
+                : [],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [historyVersion, chart],
+    );
+    return (
+        <section aria-label={panel.title}>
+            <h3>{panel.title}</h3>
+            {chart && (
+                <LineChart
+                    series={[
+                        {
+                            key: 'chart',
+                            label: chart.metric.label,
+                            color: LINE_COLOR,
+                            points,
+                        },
+                    ]}
+                    height={90}
+                    formatValue={(x) => formatMetric(chart.metric, x)}
+                    formatTime={(t) => clock(t, def.utcOffsetHours)}
+                    marker={view?.t}
+                    label={`${chart.metric.label} over time`}
+                />
+            )}
+            {items.length > 0 && (
+                <dl className="readings">
+                    {items.map((i) => (
+                        <div key={i.metric.label}>
+                            <dt>{i.metric.label}</dt>
+                            <dd>{formatMetric(i.metric, i.value(v))}</dd>
+                        </div>
+                    ))}
+                </dl>
+            )}
+        </section>
     );
 }
 

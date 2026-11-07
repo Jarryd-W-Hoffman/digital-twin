@@ -33,6 +33,7 @@ test('renders the twin with no errors and no third-party requests', async ({ pag
   const problems = await open(page);
   await expect(page.getByRole('heading', { name: 'Northshore Cold Chain Hub' })).toBeVisible();
   await expect(page.locator('.kpi', { hasText: 'Site load' })).toContainText('kW');
+  await expect(page.getByRole('region', { name: 'Fire protection' })).toContainText('Tank level');
   await page.waitForTimeout(2000);
   expect(problems).toEqual([]);
   expect([...hosts].filter((h) => !h.startsWith('127.0.0.1'))).toEqual([]);
@@ -147,6 +148,8 @@ test('a different definition runs the whole platform', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Harbour Depot' })).toBeVisible();
   await expect(page.locator('.asset-row')).toHaveCount(5);
   await expect(page.locator('.kpi', { hasText: 'Battery' })).toHaveCount(0);
+  await expect(page.locator('.kpi')).toHaveCount(4);
+  await expect(page.locator('.kpi', { hasText: 'Margin to limit' })).toContainText('°C');
   await page.getByRole('tab', { name: 'What-if' }).click();
   await page.getByRole('button', { name: 'Run forecast' }).click();
   await expect(page.getByTestId('forecast-results')).toContainText('Seafood store');

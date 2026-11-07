@@ -158,5 +158,16 @@
       "faults": [{ "type": "heatwave", "magnitude": 11 }] },
     { "id": "bearing", "name": "Bearing wear, Chiller 2", "description": "Slow mechanical wear that shows up in vibration before it costs efficiency.",
       "faults": [{ "type": "bearing-wear", "target": "ch-2", "magnitude": 0.6 }] }
+  ],
+  "panels": [
+    {
+      "title": "Fire protection",
+      "chart": { "label": "Ring main pressure", "value": "{fire-tank.pressureKpa}", "unit": "kPa" },
+      "items": [
+        { "label": "Tank level", "value": "{fire-tank.levelPct}", "unit": "%" },
+        { "label": "Jockey pump", "value": "{jockey.powerKw}", "unit": "kW", "decimals": 1 },
+        { "label": "Pressure in hand", "value": "{fire-tank.pressureKpa} - {jockey.startKpa}", "unit": "kPa" }
+      ]
+    }
   ]
 }

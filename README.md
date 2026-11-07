@@ -634,6 +634,29 @@ Three shapes of rule, each on one `asset` or every asset of a `kind`, with an op
 
 A change rule waits until it has a full window of readings. An expression rule reads the asset's metrics by name and others as `{asset.metric}`, and waits while anything it reads has no value.
 
+### KPIs and panels
+
+The top bar and site summary can be declared too. Each figure is an expression over `{asset.metric}` references, with a unit and decimals:
+
+```jsonc
+// Replaces the built-in top-bar figures (up to eight).
+"kpis": [
+  { "label": "Site load", "value": "{site.loadKw}", "unit": "kW" },
+  { "label": "Margin to limit", "value": "5 - {store.tempC}", "unit": "°C", "decimals": 1 }
+],
+// Added to the site summary in the inspector, each with optional figures and a chart.
+"panels": [{
+  "title": "Fire protection",
+  "chart": { "label": "Ring main pressure", "value": "{fire-tank.pressureKpa}", "unit": "kPa" },
+  "items": [
+    { "label": "Tank level", "value": "{fire-tank.levelPct}", "unit": "%" },
+    { "label": "Pressure in hand", "value": "{fire-tank.pressureKpa} - {jockey.startKpa}", "unit": "kPa" }
+  ]
+}]
+```
+
+With no `kpis`, the top bar shows site load, solar, grid, battery and the tightest store, as before. A chart is drawn from the history the twin keeps, so it works in replay too. Figures read only `{asset.metric}`, and the validators refuse bare names and references to assets that don't exist.
+
 ### Models and tilesets
 
 ```jsonc
@@ -721,7 +744,7 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 2. **Projects and a data library** (done): organisations hold projects, and projects hold twins and a shared library of uploads (models, tilesets and point clouds), so one scan can be placed into several twins. New twins start as an empty site at a chosen location (weather, a grid connection and a main board), a sample, or a definition file. Large files go straight to object storage in parts and are checked by a queued job.
 3. **Point cloud pipeline** (done): LAS, LAZ and E57 uploaded to the library and converted to 3D Tiles by a queued worker (PDAL to read, assign a coordinate system and thin; py3dtiles to reproject and tile), with progress, logs and retries in the UI, then placed into a twin like any tileset.
 4. **IoT: devices, MQTT and history** (done): devices registered per project with their own broker logins, a broker that asks the control plane who may publish and subscribe where, an MQTT bridge mapping topics onto any asset's metrics, gateways issued, rotated and watched from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
-5. **Customisation core** (in progress): behaviour for custom types as data (derived metrics written as safe expressions, state machines, setpoints, power drawn from the feed tree) and expression and rate-of-change rules are done; KPIs and panels declared in the definition instead of built in, and a type library per organisation, are next.
+5. **Customisation core** (in progress): behaviour for custom types as data (derived metrics written as safe expressions, state machines, setpoints, power drawn from the feed tree), expression and rate-of-change rules, and KPIs and panels declared in the definition are done; a type library per organisation is next.
 6. **Definition editor:** edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators.
 7. **Scene editing and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.
 8. **OPC UA and actuation:** read from OPC UA servers, and write back through the custom setpoints, off by default and audited.

@@ -34,5 +34,11 @@
   "scenarios": [
     { "id": "trip", "name": "Chiller trips", "description": "The only chiller goes offline.", "faults": [{ "type": "trip", "target": "plant" }] },
     { "id": "outage", "name": "Grid outage, 3 hours", "description": "With no storage, the store coasts on its thermal mass.", "faults": [{ "type": "grid-outage", "durationS": 10800 }] }
+  ],
+  "kpis": [
+    { "label": "Site load", "value": "{site.loadKw}", "unit": "kW" },
+    { "label": "Seafood store", "value": "{store.tempC}", "unit": "°C", "decimals": 1 },
+    { "label": "Margin to limit", "value": "5 - {store.tempC}", "unit": "°C", "decimals": 1 },
+    { "label": "Run cost", "value": "{site.costPerH}", "unit": "$/h", "decimals": 2 }
   ]
 }

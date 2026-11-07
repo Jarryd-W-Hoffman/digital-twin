@@ -68,11 +68,21 @@ export class History {
         toT = Infinity,
         maxPoints = 240,
     ): { t: number; v: number }[] {
+        return this.seriesOf((values) => values[key], fromT, toT, maxPoints);
+    }
+
+    /** Like `series`, for anything worked out from a frame's values. */
+    seriesOf(
+        valueOf: (values: Frame['values']) => number | undefined,
+        fromT = -Infinity,
+        toT = Infinity,
+        maxPoints = 240,
+    ): { t: number; v: number }[] {
         const inRange: { t: number; v: number }[] = [];
         for (let i = 0; i < this.frames.length; i++) {
             const f = this.at(i)!;
             if (f.t < fromT || f.t > toT) continue;
-            const v = f.values[key];
+            const v = valueOf(f.values);
             if (v !== undefined) inRange.push({ t: f.t, v });
         }
         if (inRange.length <= maxPoints) return inRange;
