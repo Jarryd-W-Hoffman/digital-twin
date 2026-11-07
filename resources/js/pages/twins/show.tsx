@@ -7,8 +7,15 @@ import {
     type TwinVersionSummary,
 } from '@/components/twin-editor';
 import { show as showProject } from '@/routes/projects';
+import { index as twinReadings } from '@/routes/twins/readings';
 import type { TwinDefinition } from '@/twin/core/types';
-import { runDefinition, runGateway, stopTwin } from '@/twin/state/store';
+import {
+    runDefinition,
+    runGateway,
+    stopTwin,
+    useTwin,
+    type Recorded,
+} from '@/twin/state/store';
 import { Viewer } from '@/twin/ui/Viewer';
 
 type Props = {
@@ -58,6 +65,22 @@ export default function ShowTwin({
             runDefinition(definition, { canOperate: can.operate });
         }
     }, [version, definition, can.operate, live, gatewayUrl]);
+
+    // Recorded readings come from the control plane, whichever source runs.
+    useEffect(() => {
+        useTwin.setState({
+            recorded: async (asset, metric, from, to) => {
+                const res = await fetch(
+                    twinReadings.url(twin.id, {
+                        query: { asset, metric, from, to },
+                    }),
+                    { headers: { accept: 'application/json' } },
+                );
+                if (!res.ok) throw new Error('Could not load the history');
+                return (await res.json()) as Recorded;
+            },
+        });
+    }, [twin.id]);
 
     useEffect(() => stopTwin, []);
 

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\IssueGatewayToken;
 use App\Actions\SaveTwinVersion;
 use App\Enums\OrganisationRole;
 use App\Models\Organisation;
@@ -191,4 +192,17 @@ function fakeConverter(?int $epsg = 2193, int $points = 1200, array $fail = []):
             return 'Tiler done';
         },
     ]);
+}
+
+/**
+ * A twin with a gateway token, and the token.
+ *
+ * @return array{0: Twin, 1: string}
+ */
+function gatewayTwin(): array
+{
+    [, $organisation] = member();
+    $twin = twinIn($organisation);
+
+    return [$twin, resolve(IssueGatewayToken::class)->handle($twin)];
 }

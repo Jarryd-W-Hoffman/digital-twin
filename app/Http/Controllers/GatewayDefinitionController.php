@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\RecordGatewayCheckIn;
-use App\Models\Twin;
+use App\Http\Middleware\AuthenticateGateway;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -18,15 +18,7 @@ final readonly class GatewayDefinitionController
 {
     public function show(Request $request, RecordGatewayCheckIn $checkIn): JsonResponse|Response
     {
-        $token = $request->bearerToken();
-        $twin = is_string($token) && $token !== ''
-            ? Twin::query()->where('gateway_token_hash', hash('sha256', $token))->first()
-            : null;
-
-        if (! $twin instanceof Twin) {
-            return response()->json(['message' => __('Missing or unknown gateway token.')], 401);
-        }
-
+        $twin = AuthenticateGateway::twin($request);
         $checkIn->handle($twin, $request->header('X-Gateway-Url'));
 
         $latest = $twin->latestVersion()->firstOrFail();

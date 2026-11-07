@@ -1,13 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
+import { connect as connectMqtt, type IClientOptions } from 'mqtt';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { TwinDefinition } from '../resources/js/twin/core/types.ts';
 import { History } from '../resources/js/twin/core/history.ts';
 import { parseReadings } from '../resources/js/twin/core/ingest.ts';
 import { siteTime, SimRunner } from '../resources/js/twin/core/runner.ts';
-import type { ClientMessage, ServerMessage } from '../resources/js/twin/core/protocol.ts';
+import type { ClientMessage, Reading, ServerMessage } from '../resources/js/twin/core/protocol.ts';
+import { compileTelemetry, type Telemetry } from '../resources/js/twin/core/telemetry.ts';
 import { parseDefinition } from '../resources/js/twin/core/validate.ts';
+import { ReadingLog } from './readings.ts';
 import { ticketKey, verifyTicket, type TicketAccess } from './tickets.ts';
 
 /**
@@ -18,6 +21,10 @@ import { ticketKey, verifyTicket, type TicketAccess } from './tickets.ts';
  * The twin comes from a JSON file, or from the control plane: with a gateway
  * token it fetches the twin's latest version, polls for new ones and swaps
  * them in, and lets browsers in only with a ticket the control plane signed.
+ * Every reading is also sent on to the control plane's history.
+ *
+ * With an MQTT broker, it subscribes to the topics in the twin's `telemetry`
+ * mappings and takes each message as a reading, as if posted to /ingest.
  *
  * Binds to localhost by default. To expose it, set GATEWAY_HOST, GATEWAY_TOKEN
  * (or use a control plane token) and GATEWAY_ORIGINS.
@@ -36,11 +43,34 @@ export interface ControlPlaneOptions {
   /** Where browsers reach this gateway (ws:// or wss://), reported on every poll. */
   publicUrl?: string;
   pollMs?: number;
+  /** How often readings are sent on to the control plane's history. */
+  flushMs?: number;
+}
+
+/** The parts of an MQTT client the gateway uses. */
+export interface MqttClientLike {
+  on(event: 'connect', listener: () => void): unknown;
+  on(event: 'message', listener: (topic: string, payload: Buffer) => void): unknown;
+  on(event: 'error', listener: (error: Error) => void): unknown;
+  subscribe(topics: string[]): unknown;
+  unsubscribe(topics: string[]): unknown;
+  end(force?: boolean): unknown;
+  readonly connected: boolean;
+}
+
+export interface MqttOptions {
+  /** The broker, e.g. mqtt://localhost:1883. */
+  url: string;
+  username?: string;
+  password?: string;
+  /** Swaps in another client, for tests. */
+  connect?: (url: string, options: IClientOptions) => MqttClientLike;
 }
 
 export interface GatewayOptions {
   definitionPath?: string;
   controlPlane?: ControlPlaneOptions;
+  mqtt?: MqttOptions;
   port?: number;
   host?: string;
   token?: string;
@@ -103,15 +133,62 @@ export async function startGateway(options: GatewayOptions = {}) {
   const key = cp ? ticketKey(cp.token) : null;
   const ingestToken = options.token ?? cp?.token;
 
+  const log = cp ? new ReadingLog(cp) : null;
+  /** Feeds the model and the history alike, from /ingest or MQTT. */
+  const measure = (readings: Reading[]) => {
+    for (const r of readings) runner.measure(`${r.asset}.${r.metric}`, r.value, r.ttlS);
+    log?.add(readings);
+  };
+
   let runner!: SimRunner;
   let history!: History;
+  let telemetry: Telemetry = compileTelemetry({ ...definition, telemetry: [] });
   const boot = (def: TwinDefinition, now: number) => {
     definition = def;
+    const compiled = compileTelemetry(def);
+    for (const problem of compiled.skipped) console.warn(`Gateway: ${problem}`);
+    const before = telemetry.topics;
+    telemetry = compiled;
+    resubscribe(before);
     const start = siteTime(now, def.utcOffsetHours, 14) - PREROLL_S * 1000;
     runner = new SimRunner(def, start);
     history = new History(HISTORY_FRAMES);
     for (const f of runner.preroll(PREROLL_S)) history.push(f);
   };
+  const mqttStats = { received: 0, mapped: 0, unmapped: 0 };
+  const client = options.mqtt
+    ? (options.mqtt.connect ?? (connectMqtt as unknown as NonNullable<MqttOptions['connect']>))(options.mqtt.url, {
+        username: options.mqtt.username,
+        password: options.mqtt.password,
+        reconnectPeriod: 2000,
+        connectTimeout: 10_000,
+      })
+    : null;
+  /** Follows the twin's mappings: subscribes to new filters, drops old ones. */
+  function resubscribe(before: string[]) {
+    if (!client) return;
+    const now = telemetry.topics;
+    const gone = before.filter((t) => !now.includes(t));
+    const added = now.filter((t) => !before.includes(t));
+    if (gone.length) client.unsubscribe(gone);
+    if (added.length && client.connected) client.subscribe(added);
+  }
+  client?.on('connect', () => {
+    if (telemetry.topics.length) client.subscribe(telemetry.topics);
+  });
+  client?.on('error', (error) => console.warn(`Gateway: MQTT ${error.message}`));
+  client?.on('message', (topic, payload) => {
+    mqttStats.received++;
+    const { readings, problems } = telemetry.read(topic, payload.toString('utf8'));
+    for (const problem of problems) console.warn(`Gateway: ${problem}`);
+    if (readings.length === 0) {
+      mqttStats.unmapped++;
+      return;
+    }
+    mqttStats.mapped++;
+    measure(readings);
+  });
+
   boot(definition, options.now ?? Date.now());
 
   const sockets = new Map<WebSocket, TicketAccess | null>();
@@ -148,6 +225,8 @@ export async function startGateway(options: GatewayOptions = {}) {
         version: fetched?.version ?? null,
         t: runner.state.t,
         clients: sockets.size,
+        mqtt: client ? { connected: client.connected, topics: telemetry.topics, ...mqttStats } : null,
+        history: log ? { pending: log.pending, sent: log.sent, dropped: log.dropped } : null,
       });
       return;
     }
@@ -168,7 +247,7 @@ export async function startGateway(options: GatewayOptions = {}) {
         respond(res, 422, { errors: parsed.errors });
         return;
       }
-      for (const r of parsed.readings) runner.measure(`${r.asset}.${r.metric}`, r.value, r.ttlS);
+      measure(parsed.readings);
       respond(res, 202, { accepted: parsed.readings.length });
       return;
     }
@@ -245,9 +324,21 @@ export async function startGateway(options: GatewayOptions = {}) {
       }, cp.pollMs ?? 5000)
     : undefined;
 
+  const flush = log
+    ? setInterval(() => {
+        log.flush().catch((error: unknown) => console.warn(`Gateway: ${error instanceof Error ? error.message : String(error)}`));
+      }, cp?.flushMs ?? 10_000)
+    : undefined;
+
   const port = options.port ?? 8787;
   const host = options.host ?? '127.0.0.1';
-  return new Promise<{ port: number; runner: SimRunner; version: number | null; close: () => Promise<void> }>((done) => {
+  return new Promise<{
+    port: number;
+    runner: SimRunner;
+    version: number | null;
+    log: ReadingLog | null;
+    close: () => Promise<void>;
+  }>((done) => {
     server.listen(port, host, () => {
       const address = server.address();
       done({
@@ -258,10 +349,15 @@ export async function startGateway(options: GatewayOptions = {}) {
         get version() {
           return fetched?.version ?? null;
         },
+        log,
         close: () =>
           new Promise((closed) => {
             clearInterval(timer);
             clearInterval(poll);
+            clearInterval(flush);
+            client?.end(true);
+            // What's left goes to the history on the way out, if it can.
+            void log?.flush().catch(() => undefined);
             for (const s of sockets.keys()) s.terminate();
             wss.close();
             server.close(() => closed());
@@ -285,6 +381,9 @@ if (process.argv[1] === import.meta.filename) {
             pollMs: Number(process.env.GATEWAY_POLL_MS ?? 5000),
           }
         : undefined,
+    mqtt: process.env.MQTT_URL
+      ? { url: process.env.MQTT_URL, username: process.env.MQTT_USERNAME, password: process.env.MQTT_PASSWORD }
+      : undefined,
     port,
     host: process.env.GATEWAY_HOST,
     token: process.env.GATEWAY_TOKEN,

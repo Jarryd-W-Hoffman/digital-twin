@@ -115,6 +115,51 @@
                 "Model city: placement must be an object",
                 "Model skid: placement.north must be a number"
             ]
+        },
+        {
+            "name": "telemetry that maps well",
+            "ops": [
+                {
+                    "set": "telemetry",
+                    "value": [
+                        { "topic": "harbour/store/temp", "asset": "store", "metric": "tempC" },
+                        { "topic": "harbour/+/power", "asset": "plant", "metric": "powerKw", "path": "data.kw", "scale": 0.001, "offset": 0, "ttlS": 60 },
+                        { "topic": "harbour/board/#", "asset": "board", "metric": "loadKw" }
+                    ]
+                }
+            ],
+            "errors": []
+        },
+        { "name": "telemetry not a list", "ops": [{ "set": "telemetry", "value": { "topic": "a" } }], "errors": ["telemetry must be an array"] },
+        {
+            "name": "telemetry problems",
+            "ops": [
+                {
+                    "set": "telemetry",
+                    "value": [
+                        { "asset": "store", "metric": "tempC" },
+                        7,
+                        { "topic": "a/#/b", "asset": "nowhere", "metric": "Temp" },
+                        { "topic": "a/b+", "asset": "store", "metric": "tempC", "path": "data..x", "scale": "2", "offset": true, "ttlS": 0 },
+                        { "topic": "c", "metric": 5, "path": 3 }
+                    ]
+                }
+            ],
+            "errors": [
+                "A telemetry mapping has no topic",
+                "A telemetry mapping has no topic",
+                "Telemetry a/#/b: bad topic filter",
+                "Telemetry a/#/b: unknown asset nowhere",
+                "Telemetry a/#/b: metric must be a camelCase identifier",
+                "Telemetry a/b+: bad topic filter",
+                "Telemetry a/b+: path must be dotted keys",
+                "Telemetry a/b+: scale must be a number",
+                "Telemetry a/b+: offset must be a number",
+                "Telemetry a/b+: ttlS must be positive",
+                "Telemetry c: unknown asset undefined",
+                "Telemetry c: metric must be a camelCase identifier",
+                "Telemetry c: path must be dotted keys"
+            ]
         }
     ]
 }

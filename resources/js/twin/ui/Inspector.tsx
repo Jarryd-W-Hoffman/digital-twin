@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     formatMetric,
     METRICS,
@@ -6,8 +6,13 @@ import {
     type MetricDef,
 } from '../core/metrics.ts';
 import type { AssetDef } from '../core/types.ts';
-import { getHistory, alertsAt, useTwin } from '../state/store.ts';
-import { clock, kw } from './format.ts';
+import {
+    getHistory,
+    alertsAt,
+    useTwin,
+    type Recorded,
+} from '../state/store.ts';
+import { clock, dateTime, kw } from './format.ts';
 import { LineChart } from './LineChart.tsx';
 import { SeverityBadge, StatusBadge } from './StatusBadge.tsx';
 
@@ -178,6 +183,8 @@ function AssetDetail({ asset }: { asset: AssetDef }) {
                 ))}
             </div>
 
+            <RecordedReadings asset={asset} metrics={metrics} />
+
             {(fedBy ||
                 feeds.length > 0 ||
                 cools.length > 0 ||
@@ -199,6 +206,117 @@ function AssetDetail({ asset }: { asset: AssetDef }) {
                 </>
             )}
         </div>
+    );
+}
+
+const RANGES = [
+    { label: '24 h', ms: 86_400_000 },
+    { label: '7 days', ms: 7 * 86_400_000 },
+    { label: '30 days', ms: 30 * 86_400_000 },
+];
+
+/**
+ * Readings sensors actually reported, as the control plane recorded them, over
+ * days rather than the live window. Real time, not the simulated clock.
+ */
+function RecordedReadings({
+    asset,
+    metrics,
+}: {
+    asset: AssetDef;
+    metrics: MetricDef[];
+}) {
+    const recorded = useTwin((s) => s.recorded);
+    const offset = useTwin((s) => s.def?.utcOffsetHours ?? 0);
+    const [metricKey, setMetricKey] = useState(metrics[0]?.key ?? '');
+    const [range, setRange] = useState(RANGES[0].ms);
+    const [result, setResult] = useState<
+        { key: string; data: Recorded } | { key: string; error: string } | null
+    >(null);
+    const metric = metrics.find((m) => m.key === metricKey) ?? metrics[0];
+    const key = `${asset.id}.${metric?.key}.${range}`;
+
+    useEffect(() => {
+        if (!recorded || !metric) return;
+        let current = true;
+        const to = Date.now();
+        recorded(asset.id, metric.key, to - range, to).then(
+            (data) => current && setResult({ key, data }),
+            (error: unknown) =>
+                current &&
+                setResult({
+                    key,
+                    error:
+                        error instanceof Error
+                            ? error.message
+                            : 'Could not load the history',
+                }),
+        );
+        return () => {
+            current = false;
+        };
+    }, [recorded, asset.id, metric, range, key]);
+
+    if (!recorded || !metric) return null;
+    const shown = result?.key === key ? result : null;
+
+    return (
+        <section aria-label="Recorded readings">
+            <h3>Recorded</h3>
+            <div className="recorded-controls">
+                <select
+                    aria-label="Recorded metric"
+                    value={metric.key}
+                    onChange={(e) => setMetricKey(e.target.value)}
+                >
+                    {metrics.map((m) => (
+                        <option key={m.key} value={m.key}>
+                            {m.label}
+                        </option>
+                    ))}
+                </select>
+                <div className="segmented" role="group" aria-label="Range">
+                    {RANGES.map((r) => (
+                        <button
+                            key={r.ms}
+                            className={r.ms === range ? 'on' : ''}
+                            aria-pressed={r.ms === range}
+                            onClick={() => setRange(r.ms)}
+                        >
+                            {r.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            {shown === null ? (
+                <p className="muted hint">Loading…</p>
+            ) : 'error' in shown ? (
+                <p className="muted hint">{shown.error}</p>
+            ) : shown.data.points.length === 0 ? (
+                <p className="muted hint">
+                    No readings recorded in this range. Map an MQTT topic to
+                    this metric, or post to the gateway's /ingest.
+                </p>
+            ) : (
+                <LineChart
+                    series={[
+                        {
+                            key: 'mean',
+                            label: metric.label,
+                            color: LINE_COLOR,
+                            points: shown.data.points.map((p) => ({
+                                t: p.t,
+                                v: p.mean,
+                            })),
+                        },
+                    ]}
+                    height={120}
+                    formatValue={(x) => formatMetric(metric, x)}
+                    formatTime={(t) => dateTime(t, offset)}
+                    label={`${metric.label}, recorded`}
+                />
+            )}
+        </section>
     );
 }
 

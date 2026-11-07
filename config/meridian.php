@@ -41,6 +41,15 @@ return [
         'timeout_minutes' => (int) env('MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES', 240),
     ],
 
+    /*
+    | Readings gateways report (from MQTT or POST /ingest) are kept this long
+    | for history charts. TimescaleDB drops older chunks itself; elsewhere the
+    | scheduled model:prune does.
+    */
+    'readings' => [
+        'retention_days' => (int) env('MERIDIAN_READINGS_RETENTION_DAYS', 365),
+    ],
+
     'tileset' => [
         'max_files' => (int) env('MERIDIAN_TILESET_MAX_FILES', 20000),
         'max_uncompressed_bytes' => (int) env('MERIDIAN_TILESET_MAX_BYTES', 4 * 1024 * 1024 * 1024),

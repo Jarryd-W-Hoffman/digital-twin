@@ -110,3 +110,74 @@ jobs:
         with:
           name: browser-screenshots
           path: tests/Browser/Screenshots
+
+  # The suite again on the Docker stack's database, where SQLite's leniency
+  # (row locks on aggregates, max() of a uuid, unique ctids) doesn't hold.
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: timescale/timescaledb:2.24.0-pg18
+        env:
+          POSTGRES_DB: meridian
+          POSTGRES_USER: meridian
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meridian -d meridian"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: meridian
+      DB_USERNAME: meridian
+      DB_PASSWORD: secret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.5
+          tools: composer:v2
+          coverage: none
+          extensions: pdo_pgsql
+          ini-values: zend.assertions=1
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          node-version: 24
+
+      - name: Cache Composer Dependencies
+        uses: actions/cache@v6
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress --no-scripts
+          composer run-script post-autoload-dump
+          npm ci
+          npm run build
+
+      - name: Prepare Environment
+        run: cp .env.example .env && php artisan key:generate
+
+      # So the readings migration makes a hypertable, as on the Docker stack.
+      - name: Check TimescaleDB is loaded
+        run: PGPASSWORD=secret psql -h 127.0.0.1 -U meridian -d meridian -tAc 'SHOW shared_preload_libraries' | grep -q timescaledb
+
+      - name: Tests
+        run: vendor/bin/pest --parallel --exclude-testsuite=Browser

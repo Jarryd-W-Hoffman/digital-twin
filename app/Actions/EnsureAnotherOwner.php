@@ -15,14 +15,14 @@ final readonly class EnsureAnotherOwner
      */
     public function handle(Membership $membership): void
     {
-        $others = Membership::query()
+        $hasOthers = Membership::query()
             ->where('organisation_id', $membership->organisation_id)
             ->where('role', OrganisationRole::Owner)
             ->whereKeyNot($membership->id)
             ->lockForUpdate()
-            ->count();
+            ->exists();
 
-        throw_if($others === 0, ValidationException::withMessages([
+        throw_unless($hasOthers, ValidationException::withMessages([
             'role' => __('An organisation needs at least one owner.'),
         ]));
     }

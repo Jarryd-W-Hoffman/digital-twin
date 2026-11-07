@@ -152,6 +152,7 @@ services:
       # Where browsers reach this gateway; reported to the control plane.
       GATEWAY_PUBLIC_URL: ws://localhost:${FORWARD_GATEWAY_PORT:-8788}/ws
       GATEWAY_ORIGINS: http://localhost:${FORWARD_APP_PORT:-8085}
+      MQTT_URL: mqtt://mosquitto:1883
     ports:
       - "${FORWARD_GATEWAY_PORT:-8788}:8787"
     volumes:
@@ -166,15 +167,20 @@ services:
     depends_on:
       nginx:
         condition: service_healthy
+      mosquitto:
+        condition: service_healthy
     profiles:
       - gateway
     networks:
       - meridian
 
+  # Postgres 18 with TimescaleDB, which readings history uses when loaded.
   postgres:
-    image: postgres:18-alpine
+    image: timescale/timescaledb:2.24.0-pg18
     container_name: ${COMPOSE_PROJECT_NAME:-meridian}-postgres
     restart: unless-stopped
+    # Also for data directories first made by the plain postgres image.
+    command: ["postgres", "-c", "shared_preload_libraries=timescaledb", "-c", "timescaledb.telemetry_level=off"]
     ports:
       - "${FORWARD_DB_PORT:-5436}:5432"
     environment:
@@ -189,6 +195,25 @@ services:
       start_period: 20s
     volumes:
       - postgres-data:/var/lib/postgresql
+    networks:
+      - meridian
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-mosquitto
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FORWARD_MQTT_PORT:-1883}:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    profiles:
+      - gateway
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/broker/uptime' -C 1 -W 3 > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - meridian
 
@@ -293,6 +318,7 @@ networks:
     driver: bridge
 
 volumes:
+  mosquitto-data:
   postgres-data:
   redis-data:
   rustfs-data:

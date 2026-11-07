@@ -172,6 +172,25 @@ export interface ModelDef {
     assetId?: string;
 }
 
+/**
+ * Where a metric's readings come from over MQTT. The gateway subscribes to
+ * `topic` and turns each message into a reading of `asset`.`metric`:
+ * the number at `path` in a JSON payload (or the payload itself, or its
+ * `value`), times `scale`, plus `offset`.
+ */
+export interface TelemetryMapping {
+    /** An MQTT topic filter: `+` matches one level, a final `#` the rest. */
+    topic: string;
+    asset: string;
+    metric: string;
+    /** Dotted keys into a JSON payload, such as `data.tempC`. */
+    path?: string;
+    scale?: number;
+    offset?: number;
+    /** How long each reading holds, in simulated seconds. */
+    ttlS?: number;
+}
+
 export interface TwinDefinition {
     id: string;
     name: string;
@@ -190,6 +209,7 @@ export interface TwinDefinition {
     tilesets?: TilesetDef[];
     models?: ModelDef[];
     types?: AssetTypeDef[];
+    telemetry?: TelemetryMapping[];
 }
 
 /** Numeric state codes stored in each asset's `state` metric. */
