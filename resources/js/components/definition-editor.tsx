@@ -2,33 +2,39 @@ import { router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import { store as storeVersion } from '@/routes/twins/versions';
 import {
+    LISTS,
+    choicesFor,
+    editNote,
+    elementNode,
     fieldsFor,
+    fieldsOf,
     formatPoints,
+    itemLabel,
+    itemsOf,
+    newElement,
     newItem,
     parsePoints,
     replaceItem,
     setField,
-    type EditableList,
     type Field,
     type Item,
+    type ListName,
 } from '@/twin/core/editing';
 import type { TwinDefinition } from '@/twin/core/types';
 import { validateDefinition } from '@/twin/core/validate';
-
-const LISTS: { list: EditableList; title: string; noun: string }[] = [
-    { list: 'zones', title: 'Zones', noun: 'zone' },
-    { list: 'assets', title: 'Assets', noun: 'asset' },
-];
 
 const text = (v: unknown): string =>
     typeof v === 'string' || typeof v === 'number' ? String(v) : '';
 const numberOrUndefined = (v: string): number | undefined =>
     v.trim() === '' || !Number.isFinite(Number(v)) ? undefined : Number(v);
+const asItem = (v: unknown): Item =>
+    typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Item) : {};
 
 /**
- * Zones and assets as forms, drawn from definition.schema.json. Edits stay a
- * draft, checked as you type by the same validator the server uses, until
- * Save writes them as one new version.
+ * A twin's lists (zones, assets, routes, types, rules, scenarios, KPIs and
+ * panels) as forms drawn from definition.schema.json. Edits stay a draft,
+ * checked as you type by the same validator the server uses, until Save
+ * writes them as one new version.
  */
 export function DefinitionEditor({
     twinId,
@@ -40,33 +46,32 @@ export function DefinitionEditor({
     onClose: () => void;
 }) {
     const [draft, setDraft] = useState(definition);
-    const [selected, setSelected] = useState<{
-        list: EditableList;
-        index: number;
-    } | null>(null);
+    const [list, setList] = useState<ListName>('zones');
+    const [selected, setSelected] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
     const [serverErrors, setServerErrors] = useState<string[]>([]);
     const errors = useMemo(() => validateDefinition(draft), [draft]);
     const dirty = draft !== definition;
-    const items = (list: EditableList) => draft[list] as unknown as Item[];
-    const item = selected ? items(selected.list)[selected.index] : undefined;
+    const items = itemsOf(draft, list);
+    const item = selected === null ? undefined : items[selected];
+    const noun = LISTS.find((l) => l.list === list)?.noun ?? 'item';
 
     const close = () => {
-        if (!dirty || confirm('Discard your changes to zones and assets?'))
+        if (!dirty || confirm('Discard your changes to the definition?'))
             onClose();
     };
+    const choose = (next: ListName) => {
+        setList(next);
+        setSelected(null);
+    };
     const update = (next: Item | null) => {
-        if (!selected) return;
-        setDraft(replaceItem(draft, selected.list, selected.index, next));
+        if (selected === null) return;
+        setDraft(replaceItem(draft, list, selected, next));
         if (next === null) setSelected(null);
     };
-    const add = (list: EditableList) => {
-        const next = {
-            ...draft,
-            [list]: [...items(list), newItem(draft, list)],
-        };
-        setDraft(next as TwinDefinition);
-        setSelected({ list, index: items(list).length });
+    const add = () => {
+        setDraft(replaceItem(draft, list, items.length, newItem(draft, list)));
+        setSelected(items.length);
     };
     const save = () => {
         setSaving(true);
@@ -74,7 +79,7 @@ export function DefinitionEditor({
             storeVersion.url(twinId),
             {
                 definition: draft as unknown as Record<string, never>,
-                note: 'Edited zones and assets',
+                note: editNote(definition, draft),
             },
             {
                 preserveScroll: true,
@@ -87,69 +92,70 @@ export function DefinitionEditor({
     };
 
     return (
-        <aside
-            className="panel editor def-editor"
-            aria-label="Zones and assets"
-        >
+        <aside className="panel editor def-editor" aria-label="Definition">
             <div className="editor-head">
-                <h2>Zones and assets</h2>
+                <h2>Definition</h2>
                 <button
                     className="ghost"
                     onClick={close}
-                    aria-label="Close zones and assets"
+                    aria-label="Close definition"
                 >
                     ✕
                 </button>
             </div>
+            <div className="def-editor-tabs" role="tablist">
+                {LISTS.map((l) => (
+                    <button
+                        key={l.list}
+                        role="tab"
+                        aria-selected={l.list === list}
+                        className={l.list === list ? 'on' : ''}
+                        onClick={() => choose(l.list)}
+                    >
+                        {l.title}
+                    </button>
+                ))}
+            </div>
             <div className="def-editor-body">
                 <nav className="def-editor-lists">
-                    {LISTS.map(({ list, title, noun }) => (
-                        <div key={list}>
-                            <h3>{title}</h3>
-                            <ul aria-label={title}>
-                                {items(list).map((it, index) => (
-                                    <li key={index}>
-                                        <button
-                                            className={
-                                                selected?.list === list &&
-                                                selected.index === index
-                                                    ? 'selected'
-                                                    : ''
-                                            }
-                                            onClick={() =>
-                                                setSelected({ list, index })
-                                            }
-                                        >
-                                            {text(it.name) ||
-                                                text(it.id) ||
-                                                '?'}
+                    <ul aria-label={LISTS.find((l) => l.list === list)?.title}>
+                        {items.map((it, index) => (
+                            <li key={index}>
+                                <button
+                                    className={
+                                        selected === index ? 'selected' : ''
+                                    }
+                                    onClick={() => setSelected(index)}
+                                >
+                                    {itemLabel(it)}
+                                    {typeof it.id === 'string' &&
+                                        it.id !== itemLabel(it) && (
                                             <span className="muted">
                                                 {' '}
-                                                {text(it.id)}
+                                                {it.id}
                                             </span>
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                            <button className="link" onClick={() => add(list)}>
-                                Add {noun}
-                            </button>
-                        </div>
-                    ))}
+                                        )}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                    <button className="link" onClick={add}>
+                        Add {noun}
+                    </button>
                 </nav>
-                {selected && item ? (
+                {selected !== null && item ? (
                     <ItemForm
-                        key={`${selected.list}-${selected.index}`}
-                        list={selected.list}
+                        key={`${list}-${selected}`}
+                        list={list}
+                        noun={noun}
                         item={item}
                         draft={draft}
                         onChange={update}
                     />
                 ) : (
                     <p className="muted hint def-editor-empty">
-                        Choose a zone or an asset to edit it, or add one.
-                        Positions are metres east and north of the twin's
-                        origin.
+                        Choose a {noun} to edit it, or add one. Positions are
+                        metres east and north of the twin's origin.
                     </p>
                 )}
             </div>
@@ -186,40 +192,37 @@ export function DefinitionEditor({
 
 function ItemForm({
     list,
+    noun,
     item,
     draft,
     onChange,
 }: {
-    list: EditableList;
+    list: ListName;
+    noun: string;
     item: Item;
     draft: TwinDefinition;
     onChange: (item: Item | null) => void;
 }) {
-    const noun = list === 'zones' ? 'zone' : 'asset';
     return (
         <form
             className="def-editor-form"
             aria-label={`Edit ${text(item.id) || noun}`}
             onSubmit={(e) => e.preventDefault()}
         >
-            {fieldsFor(list, item).map((field) => (
-                <FieldInput
-                    key={field.key}
-                    field={field}
-                    item={item}
-                    draft={draft}
-                    onChange={(value) =>
-                        onChange(setField(item, field.key, value))
-                    }
-                />
-            ))}
+            <Fields
+                fields={fieldsFor(list, item)}
+                item={item}
+                owner={item}
+                draft={draft}
+                onChange={onChange}
+            />
             <div className="editor-actions">
                 <button
                     type="button"
                     className="danger"
                     onClick={() =>
                         confirm(
-                            `Delete ${text(item.name) || text(item.id)}? Anything that refers to it will be listed as a problem until you change it.`,
+                            `Delete ${itemLabel(item)}? Anything that refers to it will be listed as a problem until you change it.`,
                         ) && onChange(null)
                     }
                 >
@@ -230,34 +233,65 @@ function ItemForm({
     );
 }
 
+type Context = { owner: Item; draft: TwinDefinition };
+
+/** The fields of one object, each writing back into it. */
+function Fields({
+    fields,
+    item,
+    onChange,
+    ...context
+}: Context & {
+    fields: Field[];
+    item: Item;
+    onChange: (item: Item) => void;
+}) {
+    return fields.map((field) => (
+        <FieldInput
+            key={field.key}
+            field={field}
+            item={item}
+            {...context}
+            onChange={(value) =>
+                onChange(setField(item, field.key, value, field.keepEmpty))
+            }
+        />
+    ));
+}
+
 function FieldInput({
     field,
     item,
+    owner,
     draft,
     onChange,
-}: {
+}: Context & {
     field: Field;
     item: Item;
-    draft: TwinDefinition;
     onChange: (value: unknown) => void;
 }) {
     const value = item[field.key];
-    const ids = (list: { id: string }[] | undefined) =>
-        (list ?? []).map((x) => x.id);
-    const choices: Record<string, string[]> = {
-        select: field.options ?? [],
-        zone: ids(draft.zones),
-        asset: ids(draft.assets).filter((id) => id !== item.id),
-        route: ids(draft.routes),
-        type: ids(draft.types),
-    };
-
+    const context = { owner, draft };
     let input;
     switch (field.widget) {
         case 'id':
         case 'text':
+        case 'expr':
+        case 'color':
             input = (
                 <input
+                    type={field.widget === 'color' ? 'color' : 'text'}
+                    className={field.widget === 'expr' ? 'mono' : undefined}
+                    spellCheck={field.widget === 'expr' ? false : undefined}
+                    value={text(value)}
+                    onChange={(e) => onChange(e.target.value)}
+                />
+            );
+            break;
+        case 'textarea':
+            input = (
+                <textarea
+                    rows={3}
                     value={text(value)}
                     onChange={(e) => onChange(e.target.value)}
                 />
@@ -279,55 +313,47 @@ function FieldInput({
         case 'asset':
         case 'route':
         case 'type':
+        case 'metric':
+        case 'type-metric':
+        case 'state':
+        case 'from-state': {
+            const choices = choicesFor(field, draft, owner, item);
+            if (field.widget === 'metric' && choices.length === 0) {
+                input = (
+                    <input
+                        value={text(value)}
+                        onChange={(e) => onChange(e.target.value)}
+                    />
+                );
+                break;
+            }
+            const current = text(value);
             input = (
                 <select
-                    value={text(value)}
+                    value={current}
                     onChange={(e) => onChange(e.target.value)}
                 >
-                    {field.widget !== 'select' && (
-                        <option value="">None</option>
+                    <option value="">None</option>
+                    {current !== '' && !choices.includes(current) && (
+                        <option value={current}>{current}</option>
                     )}
-                    {field.widget === 'select' && value === undefined && (
-                        <option value="">Choose…</option>
-                    )}
-                    {choices[field.widget].map((id) => (
-                        <option key={id} value={id}>
-                            {id}
+                    {choices.map((choice) => (
+                        <option key={choice} value={choice}>
+                            {choice}
                         </option>
                     ))}
                 </select>
             );
             break;
+        }
         case 'assets':
             return (
-                <fieldset className="def-editor-field">
-                    <legend>{field.title}</legend>
-                    {draft.assets
-                        .filter((a) => !field.ofKind || a.kind === field.ofKind)
-                        .map((a) => {
-                            const chosen = Array.isArray(value)
-                                ? (value as string[])
-                                : [];
-                            return (
-                                <label key={a.id} className="editor-check">
-                                    <input
-                                        type="checkbox"
-                                        checked={chosen.includes(a.id)}
-                                        onChange={(e) =>
-                                            onChange(
-                                                e.target.checked
-                                                    ? [...chosen, a.id]
-                                                    : chosen.filter(
-                                                          (id) => id !== a.id,
-                                                      ),
-                                            )
-                                        }
-                                    />
-                                    {a.name}
-                                </label>
-                            );
-                        })}
-                </fieldset>
+                <AssetsInput
+                    field={field}
+                    value={value}
+                    draft={draft}
+                    onChange={onChange}
+                />
             );
         case 'point':
             return (
@@ -341,15 +367,141 @@ function FieldInput({
             return (
                 <ParamsInput field={field} value={value} onChange={onChange} />
             );
+        case 'object': {
+            const object = asItem(value);
+            return (
+                <fieldset className="def-editor-field def-editor-group">
+                    <legend>{field.title}</legend>
+                    <Description field={field} />
+                    <Fields
+                        fields={fieldsOf(field.node, object)}
+                        item={object}
+                        {...context}
+                        onChange={onChange}
+                    />
+                </fieldset>
+            );
+        }
+        case 'list':
+            return (
+                <ListInput
+                    field={field}
+                    value={value}
+                    {...context}
+                    onChange={onChange}
+                />
+            );
     }
     return (
-        <label className="def-editor-field">
-            <span>{field.title}</span>
-            {input}
-            {field.description && (
-                <small className="muted">{field.description}</small>
-            )}
-        </label>
+        <div className="def-editor-field">
+            <label>
+                <span>{field.title}</span>
+                {input}
+            </label>
+            <Description field={field} />
+        </div>
+    );
+}
+
+function Description({ field }: { field: Field }) {
+    return field.description ? (
+        <small className="muted">{field.description}</small>
+    ) : null;
+}
+
+/** A nested list of objects: a route's stops, a type's metrics, a panel's figures. */
+function ListInput({
+    field,
+    value,
+    onChange,
+    ...context
+}: Context & {
+    field: Field;
+    value: unknown;
+    onChange: (value: unknown) => void;
+}) {
+    const elements = Array.isArray(value) ? (value as unknown[]) : [];
+    const node = elementNode(field);
+    const set = (index: number, next: Item | null) => {
+        const copy = [...elements];
+        if (next === null) copy.splice(index, 1);
+        else copy[index] = next;
+        onChange(copy);
+    };
+    return (
+        <fieldset className="def-editor-field">
+            <legend>{field.title}</legend>
+            <Description field={field} />
+            {elements.map((element, index) => {
+                const object = asItem(element);
+                const name = `${field.title} ${index + 1}`;
+                return (
+                    <fieldset key={index} className="def-editor-group">
+                        <legend>
+                            {name}
+                            <button
+                                type="button"
+                                className="link"
+                                aria-label={`Remove ${name}`}
+                                onClick={() => set(index, null)}
+                            >
+                                ✕
+                            </button>
+                        </legend>
+                        <Fields
+                            fields={fieldsOf(node, object)}
+                            item={object}
+                            {...context}
+                            onChange={(next) => set(index, next)}
+                        />
+                    </fieldset>
+                );
+            })}
+            <button
+                type="button"
+                className="link"
+                onClick={() => onChange([...elements, newElement(field)])}
+            >
+                Add to {field.title.toLowerCase()}
+            </button>
+        </fieldset>
+    );
+}
+
+function AssetsInput({
+    field,
+    value,
+    draft,
+    onChange,
+}: {
+    field: Field;
+    value: unknown;
+    draft: TwinDefinition;
+    onChange: (value: unknown) => void;
+}) {
+    const chosen = Array.isArray(value) ? (value as string[]) : [];
+    return (
+        <fieldset className="def-editor-field">
+            <legend>{field.title}</legend>
+            {draft.assets
+                .filter((a) => !field.ofKind || a.kind === field.ofKind)
+                .map((a) => (
+                    <label key={a.id} className="editor-check">
+                        <input
+                            type="checkbox"
+                            checked={chosen.includes(a.id)}
+                            onChange={(e) =>
+                                onChange(
+                                    e.target.checked
+                                        ? [...chosen, a.id]
+                                        : chosen.filter((id) => id !== a.id),
+                                )
+                            }
+                        />
+                        {a.name}
+                    </label>
+                ))}
+        </fieldset>
     );
 }
 
@@ -383,9 +535,7 @@ function PointInput({
                     </label>
                 ))}
             </div>
-            {field.description && (
-                <small className="muted">{field.description}</small>
-            )}
+            <Description field={field} />
         </fieldset>
     );
 }
@@ -400,29 +550,29 @@ function PolygonInput({
     onChange: (value: unknown) => void;
 }) {
     const [typed, setTyped] = useState(formatPoints(value));
-    const points = parsePoints(typed);
     return (
-        <label className="def-editor-field">
-            <span>{field.title}</span>
-            <textarea
-                rows={5}
-                value={typed}
-                onChange={(e) => {
-                    setTyped(e.target.value);
-                    const parsed = parsePoints(e.target.value);
-                    if (parsed) onChange(parsed);
-                }}
-            />
-            {points === null ? (
+        <div className="def-editor-field">
+            <label>
+                <span>{field.title}</span>
+                <textarea
+                    rows={5}
+                    className="mono"
+                    value={typed}
+                    onChange={(e) => {
+                        setTyped(e.target.value);
+                        const parsed = parsePoints(e.target.value);
+                        if (parsed) onChange(parsed);
+                    }}
+                />
+            </label>
+            {parsePoints(typed) === null ? (
                 <small className="editor-error">
                     Each line needs two numbers: east, north.
                 </small>
             ) : (
-                field.description && (
-                    <small className="muted">{field.description}</small>
-                )
+                <Description field={field} />
             )}
-        </label>
+        </div>
     );
 }
 
@@ -435,10 +585,7 @@ function ParamsInput({
     value: unknown;
     onChange: (value: unknown) => void;
 }) {
-    const params =
-        typeof value === 'object' && value !== null && !Array.isArray(value)
-            ? (value as Record<string, number>)
-            : {};
+    const params = asItem(value) as Record<string, number>;
     const [name, setName] = useState('');
     return (
         <fieldset className="def-editor-field">
@@ -461,10 +608,15 @@ function ParamsInput({
                         type="button"
                         className="link"
                         aria-label={`Remove ${key}`}
-                        onClick={() => {
-                            const { [key]: _removed, ...rest } = params;
-                            onChange(rest);
-                        }}
+                        onClick={() =>
+                            onChange(
+                                Object.fromEntries(
+                                    Object.entries(params).filter(
+                                        ([k]) => k !== key,
+                                    ),
+                                ),
+                            )
+                        }
                     >
                         ✕
                     </button>
@@ -489,9 +641,7 @@ function ParamsInput({
                     Add
                 </button>
             </div>
-            {field.description && (
-                <small className="muted">{field.description}</small>
-            )}
+            <Description field={field} />
         </fieldset>
     );
 }

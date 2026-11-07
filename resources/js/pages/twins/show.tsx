@@ -140,7 +140,7 @@ export default function ShowTwin({
                             (
                                 [
                                     ['layout', 'Layout'],
-                                    ['definition', 'Zones and assets'],
+                                    ['definition', 'Definition'],
                                 ] as const
                             ).map(([panel, label]) => (
                                 <button

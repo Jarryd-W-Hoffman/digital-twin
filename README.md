@@ -723,7 +723,14 @@ Quantized-mesh terrain to stand the site on; without it, the site sits on the pl
 
 A model always has a placement. A tileset without one keeps its own georeference, which is right for most exports (photogrammetry, BIM, point clouds converted with py3dtiles). Give it a placement when it was built in local metres. The control plane writes these entries for you when you upload, with `assetId` linking each one back to its files.
 
-Zones and assets can also be edited in the app: **Zones and assets** on the twin page lists both, and choosing one opens a form built from the schema, showing only the fields for that asset's kind (a route for a vehicle, a type for a custom asset, the stores it cools for a chiller). Footprints are typed a point per line as `east, north`. Every change is checked as you type, with the same messages the server gives, and **Save** stays off until there are none; saving writes one version noted "Edited zones and assets", and **Discard** drops the draft.
+Everything a twin lists can also be edited in the app. **Definition** on the twin page has a tab for each list (zones, assets, routes, types, rules, scenarios, KPIs and panels). Choosing an item opens a form built from the schema:
+
+- Only the fields that apply are shown, such as a route for a vehicle, a type for a custom asset, or the stores a chiller cools.
+- Nested lists, such as a route's stops, a type's metrics, states and transitions, a scenario's faults and a panel's figures, are edited in place.
+- Pickers offer what the definition has: zones, routes, chargers, a rule's metrics for its asset, and a type's own metrics and states.
+- Footprints and paths are typed one point per line, as `east, north`.
+
+Every change is checked as you type, with the same messages the server gives, and **Save** stays disabled until there are none. Saving writes one version, with a note naming the lists that changed ("Edited types and rules"). **Discard** drops the draft. Strings in a saved definition are kept exactly as sent: Laravel's trimming and empty-to-null middleware skip requests that carry one, so an empty unit stays empty.
 
 The validator reports every problem at once: unknown kinds, zones and types, dangling `fedBy` and `cools` references, feed cycles, a missing main bus, stops off a route, rules without a target, scenarios aimed at assets that don't exist, malformed types, and layers with no URL or a bad placement.
 
@@ -802,6 +809,6 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 4. **IoT: devices, MQTT and history** (done): devices registered per project with their own broker logins, a broker that asks the control plane who may publish and subscribe where, an MQTT bridge mapping topics onto any asset's metrics, gateways issued, rotated and watched from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
 5. **Customisation core** (done): behaviour for custom types as data (derived metrics written as safe expressions, state machines, setpoints, power drawn from the feed tree), expression and rate-of-change rules, KPIs and panels declared in the definition, and a type library per organisation that twins copy types from and save them to.
 6. **Terrain** (done): DEMs uploaded to the library and converted to quantized-mesh terrain by the conversions worker, which a twin can stand on.
-7. **Definition editor** (in progress): edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators. Done: the schema and the slimmer validators, and **Zones and assets** on the twin page, a draft checked as you type and saved as one version. Next: types, rules, scenarios, KPIs and panels.
+7. **Definition editor** (done): every list in a twin (zones, assets, routes, types, rules, scenarios, KPIs and panels) is edited in the app, with forms generated from one JSON Schema that also replaced the two hand-kept validators.
 8. **Scene editing and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.
 9. **OPC UA and actuation:** read from OPC UA servers, and write back through the custom setpoints, off by default and audited.

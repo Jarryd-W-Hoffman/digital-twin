@@ -20,6 +20,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        // A twin definition is data: an empty unit or a padded message is
+        // what the author wrote, so neither is trimmed or turned into null.
+        $carriesDefinition = fn (Request $request): bool => is_array($request->input('definition'));
+        $middleware->trimStrings(except: [$carriesDefinition]);
+        $middleware->convertEmptyStringsToNull(except: [$carriesDefinition]);
+
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,
