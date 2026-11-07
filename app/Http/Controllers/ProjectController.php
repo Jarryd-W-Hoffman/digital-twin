@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Models\ProjectAsset;
 use App\Models\Twin;
 use App\Models\User;
+use App\Support\DirectUploads;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
@@ -89,8 +90,11 @@ final readonly class ProjectController
                 'originalName' => $asset->original_name,
                 'bytes' => $asset->bytes,
                 'files' => $asset->files,
+                'status' => $asset->status->value,
+                'error' => $asset->error,
                 'createdAt' => $asset->created_at->toIso8601String(),
             ]),
+            'directUploads' => DirectUploads::enabled(),
             'can' => [
                 'update' => $user->can('update', $project),
             ],

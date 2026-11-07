@@ -15,7 +15,8 @@ final readonly class DeleteProjectAsset
 
     /**
      * Takes the upload out of every twin in the project that still shows it,
-     * then deletes it and its files. The viewer skips layers in older
+     * then deletes it, its files and any original still waiting to be
+     * processed. The viewer skips layers in older
      * versions that no longer load.
      */
     public function handle(ProjectAsset $asset, ?User $user): void
@@ -28,6 +29,8 @@ final readonly class DeleteProjectAsset
             $asset->delete();
         });
 
-        Storage::disk(config()->string('meridian.assets_disk'))->deleteDirectory($asset->directory);
+        $disk = Storage::disk(config()->string('meridian.assets_disk'));
+        $disk->deleteDirectory($asset->directory);
+        $disk->deleteDirectory(dirname($asset->sourceKey()));
     }
 }

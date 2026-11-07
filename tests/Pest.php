@@ -7,7 +7,13 @@ use App\Enums\OrganisationRole;
 use App\Models\Organisation;
 use App\Models\Twin;
 use App\Models\User;
+use App\Support\DirectUploads;
 use App\Support\SampleTwins;
+use Aws\CommandInterface;
+use Aws\Result;
+use Aws\S3\S3Client;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -90,4 +96,51 @@ function tilesetZip(array $entries, array $symlinks = [], string $name = 'scan.z
 function tilesetJson(): string
 {
     return (string) json_encode(['asset' => ['version' => '1.1'], 'geometricError' => 100, 'root' => ['geometricError' => 0, 'content' => ['uri' => 'tiles/0.glb']]]);
+}
+
+/**
+ * Swaps the bucket behind direct uploads for the SDK's mock handler. Each
+ * command the app sends is recorded, and answered from $results by name
+ * (a Result, an exception, or a callable taking the command). The clients are
+ * built once, since each S3 client is heavy.
+ *
+ * @param  array<string, mixed>  $results  Command name to answer.
+ * @return ArrayObject<int, CommandInterface>
+ */
+function fakeDirectUploads(array $results = [], int $partBytes = 5 * 1024 * 1024): ArrayObject
+{
+    /** @var ArrayObject<string, mixed>|null $bucket */
+    static $bucket = null;
+    /** @var array{0: S3Client, 1: S3Client}|null $clients */
+    static $clients = null;
+
+    config(['meridian.direct_uploads.enabled' => true, 'meridian.assets_disk' => 's3', 'filesystems.disks.s3.driver' => 's3']);
+
+    $bucket ??= new ArrayObject();
+    /** @var ArrayObject<int, CommandInterface> $sent */
+    $sent = new ArrayObject();
+    $bucket['results'] = $results;
+    $bucket['sent'] = $sent;
+
+    $clients ??= array_map(fn (string $endpoint): S3Client => new S3Client([
+        'version' => 'latest', 'region' => 'us-east-1', 'endpoint' => $endpoint, 'use_path_style_endpoint' => true,
+        'credentials' => ['key' => 'k', 'secret' => 's'],
+        'handler' => function (CommandInterface $command) use ($bucket): PromiseInterface {
+            /** @var array<string, mixed> $answers */
+            $answers = $bucket['results'];
+            /** @var ArrayObject<int, CommandInterface> $log */
+            $log = $bucket['sent'];
+            $log[] = $command;
+            $answer = $answers[$command->getName()] ?? new Result([]);
+            $answer = is_callable($answer) ? $answer($command) : $answer;
+
+            return $answer instanceof Throwable
+                ? Create::rejectionFor($answer)
+                : Create::promiseFor($answer);
+        },
+    ]), ['http://rustfs:9000', 'http://localhost:9014']);
+
+    app()->instance(DirectUploads::class, new DirectUploads($clients[0], $clients[1], 'meridian', $partBytes));
+
+    return $sent;
 }

@@ -72,6 +72,8 @@ it('shows a project with its twins, library and abilities', function (Organisati
             ->where('assets.0.id', $asset->id)
             ->where('assets.0.kind', 'model')
             ->where('assets.0.bytes', 1024)
+            ->where('assets.0.status', 'ready')
+            ->where('directUploads', false)
             ->where('can.update', $update));
 })->with([
     [OrganisationRole::Owner, true],

@@ -25,6 +25,8 @@ it("only adds uploads from the twin's own project", function (): void {
 
     $this->actingAs($user)->post(route('twins.layers.store', $twin), ['asset' => $elsewhere->id])->assertSessionHasErrors('asset');
     $this->actingAs($user)->post(route('twins.layers.store', $twin), ['asset' => 'nope'])->assertSessionHasErrors('asset');
+    $unready = ProjectAsset::factory()->for($twin->project)->processing()->create();
+    $this->actingAs($user)->post(route('twins.layers.store', $twin), ['asset' => $unready->id])->assertSessionHasErrors('asset');
 });
 
 it('removes a layer and keeps the upload', function (): void {

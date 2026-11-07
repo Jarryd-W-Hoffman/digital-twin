@@ -37,3 +37,12 @@ it('saves no version for twins that never showed it', function (): void {
 
     expect($twin->versions()->count())->toBe(1);
 });
+
+it('also removes an original still waiting to be processed', function (): void {
+    $asset = ProjectAsset::factory()->processing()->create(['original_name' => 'scan.zip']);
+    Storage::disk('local')->put($asset->sourceKey(), 'zip');
+
+    resolve(DeleteProjectAsset::class)->handle($asset, null);
+
+    expect(Storage::disk('local')->allFiles())->toBe([]);
+});

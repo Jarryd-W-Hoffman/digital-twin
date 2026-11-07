@@ -7,6 +7,9 @@ use App\Http\Controllers\OrganisationMemberController;
 use App\Http\Controllers\ProjectAssetController;
 use App\Http\Controllers\ProjectAssetFileController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectUploadCompletionController;
+use App\Http\Controllers\ProjectUploadController;
+use App\Http\Controllers\ProjectUploadPartController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\TwinAssetController;
 use App\Http\Controllers\TwinController;
@@ -38,6 +41,10 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::resource('projects', ProjectController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
     Route::post('projects/{project}/assets', [ProjectAssetController::class, 'store'])->name('projects.assets.store');
     Route::delete('projects/{project}/assets/{asset}', [ProjectAssetController::class, 'destroy'])->scopeBindings()->name('projects.assets.destroy');
+    Route::post('projects/{project}/uploads', [ProjectUploadController::class, 'store'])->name('projects.uploads.store');
+    Route::post('projects/{project}/uploads/{asset}/parts', [ProjectUploadPartController::class, 'store'])->scopeBindings()->name('projects.uploads.parts');
+    Route::post('projects/{project}/uploads/{asset}/complete', [ProjectUploadCompletionController::class, 'store'])->scopeBindings()->name('projects.uploads.complete');
+    Route::delete('projects/{project}/uploads/{asset}', [ProjectUploadController::class, 'destroy'])->scopeBindings()->name('projects.uploads.destroy');
     Route::get('assets/{asset}/files/{path}', [ProjectAssetFileController::class, 'show'])
         ->where('path', '.*')
         ->name('assets.files.show');
