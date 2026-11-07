@@ -1,3 +1,12 @@
+import {
+    compileTypes,
+    initialCustom,
+    POWERED,
+    MODE,
+    statusOf,
+    stepCustom,
+    type CompiledType,
+} from './behaviour.ts';
 import { distanceToVertex, pathSegments, pointAlong } from './geo.ts';
 import type {
     ActiveFault,
@@ -34,6 +43,8 @@ export interface Model {
     /** Consumers that may be dropped under power shortage, shed first at the front. */
     sheddable: AssetDef[];
     mainBusId: string;
+    /** Custom types' behaviour, by type id. */
+    types: Map<string, CompiledType>;
 }
 
 export function compile(def: TwinDefinition): Model {
@@ -65,6 +76,7 @@ export function compile(def: TwinDefinition): Model {
             .filter((a) => a.shedPriority !== undefined)
             .sort((a, b) => (b.shedPriority ?? 0) - (a.shedPriority ?? 0)),
         mainBusId: main.id,
+        types: compileTypes(def),
     };
 }
 
@@ -130,14 +142,11 @@ export function initialState(model: Model, startT: number, seed = 7): SimState {
             values[`${a.id}.${key}`] = value;
         };
         switch (a.kind) {
-            case 'custom': {
-                // No physics: values hold until ingest supplies real ones.
-                const type = model.def.types?.find((t) => t.id === a.type);
-                for (const metric of type?.metrics ?? [])
-                    set(metric.key, metric.default ?? 0);
-                set('state', State.Running);
+            case 'custom':
+                // Behaviour comes from the type; other metrics hold until
+                // readings arrive.
+                initialCustom(a, model.types.get(a.type ?? ''), values);
                 break;
-            }
             case 'coldstore':
                 set('tempC', p(a, 'setpointC', 0));
                 set('setpointC', p(a, 'setpointC', 0));
@@ -209,6 +218,21 @@ export function applyCommand(
     switch (command.type) {
         case 'setpoint': {
             const a = model.byId.get(command.asset);
+            if (a?.kind === 'custom') {
+                const setpoint = model.types
+                    .get(a.type ?? '')
+                    ?.setpoints.get(command.metric ?? '');
+                if (!setpoint || !Number.isFinite(command.value))
+                    throw new Error(
+                        `${command.asset} has no setpoint ${command.metric ?? ''}`,
+                    );
+                state.values[`${a.id}.${command.metric}`] = clamp(
+                    command.value,
+                    setpoint.min,
+                    setpoint.max,
+                );
+                break;
+            }
             if (a?.kind !== 'coldstore')
                 throw new Error(`${command.asset} is not a cold store`);
             state.values[`${a.id}.setpointC`] = command.value;
@@ -292,6 +316,13 @@ function step(model: Model, state: SimState): void {
         v[`${weather.id}.cloud`] = cloud;
     }
 
+    // Custom assets: transitions, then derived metrics, from last step's values
+    for (const a of model.byKind('custom')) {
+        const compiled = model.types.get(a.type ?? '');
+        if (compiled)
+            stepCustom(a, compiled, v, { dt, hour, ambientC: ambient });
+    }
+
     // Refrigeration demand, from the previous step's store temperatures --------
     const chillers = model.byKind('chiller');
     const stores = model.byKind('coldstore');
@@ -339,6 +370,10 @@ function step(model: Model, state: SimState): void {
     for (const c of model.byKind('charger')) {
         desired.set(c.id, chargerRequest.get(c.id) ?? 0);
         v[`${c.id}.sessions`] = chargerSessions.get(c.id) ?? 0;
+    }
+    for (const a of model.byKind('custom')) {
+        if (a.fedBy && model.types.get(a.type ?? '')?.drawsPower)
+            desired.set(a.id, Math.max(0, v[`${a.id}.powerKw`] ?? 0));
     }
 
     // Supply limits -------------------------------------------------------------
@@ -576,6 +611,17 @@ function step(model: Model, state: SimState): void {
             ? State.Fault
             : on
               ? State.Running
+              : State.Off;
+    }
+    for (const a of model.byKind('custom')) {
+        const compiled = model.types.get(a.type ?? '');
+        const on = !a.fedBy || energised.has(a.id);
+        v[`${a.id}.${POWERED}`] = on ? 1 : 0;
+        if (!on && compiled?.drawsPower) v[`${a.id}.powerKw`] = 0;
+        v[`${a.id}.state`] = tripped.has(a.id)
+            ? State.Fault
+            : on
+              ? statusOf(compiled, v[`${a.id}.${MODE}`] ?? 0)
               : State.Off;
     }
     for (const a of model.byKind('charger')) {
