@@ -17,12 +17,14 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 /**
  * @property-read string $id
  * @property-read string $organisation_id
+ * @property-read string $project_id
  * @property-read string $name
  * @property-read string|null $description
  * @property-read string|null $gateway_token_hash
  * @property-read string|null $gateway_url
  * @property-read CarbonInterface|null $gateway_seen_at
  * @property-read Organisation $organisation
+ * @property-read Project $project
  * @property-read TwinVersion|null $latestVersion
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -49,6 +51,7 @@ final class Twin extends Model
         return [
             'id' => 'string',
             'organisation_id' => 'string',
+            'project_id' => 'string',
             'name' => 'string',
             'description' => 'string',
             'gateway_token_hash' => 'string',
@@ -68,6 +71,14 @@ final class Twin extends Model
     }
 
     /**
+     * @return BelongsTo<Project, $this>
+     */
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    /**
      * @return HasMany<TwinVersion, $this>
      */
     public function versions(): HasMany
@@ -81,22 +92,6 @@ final class Twin extends Model
     public function latestVersion(): HasOne
     {
         return $this->hasOne(TwinVersion::class)->ofMany('number', 'max');
-    }
-
-    /**
-     * @return HasMany<TwinAsset, $this>
-     */
-    public function assets(): HasMany
-    {
-        return $this->hasMany(TwinAsset::class);
-    }
-
-    /**
-     * Where this twin's uploaded files live on the assets disk.
-     */
-    public function storagePrefix(): string
-    {
-        return 'twins/'.$this->id;
     }
 
     /**

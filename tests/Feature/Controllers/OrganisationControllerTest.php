@@ -8,7 +8,7 @@ use App\Models\Organisation;
 it('creates an organisation and switches to it', function (): void {
     [$user] = member();
 
-    $this->actingAs($user)->post(route('organisations.store'), ['name' => 'Second site'])->assertRedirectToRoute('twins.index');
+    $this->actingAs($user)->post(route('organisations.store'), ['name' => 'Second site'])->assertRedirectToRoute('projects.index');
 
     expect($user->refresh()->organisation()->name)->toBe('Second site');
 });
@@ -24,7 +24,7 @@ it('switches between organisations the user belongs to', function (): void {
     [, $other] = member();
     $other->memberships()->create(['user_id' => $user->id, 'role' => OrganisationRole::Viewer]);
 
-    $this->actingAs($user)->put(route('organisations.current.update', $other))->assertRedirectToRoute('twins.index');
+    $this->actingAs($user)->put(route('organisations.current.update', $other))->assertRedirectToRoute('projects.index');
 
     expect($user->refresh()->current_organisation_id)->toBe($other->id);
 });

@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Models\Twin;
-use App\Models\TwinAsset;
+use App\Models\ProjectAsset;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Serves an uploaded model or tileset file to members of the twin's
+ * Serves a file from a project library upload to members of the project's
  * organisation. Uploaded bytes are never rendered as a page: a fixed content
  * type per extension, nosniff, and a CSP that forbids everything.
  */
-final readonly class TwinAssetFileController
+final readonly class ProjectAssetFileController
 {
     private const array TYPES = [
         'json' => 'application/json',
@@ -28,14 +27,14 @@ final readonly class TwinAssetFileController
         'ktx2' => 'image/ktx2',
     ];
 
-    public function show(Twin $twin, TwinAsset $asset, string $path): StreamedResponse
+    public function show(ProjectAsset $asset, string $path): StreamedResponse
     {
-        Gate::authorize('view', $twin);
+        Gate::authorize('view', $asset->project);
 
         abort_unless(array_all(explode('/', $path), fn (string $segment): bool => ! in_array($segment, ['', '.', '..'], true)), 404);
 
         $disk = Storage::disk(config()->string('meridian.assets_disk'));
-        $file = $asset->directory().'/'.$path;
+        $file = $asset->directory.'/'.$path;
 
         abort_unless($disk->fileExists($file), 404);
 

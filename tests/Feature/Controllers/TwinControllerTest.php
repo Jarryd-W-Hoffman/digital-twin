@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Actions\AddAssetToTwin;
 use App\Actions\IssueGatewayToken;
 use App\Actions\RecordGatewayCheckIn;
-use App\Actions\StoreTwinAsset;
 use App\Enums\OrganisationRole;
+use App\Models\Project;
+use App\Models\ProjectAsset;
 use App\Models\Twin;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -23,38 +25,39 @@ it('lists the twins in the current organisation only', function (): void {
             ->has('twins', 1)
             ->where('twins.0.id', $twin->id)
             ->where('twins.0.version', 1)
-            ->where('twins.0.assets', 0)
+            ->where('twins.0.project', ['id' => $twin->project_id, 'name' => $twin->project->name])
             ->where('canCreate', false));
 });
 
-it('sends the dashboard to the twins', function (): void {
-    [$user] = member();
-
-    $this->actingAs($user)->get(route('dashboard'))->assertRedirectToRoute('twins.index');
-});
-
-it('offers the samples when creating', function (): void {
-    [$user] = member(OrganisationRole::Admin);
+it('offers the projects and samples when creating', function (): void {
+    [$user, $organisation] = member(OrganisationRole::Admin);
+    $project = Project::factory()->for($organisation)->create(['name' => 'Harbour']);
+    Project::factory()->create();
 
     $this->actingAs($user)->get(route('twins.create'))
+        ->assertInertia(fn ($page) => $page->where('projects', [['id' => $project->id, 'name' => 'Harbour']])->where('project', null));
+    $this->actingAs($user)->get(route('twins.create', ['project' => $project->id]))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('twins/create')
+            ->where('project', $project->id)
             ->where('samples', [['id' => 'northshore', 'name' => 'Northshore Cold Chain Hub'], ['id' => 'harbour-depot', 'name' => 'Harbour Depot']]));
 });
 
 it('keeps operators and viewers from creating', function (OrganisationRole $role): void {
-    [$user] = member($role);
+    [$user, $organisation] = member($role);
+    $project = Project::factory()->for($organisation)->create();
 
     $this->actingAs($user)->get(route('twins.create'))->assertForbidden();
-    $this->actingAs($user)->post(route('twins.store'), ['name' => 'X', 'sample' => 'northshore'])->assertForbidden();
+    $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'X', 'sample' => 'northshore'])->assertForbidden();
 })->with([OrganisationRole::Operator, OrganisationRole::Viewer]);
 
 it('creates a twin from a sample', function (): void {
     [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
 
-    $response = $this->actingAs($user)->post(route('twins.store'), ['name' => 'North', 'description' => 'Hub', 'sample' => 'northshore']);
+    $response = $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'North', 'description' => 'Hub', 'sample' => 'northshore']);
 
-    $twin = $organisation->twins()->sole();
+    $twin = $project->twins()->sole();
     $response->assertRedirectToRoute('twins.show', $twin);
     expect($twin->description)->toBe('Hub')
         ->and($twin->latestVersion?->definition['tilesets'][0]['id'])->toBe('context');
@@ -62,11 +65,20 @@ it('creates a twin from a sample', function (): void {
 
 it('creates a twin from an uploaded definition', function (): void {
     [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
     $file = UploadedFile::fake()->createWithContent('site.json', (string) file_get_contents(public_path('samples/harbour-depot.json')));
 
-    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Mine', 'definition' => $file])->assertRedirect();
+    $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'Mine', 'definition' => $file])->assertRedirect();
 
     expect($organisation->twins()->sole()->description)->toBeNull();
+});
+
+it("only creates twins in the organisation's own projects", function (): void {
+    [$user] = member();
+    $elsewhere = Project::factory()->create();
+
+    $this->actingAs($user)->post(route('twins.store'), ['project' => $elsewhere->id, 'name' => 'X', 'sample' => 'northshore'])
+        ->assertSessionHasErrors('project');
 });
 
 it('reports every problem in an uploaded definition', function (): void {
@@ -83,20 +95,21 @@ it('reports every problem in an uploaded definition', function (): void {
 it('needs a sample or a definition', function (): void {
     [$user] = member();
 
-    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Empty'])->assertSessionHasErrors(['sample', 'definition']);
+    $this->actingAs($user)->post(route('twins.store'), ['name' => 'Empty'])->assertSessionHasErrors(['project', 'sample', 'definition']);
     $this->actingAs($user)->post(route('twins.store'), ['name' => 'Odd', 'sample' => '../../.env'])->assertSessionHasErrors('sample');
 });
 
-it('shows a twin with its definition, history, uploads and abilities', function (OrganisationRole $role, bool $update, bool $operate): void {
-    Storage::fake('local');
+it('shows a twin with its definition, history, project library and abilities', function (OrganisationRole $role, bool $update, bool $operate): void {
     [$user, $organisation] = member($role);
     $twin = twinIn($organisation);
-    $asset = resolve(StoreTwinAsset::class)->handle($twin, $user, glbUpload(), 'Pump');
+    $asset = ProjectAsset::factory()->for($twin->project)->create();
+    resolve(AddAssetToTwin::class)->handle($twin, $user, $asset);
 
     $this->actingAs($user)->get(route('twins.show', $twin))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('twins/show')
             ->where('twin.id', $twin->id)
+            ->where('project', ['id' => $twin->project_id, 'name' => $twin->project->name])
             ->where('definition.id', $twin->id)
             ->where('version', 2)
             ->has('versions', 2)
@@ -160,7 +173,7 @@ it('deletes a twin', function (): void {
     $twin = twinIn($organisation);
 
     $this->actingAs($user)->delete(route('twins.destroy', $twin))
-        ->assertRedirectToRoute('twins.index')
+        ->assertRedirectToRoute('projects.show', $twin->project_id)
         ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Twin deleted.']);
 
     expect(Twin::query()->count())->toBe(0);

@@ -1,10 +1,11 @@
 import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { GatewayPanel, type GatewayStatus } from '@/components/gateway-panel';
+import { store as storeAsset } from '@/routes/twins/assets';
 import {
-    destroy as destroyAsset,
-    store as storeAsset,
-} from '@/routes/twins/assets';
+    destroy as removeLayer,
+    store as addLayer,
+} from '@/routes/twins/layers';
 import {
     restore,
     show as showVersion,
@@ -46,7 +47,7 @@ const size = (bytes: number) =>
         ? `${Math.max(1, Math.round(bytes / 1024))} KB`
         : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 /**
- * Uploads, placement and history for a twin. Placement edits show live in the
+ * Uploads, the project library, placement and history for a twin. Placement edits show live in the
  * scene as drafts and are saved together as one new version.
  */
 export function TwinEditor({
@@ -85,6 +86,10 @@ export function TwinEditor({
         })),
     ];
     const dirty = Object.keys(drafts).length > 0;
+    // Library uploads this twin doesn't show yet.
+    const unused = assets.filter(
+        (a) => !layers.some((layer) => layer.assetId === a.id),
+    );
 
     const save = () => {
         setSaving(true);
@@ -150,7 +155,8 @@ export function TwinEditor({
                 <h3>Upload</h3>
                 <p className="muted hint">
                     A model as .glb, or a 3D Tiles tileset zipped with
-                    tileset.json at the top.
+                    tileset.json at the top. It goes into the project's library
+                    and is added here.
                 </p>
                 <form
                     className="editor-form"
@@ -237,10 +243,10 @@ export function TwinEditor({
                                             className="link"
                                             onClick={() =>
                                                 confirm(
-                                                    `Remove ${layer.name}? Its files are deleted.`,
+                                                    `Remove ${layer.name} from this twin? It stays in the project library.`,
                                                 ) &&
                                                 router.delete(
-                                                    destroyAsset.url([
+                                                    removeLayer.url([
                                                         twinId,
                                                         asset.id,
                                                     ]),
@@ -349,6 +355,43 @@ export function TwinEditor({
                             Discard
                         </button>
                     </div>
+                )}
+            </section>
+
+            <section>
+                <h3>Library</h3>
+                {unused.length === 0 ? (
+                    <p className="muted hint">
+                        Every upload in this project is shown here.
+                    </p>
+                ) : (
+                    <ul className="editor-layers" aria-label="Library">
+                        {unused.map((asset) => (
+                            <li key={asset.id}>
+                                <div className="editor-layer-head">
+                                    <span>
+                                        <strong>{asset.name}</strong>
+                                        <span className="muted">
+                                            {' '}
+                                            · {asset.kind} · {size(asset.bytes)}
+                                        </span>
+                                    </span>
+                                    <button
+                                        className="link"
+                                        onClick={() =>
+                                            router.post(
+                                                addLayer.url(twinId),
+                                                { asset: asset.id },
+                                                { preserveScroll: true },
+                                            )
+                                        }
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
                 )}
             </section>
 

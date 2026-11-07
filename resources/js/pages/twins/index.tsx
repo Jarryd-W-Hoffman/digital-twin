@@ -11,7 +11,7 @@ type TwinSummary = {
     name: string;
     description: string | null;
     version: number | null;
-    assets: number;
+    project: { id: string; name: string };
     updatedAt: string;
 };
 
@@ -31,7 +31,7 @@ export default function TwinsIndex({
                 <div className="flex items-start justify-between gap-4">
                     <Heading
                         title="Twins"
-                        description="Digital twins in this organisation. Each save is kept as a version."
+                        description="Every twin in this organisation, across its projects. Each save is kept as a version."
                     />
                     {canCreate && (
                         <Button asChild>
@@ -67,9 +67,8 @@ export default function TwinsIndex({
                                         </span>
                                     )}
                                     <span className="mt-auto text-xs text-muted-foreground">
-                                        Version {twin.version ?? '-'} ·{' '}
-                                        {twin.assets} upload
-                                        {twin.assets === 1 ? '' : 's'} · updated{' '}
+                                        {twin.project.name} · version{' '}
+                                        {twin.version ?? '-'} · updated{' '}
                                         {new Date(
                                             twin.updatedAt,
                                         ).toLocaleDateString()}

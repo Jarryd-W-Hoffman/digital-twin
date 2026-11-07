@@ -3,11 +3,10 @@
 declare(strict_types=1);
 
 use App\Models\Twin;
-use App\Models\TwinAsset;
 
 test('to array', function (): void {
     expect(array_keys(Twin::factory()->create()->refresh()->toArray()))
-        ->toBe(['id', 'organisation_id', 'name', 'description', 'created_at', 'updated_at', 'gateway_url', 'gateway_seen_at']);
+        ->toBe(['id', 'organisation_id', 'name', 'description', 'created_at', 'updated_at', 'gateway_url', 'gateway_seen_at', 'project_id']);
 });
 
 it('never serialises its gateway token hash', function (): void {
@@ -23,12 +22,13 @@ it('tracks its versions, latest first', function (): void {
 
     expect($twin->organisation->is($organisation))->toBeTrue()
         ->and($twin->versions)->toHaveCount(2)
-        ->and($twin->latestVersion?->number)->toBe(2)
-        ->and($twin->storagePrefix())->toBe('twins/'.$twin->id);
+        ->and($twin->latestVersion?->number)->toBe(2);
 });
 
-it('owns its uploaded assets', function (): void {
-    $asset = TwinAsset::factory()->create();
+it('belongs to a project in its own organisation', function (): void {
+    [, $organisation] = member();
+    $twin = twinIn($organisation);
 
-    expect($asset->twin->assets->sole()->is($asset))->toBeTrue();
+    expect($twin->project->organisation->is($organisation))->toBeTrue()
+        ->and($twin->project->twins->sole()->is($twin))->toBeTrue();
 });

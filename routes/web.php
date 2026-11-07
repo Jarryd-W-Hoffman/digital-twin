@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use App\Http\Controllers\OrganisationController;
 use App\Http\Controllers\OrganisationMemberController;
+use App\Http\Controllers\ProjectAssetController;
+use App\Http\Controllers\ProjectAssetFileController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\TwinAssetController;
-use App\Http\Controllers\TwinAssetFileController;
 use App\Http\Controllers\TwinController;
 use App\Http\Controllers\TwinGatewayTokenController;
+use App\Http\Controllers\TwinLayerController;
 use App\Http\Controllers\TwinVersionController;
 use App\Http\Controllers\TwinVersionRestorationController;
 use App\Http\Controllers\UserController;
@@ -29,7 +32,15 @@ Route::get('/', fn () => Inertia::render('welcome'))->name('home');
 Route::get('demo', fn () => Inertia::render('demo'))->name('demo');
 
 Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group(function (): void {
-    Route::get('dashboard', fn () => to_route('twins.index'))->name('dashboard');
+    Route::get('dashboard', fn () => to_route('projects.index'))->name('dashboard');
+
+    // Projects and their libraries...
+    Route::resource('projects', ProjectController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
+    Route::post('projects/{project}/assets', [ProjectAssetController::class, 'store'])->name('projects.assets.store');
+    Route::delete('projects/{project}/assets/{asset}', [ProjectAssetController::class, 'destroy'])->scopeBindings()->name('projects.assets.destroy');
+    Route::get('assets/{asset}/files/{path}', [ProjectAssetFileController::class, 'show'])
+        ->where('path', '.*')
+        ->name('assets.files.show');
 
     // Twins...
     Route::resource('twins', TwinController::class)->except(['edit']);
@@ -37,11 +48,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::get('twins/{twin}/versions/{version}', [TwinVersionController::class, 'show'])->scopeBindings()->name('twins.versions.show');
     Route::post('twins/{twin}/versions/{version}/restore', [TwinVersionRestorationController::class, 'store'])->scopeBindings()->name('twins.versions.restore');
     Route::post('twins/{twin}/assets', [TwinAssetController::class, 'store'])->name('twins.assets.store');
-    Route::delete('twins/{twin}/assets/{asset}', [TwinAssetController::class, 'destroy'])->scopeBindings()->name('twins.assets.destroy');
-    Route::get('twins/{twin}/assets/{asset}/files/{path}', [TwinAssetFileController::class, 'show'])
-        ->where('path', '.*')
-        ->scopeBindings()
-        ->name('twins.assets.files.show');
+    Route::post('twins/{twin}/layers', [TwinLayerController::class, 'store'])->name('twins.layers.store');
+    Route::delete('twins/{twin}/layers/{asset}', [TwinLayerController::class, 'destroy'])->name('twins.layers.destroy');
     Route::post('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'store'])->name('twins.gateway-token.store');
     Route::delete('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'destroy'])->name('twins.gateway-token.destroy');
 

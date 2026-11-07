@@ -7,7 +7,7 @@ namespace App\Http\Requests;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-final class StoreTwinAssetRequest extends FormRequest
+final class StoreProjectRequest extends FormRequest
 {
     /**
      * @return array<string, ValidationRule|array<mixed>|string>
@@ -16,7 +16,7 @@ final class StoreTwinAssetRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'file' => ['required', 'file', 'extensions:glb,zip', 'max:'.config()->integer('meridian.max_upload_kb')],
+            'description' => ['nullable', 'string', 'max:2000'],
         ];
     }
 }

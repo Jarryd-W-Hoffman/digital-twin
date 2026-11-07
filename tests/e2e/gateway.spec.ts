@@ -30,7 +30,8 @@ async function logIn(browser: Browser, email: string): Promise<Page> {
   await page.getByLabel('Email address').fill(email);
   await page.getByLabel('Password', { exact: true }).fill('password');
   await page.getByRole('button', { name: 'Log in' }).click();
-  await expect(page).toHaveURL(/\/twins$/);
+  await expect(page).toHaveURL(/\/projects$/);
+  await page.getByRole('link', { name: /^Pilot sites/ }).click();
   await page.getByRole('link', { name: 'Northshore Cold Chain Hub' }).click();
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
   return page;
@@ -40,6 +41,8 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
   // Two browsers, a gateway and a PHP server on one machine.
   test.setTimeout(360_000);
   const owner = await logIn(browser, 'test@example.com');
+  // Other specs share the seeded database and may have saved versions already.
+  const version = Number((await owner.locator('.version-chip').innerText()).slice(1));
   await owner.getByRole('button', { name: 'Layout', exact: true }).click();
   const editor = owner.getByRole('complementary', { name: 'Layout' });
   await editor.getByRole('button', { name: 'Issue token' }).click();
@@ -66,7 +69,7 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
     // Health names the version it loaded, so a stray gateway can't pass for this one.
     await expect
       .poll(() => fetch(`http://127.0.0.1:${PORT}/health`).then((r) => (r.ok ? r.json() : null), () => null), { timeout: 60_000 })
-      .toMatchObject({ status: 'ok', version: 1 });
+      .toMatchObject({ status: 'ok', version });
 
     // The page polls for the gateway; reload rather than wait for it.
     await expect(async () => {
