@@ -158,6 +158,45 @@ test('a bad archive is refused with the reason', async ({ page }) => {
   await expect(editor.getByRole('alert')).toContainText('not a readable zip file');
 });
 
+/** Stores readings for a twin's asset, as its gateway would have sent them. */
+function recordReadings(twin: string, asset: string, values: number[]) {
+  const code = `$t = App\\Models\\Twin::query()->where("name", "${twin}")->sole();
+    resolve(App\\Actions\\RecordReadings::class)->handle($t, array_map(fn ($v, $i) => ["asset" => "${asset}", "metric" => "tempC", "value" => (float) $v, "at" => now()->subMinutes(30 * ($i + 1))->getTimestampMs()], [${values.join(',')}], array_keys([${values.join(',')}])));`;
+  execFileSync('php', ['artisan', 'tinker', '--execute', code], { env: { ...process.env, DB_DATABASE: resolve('database/e2e.sqlite') } });
+}
+
+test('an owner maps an MQTT topic to a metric, and sees what sensors recorded', async ({ page }) => {
+  recordReadings('Northshore Cold Chain Hub', 'freezer', [-21, -20.5, -19]);
+  await logIn(page, 'test@example.com');
+  await openTwin(page, 'Northshore Cold Chain Hub');
+
+  await page.getByRole('button', { name: /Freezer hall/ }).first().click();
+  const recorded = page.getByRole('region', { name: 'Recorded readings' });
+  await expect(recorded.getByRole('img', { name: 'Temperature, recorded' })).toBeVisible();
+  await recorded.getByLabel('Recorded metric').selectOption({ label: 'Setpoint' });
+  await expect(recorded.getByText('No readings recorded in this range.', { exact: false })).toBeVisible();
+
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const telemetry = page.getByRole('region', { name: 'Telemetry' });
+  await telemetry.getByRole('button', { name: 'Add mapping' }).click();
+  await telemetry.getByLabel('Topic').fill('northshore/#/temp');
+  await telemetry.getByLabel('Asset').selectOption({ label: 'Freezer hall' });
+  await telemetry.getByLabel('Metric').selectOption({ label: 'Temperature' });
+  await telemetry.getByLabel('JSON path').fill('reading.c');
+  await telemetry.getByRole('button', { name: 'Save mappings' }).click();
+  await expect(telemetry.getByRole('alert')).toContainText('Telemetry northshore/#/temp: bad topic filter');
+
+  await telemetry.getByLabel('Topic').fill('northshore/+/temp');
+  await telemetry.getByRole('button', { name: 'Save mappings' }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Layout' }).click();
+  await expect(page.getByRole('region', { name: 'Telemetry' }).getByLabel('Topic')).toHaveValue('northshore/+/temp');
+  await expect(page.getByRole('region', { name: 'Telemetry' }).getByLabel('JSON path')).toHaveValue('reading.c');
+});
+
 test('a viewer watches the twin but cannot edit or operate it', async ({ page }) => {
   await logIn(page, 'viewer@example.com');
   await openTwin(page, 'Northshore Cold Chain Hub');

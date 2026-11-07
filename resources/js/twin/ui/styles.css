@@ -1263,3 +1263,35 @@
         top: 120px;
     }
 }
+
+.twin-root .recorded-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.twin-root .recorded-controls select {
+    flex: 1;
+    min-width: 0;
+}
+.twin-root .telemetry-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.twin-root .telemetry-row label {
+    display: grid;
+    gap: 2px;
+    font-size: 11px;
+    color: var(--ink-2);
+}
+.twin-root .telemetry-row label:first-child {
+    grid-column: 1 / -1;
+}
+.twin-root .telemetry-row input,
+.twin-root .telemetry-row select {
+    min-width: 0;
+}
+.twin-root .telemetry-row > button {
+    justify-self: start;
+}

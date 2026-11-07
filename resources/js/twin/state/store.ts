@@ -75,6 +75,8 @@ export interface TwinStore {
 
     /** False for viewers: commands are refused and controls disabled. */
     canOperate: boolean;
+    /** Loads recorded readings from the control plane; null when there is none. */
+    recorded: RecordedLoader | null;
     /** Placements being edited, shown live before they are saved. */
     drafts: Record<string, Placement | undefined>;
     /** The layer a ground click moves, while placing. */
@@ -82,6 +84,25 @@ export interface TwinStore {
     setDraft: (id: string, placement: Placement | undefined) => void;
     setPlacingLayer: (id: string | null) => void;
 }
+
+/** A metric's recorded readings, averaged into time buckets (wall-clock ms). */
+export interface Recorded {
+    bucketMs: number;
+    points: {
+        t: number;
+        mean: number;
+        min: number;
+        max: number;
+        count: number;
+    }[];
+}
+
+export type RecordedLoader = (
+    asset: string,
+    metric: string,
+    fromMs: number,
+    toMs: number,
+) => Promise<Recorded>;
 
 const HISTORY_FRAMES = 1440;
 
@@ -115,6 +136,7 @@ export const useTwin = create<TwinStore>((set, get) => ({
     flyRequest: 0,
     globeRequest: 0,
     canOperate: true,
+    recorded: null,
     drafts: {},
     placingLayer: null,
     setDraft: (id, placement) =>
@@ -319,6 +341,7 @@ export function stopTwin(): void {
         live: undefined,
         view: undefined,
         canOperate: true,
+        recorded: null,
         drafts: {},
         placingLayer: null,
     });

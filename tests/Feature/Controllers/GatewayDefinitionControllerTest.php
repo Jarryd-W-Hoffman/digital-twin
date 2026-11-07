@@ -2,17 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Actions\IssueGatewayToken;
 use App\Actions\SaveTwinVersion;
 use App\Models\Twin;
-
-function gatewayTwin(): array
-{
-    [, $organisation] = member();
-    $twin = twinIn($organisation);
-
-    return [$twin, resolve(IssueGatewayToken::class)->handle($twin)];
-}
 
 it("serves the latest version to the twin's gateway and records its check-in", function (): void {
     $this->freezeSecond();

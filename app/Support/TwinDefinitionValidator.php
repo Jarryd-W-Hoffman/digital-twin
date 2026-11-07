@@ -22,6 +22,8 @@ final readonly class TwinDefinitionValidator
 
     private const string METRIC_KEY = '/^[a-z][A-Za-z0-9_]{0,63}$/';
 
+    private const string PATH = '/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/';
+
     /**
      * @return list<string>
      */
@@ -68,7 +70,7 @@ final readonly class TwinDefinitionValidator
             }
         }
 
-        foreach (['types', 'tilesets', 'models'] as $field) {
+        foreach (['types', 'tilesets', 'models', 'telemetry'] as $field) {
             if (array_key_exists($field, $definition) && ! $this->isList($definition[$field])) {
                 $errors[] = $field.' must be an array';
             }
@@ -211,8 +213,80 @@ final readonly class TwinDefinitionValidator
         }
 
         $this->checkLayers($errors, $definition);
+        $this->checkTelemetry($errors, $definition, $byId);
 
         return $errors;
+    }
+
+    /**
+     * MQTT filter rules: `+` and `#` fill a whole level, and `#` comes last.
+     */
+    public function isTopicFilter(string $topic): bool
+    {
+        $levels = explode('/', $topic);
+        $last = count($levels) - 1;
+
+        foreach ($levels as $i => $level) {
+            $wild = str_contains($level, '+') || str_contains($level, '#');
+
+            if (str_contains($level, "\0") || ($wild && $level !== '+' && ($level !== '#' || $i !== $last))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Which MQTT topics feed which metrics. Only the gateway knows every kind's
+     * metrics, so it checks the metric when it applies a mapping.
+     *
+     * @param  list<string>  $errors
+     * @param  array<string, mixed>  $definition
+     * @param  array<string, array<string, mixed>>  $assets
+     */
+    private function checkTelemetry(array &$errors, array $definition, array $assets): void
+    {
+        foreach ($this->items($definition['telemetry'] ?? null) as $mapping) {
+            if (! $this->isObject($mapping) || ! $this->isText($mapping['topic'] ?? null)) {
+                $errors[] = 'A telemetry mapping has no topic';
+
+                continue;
+            }
+
+            /** @var array<string, mixed> $mapping */
+            /** @var string $topic */
+            $topic = $mapping['topic'];
+            $owner = 'Telemetry '.$topic;
+
+            if (! $this->isTopicFilter($topic)) {
+                $errors[] = $owner.': bad topic filter';
+            }
+
+            if (! array_key_exists($this->describe($mapping, 'asset'), $assets)) {
+                $errors[] = sprintf('%s: unknown asset %s', $owner, $this->describe($mapping, 'asset'));
+            }
+
+            $metric = $mapping['metric'] ?? null;
+
+            if (! is_string($metric) || preg_match(self::METRIC_KEY, $metric) !== 1) {
+                $errors[] = $owner.': metric must be a camelCase identifier';
+            }
+
+            if (array_key_exists('path', $mapping) && (! is_string($mapping['path']) || preg_match(self::PATH, $mapping['path']) !== 1)) {
+                $errors[] = $owner.': path must be dotted keys';
+            }
+
+            foreach (['scale', 'offset'] as $field) {
+                if (array_key_exists($field, $mapping) && ! $this->isNumber($mapping[$field])) {
+                    $errors[] = sprintf('%s: %s must be a number', $owner, $field);
+                }
+            }
+
+            if (array_key_exists('ttlS', $mapping) && (! $this->isNumber($mapping['ttlS']) || $mapping['ttlS'] <= 0)) {
+                $errors[] = $owner.': ttlS must be positive';
+            }
+        }
     }
 
     /**

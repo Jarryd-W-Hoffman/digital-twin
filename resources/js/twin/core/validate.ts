@@ -24,6 +24,19 @@ const SHAPES = ['box', 'cylinder'];
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 /** Metric keys follow the built-in ones: camelCase like tempC or socPct. */
 const METRIC_KEY = /^[a-z][A-Za-z0-9_]{0,63}$/;
+const PATH = /^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/;
+
+/** MQTT filter rules: `+` and `#` fill a whole level, and `#` comes last. */
+export function isTopicFilter(topic: string): boolean {
+    const levels = topic.split('/');
+    return levels.every(
+        (level, i) =>
+            !level.includes('\0') &&
+            (level === '+' ||
+                (level === '#' && i === levels.length - 1) ||
+                (!level.includes('+') && !level.includes('#'))),
+    );
+}
 
 type Obj = Record<string, unknown>;
 
@@ -84,7 +97,7 @@ export function validateDefinition(input: unknown): string[] {
         if (!Array.isArray(def[field]))
             errors.push(`${field} must be an array`);
     }
-    for (const field of ['types', 'tilesets', 'models']) {
+    for (const field of ['types', 'tilesets', 'models', 'telemetry']) {
         if (def[field] !== undefined && !Array.isArray(def[field]))
             errors.push(`${field} must be an array`);
     }
@@ -266,6 +279,32 @@ export function validateDefinition(input: unknown): string[] {
             if (field === 'models' || l.placement !== undefined)
                 checkPlacement(errors, `${noun} ${l.id}`, l.placement);
         }
+    }
+
+    // Telemetry: which MQTT topics feed which metrics. Only the gateway knows
+    // every kind's metrics, so it checks the metric when it applies one.
+    for (const t of list(def.telemetry)) {
+        if (!isObj(t) || !isText(t.topic)) {
+            errors.push('A telemetry mapping has no topic');
+            continue;
+        }
+        const owner = `Telemetry ${t.topic}`;
+        if (!isTopicFilter(t.topic)) errors.push(`${owner}: bad topic filter`);
+        if (!ids.has(show(t.asset)))
+            errors.push(`${owner}: unknown asset ${show(t.asset)}`);
+        if (typeof t.metric !== 'string' || !METRIC_KEY.test(t.metric))
+            errors.push(`${owner}: metric must be a camelCase identifier`);
+        if (
+            t.path !== undefined &&
+            (typeof t.path !== 'string' || !PATH.test(t.path))
+        )
+            errors.push(`${owner}: path must be dotted keys`);
+        for (const f of ['scale', 'offset']) {
+            if (t[f] !== undefined && !isNum(t[f]))
+                errors.push(`${owner}: ${f} must be a number`);
+        }
+        if (t.ttlS !== undefined && !(isNum(t.ttlS) && t.ttlS > 0))
+            errors.push(`${owner}: ttlS must be positive`);
     }
     return errors;
 }

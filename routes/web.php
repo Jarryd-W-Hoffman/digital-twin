@@ -16,6 +16,7 @@ use App\Http\Controllers\TwinAssetController;
 use App\Http\Controllers\TwinController;
 use App\Http\Controllers\TwinGatewayTokenController;
 use App\Http\Controllers\TwinLayerController;
+use App\Http\Controllers\TwinReadingController;
 use App\Http\Controllers\TwinVersionController;
 use App\Http\Controllers\TwinVersionRestorationController;
 use App\Http\Controllers\UserController;
@@ -47,6 +48,7 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('projects/{project}/uploads/{asset}/parts', [ProjectUploadPartController::class, 'store'])->scopeBindings()->name('projects.uploads.parts');
     Route::post('projects/{project}/uploads/{asset}/complete', [ProjectUploadCompletionController::class, 'store'])->scopeBindings()->name('projects.uploads.complete');
     Route::delete('projects/{project}/uploads/{asset}', [ProjectUploadController::class, 'destroy'])->scopeBindings()->name('projects.uploads.destroy');
+    Route::get('twins/{twin}/readings', [TwinReadingController::class, 'index'])->name('twins.readings.index');
     Route::get('assets/{asset}/files/{path}', [ProjectAssetFileController::class, 'show'])
         ->where('path', '.*')
         ->name('assets.files.show');
