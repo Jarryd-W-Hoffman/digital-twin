@@ -26,7 +26,7 @@ export type TwinVersionSummary = {
 
 export type TwinAssetSummary = {
     id: string;
-    kind: 'model' | 'tileset';
+    kind: 'model' | 'tileset' | 'pointcloud';
     name: string;
     originalName: string;
     bytes: number;
@@ -154,9 +154,10 @@ export function TwinEditor({
             <section>
                 <h3>Upload</h3>
                 <p className="muted hint">
-                    A model as .glb, or a 3D Tiles tileset zipped with
-                    tileset.json at the top. It goes into the project's library
-                    and is added here.
+                    A model as .glb, a 3D Tiles tileset zipped with tileset.json
+                    at the top, or a LAS, LAZ or E57 point cloud. It goes into
+                    the project's library and is added here; a point cloud is
+                    converted first, then added from the library.
                 </p>
                 <form
                     className="editor-form"
@@ -179,7 +180,7 @@ export function TwinEditor({
                     <input
                         aria-label="Upload file"
                         type="file"
-                        accept=".glb,.zip"
+                        accept=".glb,.zip,.las,.laz,.e57"
                         required
                         onChange={(e) => {
                             const file = e.target.files?.[0] ?? null;
@@ -188,7 +189,10 @@ export function TwinEditor({
                                 file,
                                 name:
                                     data.name ||
-                                    (file?.name.replace(/\.(glb|zip)$/i, '') ??
+                                    (file?.name.replace(
+                                        /\.(glb|zip|las|laz|e57)$/i,
+                                        '',
+                                    ) ??
                                         ''),
                             }));
                         }}
@@ -373,7 +377,11 @@ export function TwinEditor({
                                         <strong>{asset.name}</strong>
                                         <span className="muted">
                                             {' '}
-                                            · {asset.kind} · {size(asset.bytes)}
+                                            ·{' '}
+                                            {asset.kind === 'pointcloud'
+                                                ? 'point cloud'
+                                                : asset.kind}{' '}
+                                            · {size(asset.bytes)}
                                         </span>
                                     </span>
                                     <button

@@ -63,3 +63,24 @@ it('refuses uploads that are not ready yet', function (): void {
     expect(fn () => resolve(AddAssetToTwin::class)->handle($twin, $user, $asset))
         ->toThrow(InvalidArgumentException::class, 'not ready');
 });
+
+it('adds a georeferenced point cloud as a tileset where it belongs', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $asset = ProjectAsset::factory()->for($twin->project)->pointCloud('EPSG:2193')->create();
+
+    $layers = resolve(AddAssetToTwin::class)->handle($twin, $user, $asset)?->definition['tilesets'];
+
+    expect($layers[0])->not->toHaveKey('placement')
+        ->and($layers[0]['assetId'])->toBe($asset->id);
+});
+
+it('places a point cloud in local metres at the origin', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $asset = ProjectAsset::factory()->for($twin->project)->pointCloud(null)->create();
+
+    $layers = resolve(AddAssetToTwin::class)->handle($twin, $user, $asset)?->definition['tilesets'];
+
+    expect($layers[0]['placement'])->toBe(['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1]);
+});

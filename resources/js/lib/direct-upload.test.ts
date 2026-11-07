@@ -111,6 +111,27 @@ describe('direct upload', () => {
         expect(progress.at(-1)).toBe(1);
     });
 
+    it('sends extra fields, such as conversion options, when it starts', async () => {
+        const server = fakeServer();
+
+        await directUpload({
+            file: file(1),
+            name: 'Scan',
+            fields: { epsg: 2193, spacing: null },
+            routes,
+            fetch: server.fetch,
+            xsrfToken: () => null,
+        });
+
+        expect(server.calls[0].body).toEqual({
+            epsg: 2193,
+            spacing: null,
+            name: 'Scan',
+            filename: 'scan.zip',
+            bytes: 1,
+        });
+    });
+
     it('sends the XSRF token with control plane requests', async () => {
         const server = fakeServer();
 

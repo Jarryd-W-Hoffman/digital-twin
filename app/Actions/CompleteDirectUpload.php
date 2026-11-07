@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
+use App\Jobs\ConvertUploadedPointCloud;
 use App\Jobs\ProcessDirectUpload;
 use App\Models\ProjectAsset;
 use App\Support\DirectUploads;
@@ -15,7 +17,8 @@ final readonly class CompleteDirectUpload
     public function __construct(private DirectUploads $uploads) {}
 
     /**
-     * Joins the uploaded parts into one object and queues its checks.
+     * Joins the uploaded parts into one object and queues its checks, or its
+     * conversion for a point cloud.
      *
      * @param  list<array{PartNumber: int, ETag: string}>  $parts
      */
@@ -26,6 +29,6 @@ final readonly class CompleteDirectUpload
         $this->uploads->complete($asset->sourceKey(), $asset->upload_id, $parts);
         $asset->update(['status' => ProjectAssetStatus::Processing, 'upload_id' => null]);
 
-        dispatch(new ProcessDirectUpload($asset));
+        dispatch($asset->kind === ProjectAssetKind::PointCloud ? new ConvertUploadedPointCloud($asset) : new ProcessDirectUpload($asset));
     }
 }

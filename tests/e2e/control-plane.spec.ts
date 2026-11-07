@@ -75,7 +75,7 @@ test('a project library upload is shared: added to a twin, then taken out again 
   await logIn(page, 'test@example.com');
 
   // Upload straight into the library, from the project page.
-  await page.getByLabel('File (.glb, or a zipped 3D Tiles tileset)').setInputFiles(model);
+  await page.getByLabel(/^File \(/).setInputFiles(model);
   await page.getByLabel('Name', { exact: true }).fill('Shared crane');
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
   await expect(page.getByText('Shared crane', { exact: true })).toBeVisible();
@@ -118,6 +118,33 @@ test('an owner starts an empty twin at a location from the project page', async 
   await page.getByRole('link', { name: 'Back to Pilot sites' }).click();
   await expect(page.getByRole('link', { name: /^Quay scan site/ })).toBeVisible();
   expect(problems).toEqual([]);
+});
+
+test('a point cloud waits for the converter, shows why it failed, and can be retried with an EPSG code', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+
+  await page.getByLabel(/^File \(/).setInputFiles({ name: 'quay.las', mimeType: 'application/octet-stream', buffer: Buffer.from('LASF not really a scan') });
+  await expect(page.getByLabel('EPSG code')).toBeVisible();
+  await page.getByLabel('Thin to spacing (m)').fill('0.05');
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  const item = page.getByRole('listitem').filter({ hasText: 'quay.las' });
+  await expect(item).toContainText('Converting 0%');
+
+  // One go of the converter. The file is junk, so pdal info fails, as it
+  // does when PDAL isn't installed at all.
+  execFileSync('php', ['artisan', 'queue:work', 'conversions', '--queue=conversions', '--once', '--stop-when-empty'], {
+    env: { ...process.env, DB_DATABASE: resolve('database/e2e.sqlite') },
+  });
+  await expect(item).toContainText('Failed', { timeout: 10_000 });
+  await expect(item).toContainText('PDAL could not read the file');
+
+  await item.getByLabel('EPSG code for quay').fill('2193');
+  await item.getByRole('button', { name: 'Retry' }).click();
+  await expect(item).toContainText('Converting 0%');
+
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  await page.getByRole('button', { name: 'Layout' }).click();
+  await expect(page.getByRole('list', { name: 'Library' }).getByText('quay')).toHaveCount(0);
 });
 
 test('a bad archive is refused with the reason', async ({ page }) => {

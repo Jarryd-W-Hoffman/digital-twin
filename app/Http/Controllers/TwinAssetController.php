@@ -9,6 +9,7 @@ use App\Actions\StoreProjectAsset;
 use App\Http\Requests\StoreProjectAssetRequest;
 use App\Models\Twin;
 use App\Models\User;
+use App\Support\PointCloudOptions;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -17,7 +18,7 @@ use Inertia\Inertia;
 
 /**
  * Uploading from a twin: the file goes into the project's library and is
- * added to this twin straight away.
+ * added to this twin straight away, or, for a point cloud, once converted.
  */
 final readonly class TwinAssetController
 {
@@ -28,7 +29,14 @@ final readonly class TwinAssetController
         $file = $request->file('file');
         assert($file instanceof UploadedFile);
 
-        $asset = $store->handle($twin->project, $file, $request->string('name')->value());
+        $asset = $store->handle($twin->project, $file, $request->string('name')->value(), PointCloudOptions::from($request));
+
+        if (! $asset->isReady()) {
+            Inertia::flash('toast', ['type' => 'success', 'message' => __(':name is converting. Add it from the library once it is ready.', ['name' => $asset->name])]);
+
+            return to_route('twins.show', $twin);
+        }
+
         $add->handle($twin, $user, $asset);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name uploaded.', ['name' => $asset->name])]);

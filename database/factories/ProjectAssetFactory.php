@@ -41,6 +41,14 @@ final class ProjectAssetFactory extends Factory
         return $this->state(['status' => ProjectAssetStatus::Uploading, 'upload_id' => $uploadId, 'entry' => '', 'files' => 0]);
     }
 
+    /**
+     * A converted point cloud, in the given coordinate system (null: local metres).
+     */
+    public function pointCloud(?string $crs = 'EPSG:2193'): self
+    {
+        return $this->state(['kind' => ProjectAssetKind::PointCloud, 'original_name' => 'scan.laz', 'entry' => 'tileset.json', 'files' => 2, 'crs' => $crs, 'options' => []]);
+    }
+
     public function processing(): self
     {
         return $this->state(['status' => ProjectAssetStatus::Processing, 'entry' => '', 'files' => 0]);

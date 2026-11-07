@@ -47,6 +47,28 @@ return [
             'after_commit' => false,
         ],
 
+        // Point cloud conversions take hours, so they get their own connection
+        // (same driver as the default) whose retry_after outlasts the job.
+        'conversions' => match (env('QUEUE_CONNECTION', 'database')) {
+            'redis' => [
+                'driver' => 'redis',
+                'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+                'queue' => 'conversions',
+                'retry_after' => (int) env('CONVERSIONS_RETRY_AFTER', 15000),
+                'block_for' => null,
+                'after_commit' => true,
+            ],
+            'sync' => ['driver' => 'sync'],
+            default => [
+                'driver' => 'database',
+                'connection' => env('DB_QUEUE_CONNECTION'),
+                'table' => env('DB_QUEUE_TABLE', 'jobs'),
+                'queue' => 'conversions',
+                'retry_after' => (int) env('CONVERSIONS_RETRY_AFTER', 15000),
+                'after_commit' => true,
+            ],
+        },
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

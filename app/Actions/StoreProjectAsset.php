@@ -6,10 +6,12 @@ namespace App\Actions;
 
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
+use App\Jobs\ConvertUploadedPointCloud;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -18,26 +20,39 @@ final readonly class StoreProjectAsset
     public function __construct(private ProcessProjectAssetFile $process) {}
 
     /**
-     * Checks and stores a GLB model or zipped 3D Tiles tileset uploaded
-     * through the app, in the project's library. Nothing is shown in a twin
-     * until it is added to one.
+     * Adds a file uploaded through the app to the project's library. A GLB
+     * model or zipped 3D Tiles tileset is checked and stored now; a point
+     * cloud is kept as uploaded and queued for conversion. Nothing is shown
+     * in a twin until it is added to one.
+     *
+     * @param  array{epsg?: int, spacing?: float}  $options  Point cloud conversion options.
      */
-    public function handle(Project $project, UploadedFile $file, string $name): ProjectAsset
+    public function handle(Project $project, UploadedFile $file, string $name, array $options = []): ProjectAsset
     {
         $id = (string) Str::uuid7();
+        $kind = ProjectAssetKind::fromFilename($file->getClientOriginalName());
 
-        return DB::transaction(function () use ($project, $file, $name, $id): ProjectAsset {
+        return DB::transaction(function () use ($project, $file, $name, $id, $kind, $options): ProjectAsset {
             $asset = $project->assets()->create([
                 'id' => $id,
-                'kind' => ProjectAssetKind::fromFilename($file->getClientOriginalName()),
+                'kind' => $kind,
                 'name' => $name,
-                'original_name' => $file->getClientOriginalName(),
+                'original_name' => basename($file->getClientOriginalName()),
                 'directory' => $project->storagePrefix().'/assets/'.$id,
                 'entry' => '',
                 'bytes' => (int) $file->getSize(),
                 'files' => 0,
                 'status' => ProjectAssetStatus::Processing,
+                'options' => $kind === ProjectAssetKind::PointCloud ? $options : null,
             ]);
+
+            if ($kind === ProjectAssetKind::PointCloud) {
+                $key = $asset->sourceKey();
+                Storage::disk(config()->string('meridian.assets_disk'))->putFileAs(dirname($key), $file, basename($key));
+                dispatch(new ConvertUploadedPointCloud($asset))->afterCommit();
+
+                return $asset;
+            }
 
             try {
                 return $this->process->handle($asset, $file->getRealPath());

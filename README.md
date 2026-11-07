@@ -14,7 +14,8 @@ The sample twin, **Northshore Cold Chain Hub**, is a fictional refrigerated logi
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Organisations and roles**        | Every project and twin belongs to an organisation. Owners and admins edit twins and manage members, operators send commands, viewers watch. People can belong to several organisations and switch between them.                                                                                                           |
 | **Versioned twins**                | Each save appends an immutable version: a layout change, an upload, a replaced definition or a restore. Any version can be downloaded as JSON or restored as a new one.                                                                                                                                                   |
-| **Projects and uploads**           | Projects group twins with a library of models (`.glb`) and zipped 3D Tiles tilesets that any of their twins can show, so one scan serves several twins. Archives are checked entry by entry before anything is written, and files are served only to members of the organisation.                                         |
+| **Projects and uploads**           | Projects group twins with a library of models (`.glb`), zipped 3D Tiles tilesets and point clouds that any of their twins can show, so one scan serves several twins. Archives are checked entry by entry before anything is written, and files are served only to members of the organisation.                         |
+| **Point clouds**                   | LAS, LAZ and E57 scans are converted to 3D Tiles by a queued job (PDAL, then py3dtiles), reprojected onto the globe from their own coordinate system or an EPSG code you give, and optionally thinned. Progress, a log and retries show in the library.                                                                    |
 | **Placement**                      | Models and local-coordinate tilesets are placed in metres east, north and up from the twin's origin, with heading and scale. Edits preview live in the scene, and **Place on map** moves a layer to wherever you click on the ground.                                                                                     |
 | **Custom asset types**             | Equipment the simulator has no physics for, described as data: metrics with units and defaults, a primary metric, a colour and a shape. Readings come from ingest, and rules can alert on them like any other metric.                                                                                                     |
 | **Live physics**                   | A microgrid power balance (solar, battery dispatch with peak shaving, grid, generator start delay, load shedding by priority) feeding a refrigeration plant (chiller capacity and COP that derate with ambient air, store thermal mass, door losses, stock spoilage). Vehicles drive their routes and queue for chargers. |
@@ -56,6 +57,12 @@ To try uploads, use `public/samples/models/pump-skid.glb` as a model, and zip `p
 
 ```bash
 (cd public/tilesets/context && zip -q ../../../context.zip tileset.json context.glb)
+```
+
+Point clouds need PDAL and py3dtiles, and a worker on the conversions queue. The Docker stack's `converter` service has both. Without Docker, install them (`pdal` from conda-forge, `pip install "py3dtiles[las]"`) and run:
+
+```bash
+php artisan queue:work conversions --queue=conversions --timeout=14400
 ```
 
 ### The gateway
@@ -230,6 +237,27 @@ sequenceDiagram
 ```
 
 Cancelling, or deleting an item still uploading, aborts the multipart upload. The page polls while anything is processing. Part URLs are signed for `MERIDIAN_DIRECT_UPLOADS_ENDPOINT`, since the app reaches RustFS inside Docker at an address browsers can't. The bucket needs a CORS rule allowing `PUT` from the app and exposing `ETag`; `docker/rustfs/create-buckets.sh` sets one. Only ready items can be added to a twin. A processing job that keeps failing (the store is down, say) is retried three times, then marked failed.
+
+#### Point clouds
+
+```mermaid
+flowchart TD
+  U[LAS, LAZ or E57 upload] --> K[kept as uploaded, at uploads/asset/]
+  K --> J[ConvertUploadedPointCloud on the conversions queue]
+  J --> S{signature: LASF or ASTM-E57}
+  S -->|no| F[failed, with the reason]
+  S --> I[pdal info: point count, CRS]
+  I --> P[pdal pipeline: assign the EPSG given, thin to a spacing, write LAS]
+  P --> T[py3dtiles convert, to ECEF when the CRS is known]
+  T --> W[tiles copied into the library; original dropped]
+  W --> R[ready: added to twins as a tileset]
+  I -->|fails| F
+  P -->|fails| F
+  T -->|fails| F
+  F -->|Retry, maybe with an EPSG code| J
+```
+
+The job runs only in the `converter` image (`docker/converter`): Alpine's PDAL has no E57 reader and py3dtiles needs glibc, so that image is Debian with PDAL from conda-forge and py3dtiles from PyPI. Conversions get their own queue connection, `conversions`, whose `retry_after` outlasts the four-hour job timeout; it uses the same driver as `QUEUE_CONNECTION`. A failed conversion keeps the original and the last lines from the tool that failed, and is tried once, so the reason is on screen rather than lost in a retry. py3dtiles is always run with `--pyproj-always-xy`: LAS stores easting as X whatever the CRS's axis order, and without it a northing-first system such as NZTM lands on the other side of the planet. A cloud with no coordinate system (common for E57) is tiled in its own metres and starts placed at the twin's origin.
 
 #### The library
 
@@ -415,6 +443,9 @@ _Coloured by power after dark: solar has gone quiet, and the battery and grid ca
 | `MERIDIAN_DIRECT_UPLOADS_ENDPOINT`             | The store's address as browsers see it, when it differs from `AWS_ENDPOINT` (Docker: `http://localhost:9014`)          |
 | `MERIDIAN_DIRECT_UPLOADS_PART_MB`              | Part size, default 16 MB (S3 needs at least 5 MB for every part but the last)                                          |
 | `MERIDIAN_DIRECT_UPLOADS_MAX_GB`               | Largest direct upload, default 20 GB                                                                                   |
+| `MERIDIAN_PDAL`, `MERIDIAN_PY3DTILES`          | The point cloud tools, default `pdal` and `py3dtiles` on the `PATH`                                                    |
+| `MERIDIAN_POINT_CLOUD_JOBS`                    | Processes py3dtiles tiles with, default 2                                                                              |
+| `MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES`         | Longest each conversion step may run, default 240                                                                      |
 | `MERIDIAN_TILESET_MAX_FILES`                   | Most files in a tileset zip, default 20,000                                                                            |
 | `MERIDIAN_TILESET_MAX_BYTES`                   | Largest unpacked tileset, default 4 GB                                                                                 |
 | `VITE_BASEMAP_URL`, `VITE_BASEMAP_ATTRIBUTION` | A custom `{z}/{x}/{y}` tile provider and the attribution it requires                                                   |
@@ -423,9 +454,9 @@ The default basemap is Natural Earth imagery bundled with Cesium. It makes no th
 
 ## Tests
 
-- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. The shared definition fixtures. Browser tests for the kit's account pages.
+- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. Point clouds with PDAL and py3dtiles faked: the commands each step runs, the EPSG and thinning options, signatures, missing and empty files, the tail of a failing tool, the original kept for a retry, and clouds in local metres placed at the origin. With the real tools, inside the converter image, LAS and E57 scans of Auckland land within 0.01° of where they should (`docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 meridian-converter php vendor/bin/pest tests/Feature/Conversions`). The shared definition fixtures. Browser tests for the kit's account pages.
 - **Vitest:** power is conserved every step, including while islanded. Stores hold setpoint for a full day. Outages bridge on battery, start the generator and return to grid. Load sheds by priority. Runs are deterministic, and survive cloning and a JSON round trip. The forecast's baseline matches a straight run exactly. Rule hold times and hysteresis. The gateway's socket, commands, ingest, tokens, body limits and origins. The shared definition fixtures.
-- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A bad archive is refused with its reason. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin, bad files, the gateway path including a real `POST /ingest`, and phone width.
+- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A point cloud waits for the converter, shows why its conversion failed, and is retried with an EPSG code. A bad archive is refused with its reason. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin, bad files, the gateway path including a real `POST /ingest`, and phone width.
 
 ## Project layout
 
@@ -450,8 +481,8 @@ tests/e2e/                Playwright specs
 Meridian is meant to be a tool teams run for their own sites: bring in scans, models and live data, organise them by project, and build twins from them, all managed from the control plane. The microgrid and cold chain physics stay as a reference domain, and each milestone moves more of what is fixed in code into data people control.
 
 1. **Control plane and gateway** (done): organisations and roles, versioned twins, uploads, placement, custom types, Docker Compose with Postgres and RustFS, and gateways that load their twin from the control plane, follow new versions and admit browsers with signed tickets.
-2. **Projects and a data library** (done): organisations hold projects, and projects hold twins and a shared library of uploads (models, tilesets, later point clouds), so one scan can be placed into several twins. New twins start as an empty site at a chosen location (weather, a grid connection and a main board), a sample, or a definition file. Large files go straight to object storage in parts and are checked by a queued job.
-3. **Point cloud pipeline:** LAS, LAZ and E57 uploaded to the library and converted to 3D Tiles by a queued worker (PDAL to reproject, filter and thin; py3dtiles to tile), with progress, logs and retries in the UI, then placed into a twin like any tileset.
+2. **Projects and a data library** (done): organisations hold projects, and projects hold twins and a shared library of uploads (models, tilesets and point clouds), so one scan can be placed into several twins. New twins start as an empty site at a chosen location (weather, a grid connection and a main board), a sample, or a definition file. Large files go straight to object storage in parts and are checked by a queued job.
+3. **Point cloud pipeline** (done): LAS, LAZ and E57 uploaded to the library and converted to 3D Tiles by a queued worker (PDAL to read, assign a coordinate system and thin; py3dtiles to reproject and tile), with progress, logs and retries in the UI, then placed into a twin like any tileset.
 4. **IoT: devices, MQTT and history:** devices registered per project with their own tokens, an MQTT bridge with topic and tag mapping onto any asset's metrics, gateways managed from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
 5. **Customisation core:** behaviour for custom types as data (derived metrics written as safe expressions, simple state machines, setpoints), KPIs and panels declared in the definition instead of built in, expression and rate-of-change rules, and a type library per organisation.
 6. **Definition editor:** edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Support\PointCloudOptions;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -16,7 +17,8 @@ final class StoreProjectAssetRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'file' => ['required', 'file', 'extensions:glb,zip', 'max:'.config()->integer('meridian.max_upload_kb')],
+            'file' => ['required', 'file', 'extensions:glb,zip,las,laz,e57', 'max:'.config()->integer('meridian.max_upload_kb')],
+            ...PointCloudOptions::rules(),
         ];
     }
 }

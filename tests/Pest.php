@@ -14,8 +14,11 @@ use Aws\Result;
 use Aws\S3\S3Client;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
@@ -143,4 +146,49 @@ function fakeDirectUploads(array $results = [], int $partBytes = 5 * 1024 * 1024
     app()->instance(DirectUploads::class, new DirectUploads($clients[0], $clients[1], 'meridian', $partBytes));
 
     return $sent;
+}
+
+/**
+ * Stands in for PDAL and py3dtiles. `pdal info` reports $points points in
+ * $epsg (null: no coordinate system), `pdal pipeline` writes the LAS its
+ * pipeline names, and `py3dtiles convert` writes a two-file tileset to --out.
+ * A command named in $fail exits 1 with that text on stderr.
+ *
+ * @param  array<string, string>  $fail  'info', 'pipeline' or 'py3dtiles' to its error.
+ */
+function fakeConverter(?int $epsg = 2193, int $points = 1200, array $fail = []): void
+{
+    $failed = fn (string $step): ?ProcessResult => isset($fail[$step])
+        ? Process::result(errorOutput: $fail[$step], exitCode: 1)
+        : null;
+
+    Process::fake([
+        "'pdal' 'info'*" => fn (): ProcessResult|string => $failed('info') ?? (string) json_encode(['summary' => [
+            'num_points' => $points,
+            ...($epsg === null ? [] : ['srs' => ['json' => ['name' => 'Test CRS', 'id' => ['authority' => 'EPSG', 'code' => $epsg]]]]),
+        ]]),
+        "'pdal' 'pipeline'*" => function (PendingProcess $process) use ($failed): ProcessResult|string {
+            /** @var list<string> $command */
+            $command = $process->command;
+            /** @var list<array<string, mixed>> $stages */
+            $stages = json_decode((string) file_get_contents($command[2]), true);
+            file_put_contents((string) end($stages)['filename'], 'LASF prepared');
+
+            return $failed('pipeline') ?? '';
+        },
+        "'py3dtiles'*" => function (PendingProcess $process) use ($failed): ProcessResult|string {
+            if (($result = $failed('py3dtiles')) instanceof ProcessResult) {
+                return $result;
+            }
+
+            /** @var list<string> $command */
+            $command = $process->command;
+            $out = $command[(int) array_search('--out', $command, true) + 1];
+            File::ensureDirectoryExists($out.'/r');
+            file_put_contents($out.'/tileset.json', tilesetJson());
+            file_put_contents($out.'/r/0.pnts', 'pnts');
+
+            return 'Tiler done';
+        },
+    ]);
 }

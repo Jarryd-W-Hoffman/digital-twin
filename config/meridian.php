@@ -29,6 +29,18 @@ return [
         'max_upload_gb' => (int) env('MERIDIAN_DIRECT_UPLOADS_MAX_GB', 20),
     ],
 
+    /*
+    | Point clouds (LAS, LAZ, E57) are converted to 3D Tiles by a queued job on
+    | the "conversions" connection, which runs PDAL and py3dtiles. The Docker
+    | converter service has both; elsewhere, install them and set the paths.
+    */
+    'point_clouds' => [
+        'pdal' => env('MERIDIAN_PDAL', 'pdal'),
+        'py3dtiles' => env('MERIDIAN_PY3DTILES', 'py3dtiles'),
+        'jobs' => (int) env('MERIDIAN_POINT_CLOUD_JOBS', 2),
+        'timeout_minutes' => (int) env('MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES', 240),
+    ],
+
     'tileset' => [
         'max_files' => (int) env('MERIDIAN_TILESET_MAX_FILES', 20000),
         'max_uncompressed_bytes' => (int) env('MERIDIAN_TILESET_MAX_BYTES', 4 * 1024 * 1024 * 1024),
