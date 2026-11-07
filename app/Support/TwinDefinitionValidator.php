@@ -233,6 +233,16 @@ final readonly class TwinDefinitionValidator
             }
         }
 
+        foreach ($this->objects($definition['assets']) as $asset) {
+            $feature = is_array($asset['feature'] ?? null) ? $asset['feature'] : [];
+            $layer = $feature['layer'] ?? null;
+
+            if ($this->isText($layer) && ! in_array($layer, $layers, true)) {
+                /** @var string $layer */
+                $errors[] = sprintf('%s: unknown layer %s', $this->label($asset['id'] ?? null), $layer);
+            }
+        }
+
         // Telemetry: which MQTT topics feed which metrics. Only the gateway knows
         // every kind's metrics, so it checks the metric when it applies one.
         foreach ($this->objects($definition['telemetry'] ?? null) as $mapping) {

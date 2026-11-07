@@ -36,12 +36,22 @@ export default function CesiumView() {
                 : undefined;
         };
 
+        const pickFeatures = (owner: string | null) => {
+            scene.onFeaturePick = owner
+                ? (picked) =>
+                      useTwin.getState().setFeaturePick({ owner, picked })
+                : undefined;
+        };
+        const waitingFor = (s: ReturnType<typeof useTwin.getState>) =>
+            s.featurePick && !s.featurePick.picked ? s.featurePick.owner : null;
+
         const sync = () => {
             const s = useTwin.getState();
             scene.setBasemap(s.basemap);
             scene.setLayers(s.layers);
             scene.setSelected(s.selectedId);
             scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
+            pickFeatures(waitingFor(s));
             if (s.view) {
                 scene.updateFrame(s.view, s.colorBy);
                 scene.setAlerts(alertsAt(s.alerts, s.view.t));
@@ -62,6 +72,7 @@ export default function CesiumView() {
                 scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
             if (s.placingLayer !== prev.placingLayer)
                 placeOnClick(s.placingLayer);
+            if (waitingFor(s) !== waitingFor(prev)) pickFeatures(waitingFor(s));
             if (s.drafts !== prev.drafts) {
                 for (const id of new Set([
                     ...Object.keys(s.drafts),

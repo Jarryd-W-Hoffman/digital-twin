@@ -49,6 +49,7 @@ export type Widget =
     | 'from-state'
     | 'point'
     | 'polygon'
+    | 'feature'
     | 'params'
     | 'list'
     | 'object';

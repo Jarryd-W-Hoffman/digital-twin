@@ -6,6 +6,7 @@ import { activeAt, createRuleEngine, type RuleEngine } from '../core/rules.ts';
 import type {
     Alert,
     Command,
+    FeatureRef,
     Frame,
     Placement,
     Point,
@@ -87,6 +88,11 @@ export interface TwinStore {
     /** A footprint or path being drawn on the ground, by the editor field that owns it. */
     sketch: Sketching | null;
     setSketch: (sketch: Sketching | null) => void;
+    /** The editor field waiting for a click on a layer's feature, and what was clicked. */
+    featurePick: { owner: string; picked?: FeatureRef } | null;
+    setFeaturePick: (
+        pick: { owner: string; picked?: FeatureRef } | null,
+    ) => void;
 }
 
 export interface Sketching {
@@ -155,6 +161,8 @@ export const useTwin = create<TwinStore>((set, get) => ({
     setPlacingLayer: (id) => set({ placingLayer: id }),
     sketch: null,
     setSketch: (sketch) => set({ sketch }),
+    featurePick: null,
+    setFeaturePick: (featurePick) => set({ featurePick }),
     showGlobe: () => set((s) => ({ globeRequest: s.globeRequest + 1 })),
 
     select: (id, fly = false) =>
@@ -317,6 +325,7 @@ export function runDefinition(
         drafts: {},
         placingLayer: null,
         sketch: null,
+        featurePick: null,
     });
     try {
         startSource(new LocalSource(parseDefinition(def)));

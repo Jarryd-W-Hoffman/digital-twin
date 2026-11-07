@@ -44,6 +44,18 @@ export interface AssetDef {
     params?: Record<string, number>;
     /** Custom assets: the id of a type in the definition's `types`. */
     type?: string;
+    /**
+     * The element of a model or tileset that is this asset, such as a pump in
+     * an IFC model: it takes the asset's colour, and clicking it selects the
+     * asset. The asset's own body isn't drawn.
+     */
+    feature?: FeatureRef;
+}
+
+/** A feature of a context layer: the layer's id, and the feature's id property. */
+export interface FeatureRef {
+    layer: string;
+    id: string;
 }
 
 /** The status a custom type's state shows as, in colour and in the inspector. */
@@ -208,6 +220,8 @@ export interface TilesetDef {
     placement?: Placement;
     /** The control plane's upload this layer came from. */
     assetId?: string;
+    /** The feature property that names each feature, for binding assets; default `id`. */
+    featureProperty?: string;
 }
 
 export interface ModelDef {
@@ -217,6 +231,8 @@ export interface ModelDef {
     url: string;
     placement: Placement;
     assetId?: string;
+    /** The feature property that names each feature, for binding assets; default `id`. */
+    featureProperty?: string;
 }
 
 /**

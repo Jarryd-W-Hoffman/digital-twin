@@ -169,6 +169,26 @@
                             "title": "Parameters",
                             "description": "Numbers the model uses for this kind, such as capacityKw.",
                             "x-form": "params"
+                        },
+                        "feature": {
+                            "type": "object",
+                            "required": ["layer", "id"],
+                            "properties": {
+                                "layer": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "x-message": "{0:id}: feature needs a layer and an id"
+                                },
+                                "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "x-message": "{0:id}: feature needs a layer and an id"
+                                }
+                            },
+                            "x-message": "{0:id}: feature needs a layer and an id",
+                            "title": "Model feature",
+                            "description": "The element of a model or tileset that is this asset. It takes the asset's colour, clicking it selects the asset, and the asset's own body isn't drawn.",
+                            "x-form": "feature"
                         }
                     },
                     "allOf": [
@@ -851,6 +871,11 @@
                                     "x-message": "Tileset {0:id}: placement.scale must be positive"
                                 }
                             }
+                        },
+                        "featureProperty": {
+                            "type": "string",
+                            "minLength": 1,
+                            "x-message": "Tileset {0:id}: featureProperty must be text"
                         }
                     }
                 }
@@ -921,6 +946,11 @@
                                     "x-message": "Model {0:id}: placement.scale must be positive"
                                 }
                             }
+                        },
+                        "featureProperty": {
+                            "type": "string",
+                            "minLength": 1,
+                            "x-message": "Model {0:id}: featureProperty must be text"
                         }
                     }
                 }

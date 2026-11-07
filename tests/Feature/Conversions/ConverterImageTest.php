@@ -257,12 +257,12 @@ function shedIfc(string $work, array $options = []): string
 /**
  * A GLB's JSON chunk, and the bounds of all its positions.
  *
- * @return array{0: array{nodes: list<array{name: string, extras: array<string, string>}>}, 1: array{0: list<float>, 1: list<float>}}
+ * @return array{0: array{nodes: list<array{name: string, extras: array<string, string>}>, extensionsUsed: list<string>, extensions: array{EXT_structural_metadata: array{propertyTables: list<array{count: int}>}}}, 1: array{0: list<float>, 1: list<float>}}
  */
 function glbContents(string $glb): array
 {
     $length = unpack('V', mb_substr($glb, 12, 4, '8bit'))[1];
-    /** @var array{nodes: list<array{name: string, extras: array<string, string>}>, meshes: list<array{primitives: list<array{attributes: array{POSITION: int}}>}>, accessors: list<array{min?: list<float>, max?: list<float>}>} $document */
+    /** @var array{nodes: list<array{name: string, extras: array<string, string>}>, extensionsUsed: list<string>, extensions: array{EXT_structural_metadata: array{propertyTables: list<array{count: int}>}}, meshes: list<array{primitives: list<array{attributes: array{POSITION: int}}>}>, accessors: list<array{min?: list<float>, max?: list<float>}>} $document */
     $document = json_decode(mb_substr($glb, 20, $length, '8bit'), true);
     $positions = collect($document['meshes'])->flatMap(fn (array $mesh): array => array_map(
         fn (array $primitive): array => $document['accessors'][$primitive['attributes']['POSITION']],
@@ -293,12 +293,16 @@ it('converts an IFC model with a map conversion to a GLB of its elements, where 
         ->and($elements[1])->toMatchArray(['name' => 'South wall', 'storey' => 'Ground floor'])
         ->and(array_column($document['nodes'], 'name'))->toBe(array_column($elements, 'id'))
         ->and($document['nodes'][5]['extras']['name'])->toBe('Roof')
-        // Millimetres in the file, metres out; glTF's y is up and its z is south.
+        // Each element is a feature a viewer can pick and colour.
+        ->and($document['extensionsUsed'])->toBe(['EXT_mesh_features', 'EXT_structural_metadata'])
+        ->and($document['extensions']['EXT_structural_metadata']['propertyTables'][0]['count'])->toBe(6)
+        // Millimetres in the file, metres out, as glTF that Cesium turns to east (z), north (x) and up (y).
         ->and($low[0])->toEqualWithDelta(0, 0.01)
+        ->and($high[0])->toEqualWithDelta(12, 0.01)
         ->and($low[1])->toEqualWithDelta(-0.2, 0.01)
-        ->and($high[0] - $low[0])->toEqualWithDelta(20, 0.01)
-        ->and($high[1] - $low[1])->toEqualWithDelta(5.35, 0.01)
-        ->and($low[2])->toEqualWithDelta(-12, 0.01)
+        ->and($high[1])->toEqualWithDelta(5.15, 0.01)
+        ->and($low[2])->toEqualWithDelta(0, 0.01)
+        ->and($high[2])->toEqualWithDelta(20, 0.01)
         ->and($georeference['source'] ?? null)->toBe('IfcMapConversion')
         ->and($georeference['lat'] ?? null)->toEqualWithDelta(-36.852, 0.01)
         ->and($georeference['lon'] ?? null)->toEqualWithDelta(174.751, 0.01)
@@ -318,8 +322,8 @@ it('recentres an IFC model drawn far from its origin, and places it by its site'
     $north = -5010 * sin(deg2rad(15)) + 6 * cos(deg2rad(15));
 
     expect($asset->crs)->toBeNull()
-        ->and($low[0])->toEqualWithDelta(-10, 0.01)
-        ->and($high[0])->toEqualWithDelta(10, 0.01)
+        ->and($low[2])->toEqualWithDelta(-10, 0.01)
+        ->and($high[2])->toEqualWithDelta(10, 0.01)
         ->and($georeference['source'] ?? null)->toBe('IfcSite')
         ->and($georeference['headingDeg'] ?? null)->toEqualWithDelta(15, 0.001)
         ->and($georeference['lat'] ?? null)->toEqualWithDelta(-36.85 + rad2deg($north / 6_378_137), 0.00001)

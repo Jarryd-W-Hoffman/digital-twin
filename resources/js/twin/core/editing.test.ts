@@ -65,6 +65,15 @@ describe('fields from the schema', () => {
         );
         expect(fields.find((f) => f.key === 'cools')?.ofKind).toBe('coldstore');
     });
+
+    it('offers every asset a feature of a model or tileset, last', () => {
+        const fields = fieldsFor('assets', { kind: 'bus' });
+        expect(fields.at(-1)).toMatchObject({
+            key: 'feature',
+            widget: 'feature',
+            title: 'Model feature',
+        });
+    });
 });
 
 describe('edits', () => {
