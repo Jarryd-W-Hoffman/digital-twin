@@ -18,7 +18,7 @@ flowchart LR
 
 - The gateway fetches the twin's latest version, and follows each new version within a few seconds.
 - A reading **pins** its metric: the model uses the measured value and works out the rest from it. Where sensors report, the twin follows reality; where they don't, the model fills the gaps.
-- Every reading is also sent back to Meridian and kept, so you can [chart what was recorded](09-devices-and-mqtt.md#see-what-was-recorded) long after the model's own 24-hour window.
+- Every reading is also sent back to Meridian and kept, so you can [chart what was recorded](10-devices-and-mqtt.md#see-what-was-recorded) long after the model's own 24-hour window.
 - The gateway is admitted by a **token**. Browsers get in with a pass Meridian signs for each visit, which says whether that person may send commands.
 
 ## Issue a token
@@ -33,7 +33,7 @@ flowchart LR
     MERIDIAN_URL=https://meridian.example.com MERIDIAN_GATEWAY_TOKEN=mgw_… npm run gateway
     ```
 
-4. Run the command on the machine that will host the gateway (it needs Node and a copy of Meridian's code; see [Running Meridian](12-running-meridian.md#the-gateway)). The section changes to **Online at ws://…** within a few seconds.
+4. Run the command on the machine that will host the gateway (it needs Node and a copy of Meridian's code; see [Running Meridian](13-running-meridian.md#the-gateway)). The section changes to **Online at ws://…** within a few seconds.
 
 ## The gateway's state
 
@@ -79,7 +79,7 @@ curl -X POST http://gateway-host:8787/ingest \
 - **`ttlS`** (optional) is how long the reading holds before the model takes over again.
 - The gateway answers **202** when it accepts the readings, or **422** with every problem it found, such as an asset that doesn't exist.
 
-For sensors that speak MQTT, use [devices](09-devices-and-mqtt.md) instead.
+For sensors that speak MQTT, use [devices](10-devices-and-mqtt.md) instead.
 
 ## Tips
 
@@ -89,5 +89,5 @@ For sensors that speak MQTT, use [devices](09-devices-and-mqtt.md) instead.
 
 ## See also
 
-- [Devices and MQTT](09-devices-and-mqtt.md): sensors publishing over MQTT.
-- [Running Meridian](12-running-meridian.md#the-gateway): gateway settings.
+- [Devices and MQTT](10-devices-and-mqtt.md): sensors publishing over MQTT.
+- [Running Meridian](13-running-meridian.md#the-gateway): gateway settings.

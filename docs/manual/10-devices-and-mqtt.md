@@ -97,9 +97,9 @@ Every reading the gateway receives is kept by Meridian, for a year unless your a
 - **Check the gateway state.** If readings aren't arriving, the twin's **Gateway** section says whether its gateway is connected to the broker.
 - **Name devices for where they are.** "Freezer probe 1" helps whoever has to go and find it.
 - **One device, one login.** Don't share a password between devices; then one can be reset or removed without touching the others.
-- **Use TLS outside your own network.** The broker speaks plain MQTT; see [Running Meridian](12-running-meridian.md#the-broker).
+- **Use TLS outside your own network.** The broker speaks plain MQTT; see [Running Meridian](13-running-meridian.md#the-broker).
 
 ## See also
 
-- [Gateways and live data](08-gateways-and-live-data.md): running the gateway that subscribes.
-- [Layout and versions](07-layout-and-versions.md): the Layout panel.
+- [Gateways and live data](09-gateways-and-live-data.md): running the gateway that subscribes.
+- [Layout and versions](08-layout-and-versions.md): the Layout panel.

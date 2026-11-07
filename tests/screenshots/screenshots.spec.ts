@@ -1,5 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, openSync } from 'node:fs';
+import { mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
@@ -98,6 +98,16 @@ test.beforeAll(() => {
         'scripts/generate-point-cloud.py',
         'test-results/wharf.las',
     ]);
+    run('docker', [
+        'run',
+        '--rm',
+        '-v',
+        `${ROOT}:/var/www/html`,
+        CONVERTER,
+        'python3',
+        'scripts/generate-terrain.py',
+        'test-results/depot-ground.tif',
+    ]);
 });
 
 test.afterAll(() => {
@@ -150,32 +160,39 @@ test('screenshots', async ({ page, context }) => {
             .filter({ hasText: 'Wharf scan' });
         await expect(scan).toContainText('Converting 0%');
 
-        // One job, run by the converter image against this app's database and files.
-        const log = openSync(resolve(ROOT, 'test-results/converter.log'), 'w');
-        const converter = spawn(
-            'docker',
-            [
-                'run',
-                '--rm',
-                '-v',
-                `${ROOT}:/var/www/html`,
-                '-e',
-                'DB_CONNECTION=sqlite',
-                '-e',
-                'DB_DATABASE=/var/www/html/database/e2e.sqlite',
-                CONVERTER,
-                'php',
-                'artisan',
-                'queue:work',
-                'conversions',
-                '--queue=conversions',
-                '--once',
-                '--stop-when-empty',
-                '--timeout=600',
-            ],
-            { cwd: ROOT, stdio: ['ignore', log, log] },
-        );
-        processes.push(converter);
+        // One job at a time, run by the converter image against this app's database and files.
+        const convertOne = (name: string) => {
+            const log = openSync(
+                resolve(ROOT, `test-results/${name}.log`),
+                'w',
+            );
+            processes.push(
+                spawn(
+                    'docker',
+                    [
+                        'run',
+                        '--rm',
+                        '-v',
+                        `${ROOT}:/var/www/html`,
+                        '-e',
+                        'DB_CONNECTION=sqlite',
+                        '-e',
+                        'DB_DATABASE=/var/www/html/database/e2e.sqlite',
+                        CONVERTER,
+                        'php',
+                        'artisan',
+                        'queue:work',
+                        'conversions',
+                        '--queue=conversions',
+                        '--once',
+                        '--stop-when-empty',
+                        '--timeout=600',
+                    ],
+                    { cwd: ROOT, stdio: ['ignore', log, log] },
+                ),
+            );
+        };
+        convertOne('converter');
         await expect(scan).toContainText(/Converting (4[5-9]|[5-8]\d)%/, {
             timeout: 300_000,
         });
@@ -183,6 +200,15 @@ test('screenshots', async ({ page, context }) => {
         await shot(library, 'library-converting');
         await expect(scan).toContainText('Point cloud', { timeout: 600_000 });
         await shot(library, 'library');
+
+        await upload('test-results/depot-ground.tif', 'Depot ground survey');
+        const ground = library
+            .getByRole('listitem')
+            .filter({ hasText: 'Depot ground survey' });
+        await expect(ground).toContainText('Converting');
+        convertOne('terrain');
+        await expect(ground).toContainText('Terrain', { timeout: 300_000 });
+        await shot(ground, 'library-terrain');
     });
 
     const devices = page.getByRole('region', { name: 'Devices' });
@@ -238,6 +264,10 @@ test('screenshots', async ({ page, context }) => {
         await demo.getByRole('button', { name: 'Whole site' }).click();
         await demo.waitForTimeout(3000);
         await shot(demo, 'overview');
+        await shot(
+            demo.getByRole('region', { name: 'Fire protection' }),
+            'panel',
+        );
 
         await demo.locator('.asset-row', { hasText: 'Chiller 2' }).click();
         await demo.waitForTimeout(3000);
@@ -248,6 +278,10 @@ test('screenshots', async ({ page, context }) => {
             .click();
         await demo.waitForTimeout(3000);
         await shot(demo, 'custom-type');
+
+        await demo.locator('.asset-row', { hasText: 'Jockey pump' }).click();
+        await demo.waitForTimeout(3000);
+        await shot(demo.locator('.inspector'), 'setpoints');
 
         await demo.getByRole('tab', { name: 'What-if' }).click();
         await demo
@@ -281,6 +315,46 @@ test('screenshots', async ({ page, context }) => {
         await night.waitForTimeout(6000);
         await shot(night, 'globe');
         await night.close();
+
+        // Low and toward the ridge, so the ground's shape shows on the skyline.
+        const lowView = resolve(ROOT, 'test-results/harbour-depot-low.json');
+        writeFileSync(
+            lowView,
+            JSON.stringify({
+                ...JSON.parse(
+                    readFileSync(
+                        resolve(ROOT, 'public/samples/harbour-depot.json'),
+                        'utf8',
+                    ),
+                ),
+                camera: { headingDeg: 215, pitchDeg: -6, rangeM: 420 },
+            }),
+        );
+        const depot = await context.newPage();
+        await depot.goto('/demo?twin=harbour-depot');
+        await settle(depot, 3000);
+        await depot.locator('input[type=file]').first().setInputFiles(lowView);
+        await settle(depot);
+        await expect
+            .poll(
+                () =>
+                    depot.evaluate(
+                        () =>
+                            (
+                                window as unknown as {
+                                    __scene: {
+                                        terrain(): { loaded: boolean };
+                                    };
+                                }
+                            ).__scene.terrain().loaded,
+                    ),
+                { timeout: 30_000 },
+            )
+            .toBe(true);
+        await depot.waitForTimeout(4000);
+        await shot(depot, 'terrain');
+        await shot(depot.locator('.topbar'), 'kpis');
+        await depot.close();
     });
 
     const editor = page.getByRole('complementary', { name: 'Layout' });
@@ -317,6 +391,18 @@ test('screenshots', async ({ page, context }) => {
             }),
             'versions',
         );
+
+        // The type library: the jockey pump needs Northshore's fire tank.
+        const types = editor.locator('section', {
+            has: page.getByRole('heading', { name: 'Types', exact: true }),
+        });
+        await types
+            .getByRole('listitem')
+            .filter({ hasText: 'Jockey pump' })
+            .getByRole('button', { name: 'Add' })
+            .click();
+        await expect(types.getByRole('alert')).toBeVisible();
+        await shot(types, 'twin-types');
 
         await page.getByRole('button', { name: 'Close layout' }).click();
         await frameLayer(page, 'Wharf scan');
@@ -441,6 +527,9 @@ test('screenshots', async ({ page, context }) => {
         await page.goto('/organisation/members');
         await expect(page.getByText('viewer@example.com')).toBeVisible();
         await shot(page, 'members');
+        await page.goto('/organisation/types');
+        await expect(page.getByText('Jockey pump')).toBeVisible();
+        await shot(page, 'types');
         await page.goto('/settings/two-factor');
         await page.getByLabel('Password', { exact: true }).fill('password');
         await page.getByRole('button', { name: 'Confirm password' }).click();

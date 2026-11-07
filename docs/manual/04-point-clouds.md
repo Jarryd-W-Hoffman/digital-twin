@@ -62,7 +62,7 @@ To retry, enter an EPSG code in the box under the item if you need one, and choo
 
 1. Open a twin in the same project and choose **Layout**.
 2. Under **Library**, choose **Add** beside the scan. It's added as a layer, and the twin saves a new version.
-3. A georeferenced scan appears where it was measured. For one in local metres, set **East**, **North**, **Up**, **Heading** and **Scale**, or choose **Place on map** and click the ground, then **Save layout**. See [Layout and versions](07-layout-and-versions.md).
+3. A georeferenced scan appears where it was measured. For one in local metres, set **East**, **North**, **Up**, **Heading** and **Scale**, or choose **Place on map** and click the ground, then **Save layout**. See [Layout and versions](08-layout-and-versions.md).
 
 A scan added to a twin is shown as a tileset layer, and you can switch it off with the other uploads under **Neighbouring buildings** in the viewer's **Layers** list.
 
@@ -75,4 +75,4 @@ A scan added to a twin is shown as a tileset layer, and you can switch it off wi
 ## See also
 
 - [Projects and the library](03-projects-and-the-library.md): uploading, and large uploads.
-- [Running Meridian](12-running-meridian.md#the-converter): the converter service.
+- [Running Meridian](13-running-meridian.md#the-converter): the converter service.

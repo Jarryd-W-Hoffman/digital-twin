@@ -71,17 +71,20 @@ Direct uploads need the bucket to allow cross-origin `PUT` requests from Meridia
 
 ## The converter
 
-Point clouds are converted by a worker on the `conversions` queue, in its own image because PDAL and py3dtiles are large. In Docker it's the `converter` service and starts with the stack. Without Docker, install PDAL (from conda-forge) and `pip install "py3dtiles[las]"`, then run:
+Point clouds and DEMs are converted by a worker on the `conversions` queue, in its own image because PDAL, GDAL and py3dtiles are large. In Docker it's the `converter` service and starts with the stack. Without Docker, install PDAL, GDAL, pydelatin and quantized-mesh-encoder (from conda-forge) and `pip install "py3dtiles[las]"`, put [`docker/converter/meridian-terrain`](../../docker/converter/meridian-terrain) on the path, then run:
 
 ```bash
 php artisan queue:work conversions --queue=conversions --timeout=14400
 ```
 
-| Setting                                | What it does                                                    |
-| -------------------------------------- | --------------------------------------------------------------- |
-| `MERIDIAN_POINT_CLOUD_JOBS`            | Processes py3dtiles tiles with, default 2                       |
-| `MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES` | Longest each conversion step may run, default 240               |
-| `MERIDIAN_PDAL`, `MERIDIAN_PY3DTILES`  | Where the tools are, default `pdal` and `py3dtiles` on the path |
+| Setting                                | What it does                                                       |
+| -------------------------------------- | ------------------------------------------------------------------ |
+| `MERIDIAN_POINT_CLOUD_JOBS`            | Processes py3dtiles tiles with, default 2                          |
+| `MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES` | Longest each conversion step may run, default 240                  |
+| `MERIDIAN_PDAL`, `MERIDIAN_PY3DTILES`  | Where the tools are, default `pdal` and `py3dtiles` on the path    |
+| `MERIDIAN_TERRAIN_JOBS`                | Processes terrain tiles are made with, default 2                   |
+| `MERIDIAN_TERRAIN_TIMEOUT_MINUTES`     | Longest a terrain conversion may run, default 240                  |
+| `MERIDIAN_TERRAIN_TILER`               | Where the terrain tiler is, default `meridian-terrain` on the path |
 
 Give the converter memory and shared memory to match your largest scans; the Docker service has 2 GB of `/dev/shm`.
 
@@ -107,7 +110,7 @@ Logins are limited to 30 a minute per username, and each answer is cached for ab
 
 Each live twin needs a gateway. In Docker:
 
-1. Issue a token in the twin's **Layout → Gateway** (see [Gateways and live data](08-gateways-and-live-data.md#issue-a-token)).
+1. Issue a token in the twin's **Layout → Gateway** (see [Gateways and live data](09-gateways-and-live-data.md#issue-a-token)).
 2. Put it in `docker/.env` as `MERIDIAN_GATEWAY_TOKEN`.
 3. Start it:
 
