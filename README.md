@@ -6,6 +6,8 @@ A twin is a JSON definition. Meridian turns it into a running physical model, a 
 
 ![Overview of the Northshore twin](docs/images/overview.png)
 
+**New to Meridian?** The [user manual](docs/manual/README.md) walks through every part of it, step by step, with screenshots: projects and uploads, point clouds, the viewer, alerts and what-if, layout and versions, gateways, devices and MQTT, and running it yourself.
+
 The sample twin, **Northshore Cold Chain Hub**, is a fictional refrigerated logistics campus in Brisbane. It has two cold stores, three chillers, rooftop and canopy solar, a battery, a diesel generator, electric trucks, yard AGVs and a fire water tank described as a custom asset type. A second sample, **Harbour Depot** in Auckland, is a one-store, grid-only site, there to show that nothing in the platform is specific to the first twin.
 
 ## What it does
@@ -22,7 +24,12 @@ The sample twin, **Northshore Cold Chain Hub**, is a fictional refrigerated logi
 | **Live physics**                   | A microgrid power balance (solar, battery dispatch with peak shaving, grid, generator start delay, load shedding by priority) feeding a refrigeration plant (chiller capacity and COP that derate with ambient air, store thermal mass, door losses, stock spoilage). Vehicles drive their routes and queue for chargers.                      |
 | **3D scene**                       | The twin opens with a flight down from orbit, and **Globe** pulls back to the whole Earth, lit for the simulated time of day. Assets are extruded from their footprints. Energy and cooling flows animate along arcs, scaled by kW. Alerts raise a beacon over the asset. You can colour by status, temperature or power.                      |
 | **Alerting, time travel, what-if** | Threshold, rate-of-change and expression rules with hold times and hysteresis. A 24-hour history to scrub through. Forecasts that fork the current state and run it ahead with and without an event, then apply the event live if you choose.                                                                                                  |
+| **Devices and MQTT**               | Devices registered per project, each with its own broker login. The broker asks the control plane about every login and topic, so a device can only publish below its own project's prefix. Topics are mapped onto any asset's metrics, and every reading is kept for charts beyond the live window.                                           |
 | **Gateway**                        | A Node service that runs the model, streams it over WebSocket, and takes readings from MQTT topics or `POST /ingest`. A reading pins its metric and the model integrates from it, so the twin follows reality where sensors report and fills the gaps where they don't.                                                                        |
+
+![A project: its twins, its library and its devices](docs/images/project.png)
+
+_A project: two twins, a library holding a model, a tileset and a converted laser scan, and the devices allowed to publish readings._
 
 ![Placing an uploaded pump skid](docs/images/layout-editor.png)
 
@@ -52,7 +59,7 @@ npm install                  # also copies Cesium's static assets to public/vend
 composer run dev             # Laravel and Vite (Vite on port 5199)
 ```
 
-Log in at the app URL as `test@example.com` with password `password`. The seed creates **Northshore Logistics** with both sample twins, plus `operator@example.com` and `viewer@example.com` (same password) to try the other roles. The sample twins also run without an account at `/demo`.
+Log in at the app URL as `test@example.com` with password `password`; you land on the organisation's projects. The seed creates **Northshore Logistics** with both sample twins, plus `operator@example.com` and `viewer@example.com` (same password) to try the other roles. The sample twins also run without an account at `/demo`.
 
 To try uploads, use `public/samples/models/pump-skid.glb` as a model, and zip `public/tilesets/context/` for a tileset:
 
@@ -85,23 +92,23 @@ Custom types take readings the same way, for example `{"asset":"fire-tank","metr
 
 ### Scripts
 
-| Command                       |                                                                                                                                          |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `composer run dev`            | Laravel, queue, logs and Vite together                                                                                                   |
-| `composer test`               | Everything CI runs: Pint, Rector, the formatter and linter, PHPStan, `tsc`, 100% type coverage, Pest with 100% code coverage, and Vitest |
-| `npm run test:twin`           | Vitest only: physics, rules, history, forecasting, validation, gateway                                                                   |
-| `npm run test:e2e`            | Playwright in real Chrome with software WebGL (needs `npm run build` first)                                                              |
-| `npm run gateway [twin.json]` | The gateway, serving `public/samples/northshore.json` unless you name another                                                            |
-| `npm run generate:context`    | Rebuilds the sample 3D Tiles tileset                                                                                                     |
-| `npm run generate:model`      | Rebuilds the sample pump skid model                                                                                                      |
-| `npm run screenshots`         | Regenerates `docs/images` (see the script for the server it expects)                                                                     |
+| Command                       |                                                                                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `composer run dev`            | Laravel, queue, logs and Vite together                                                                                                                              |
+| `composer test`               | Everything CI runs: Pint, Rector, the formatter and linter, PHPStan, `tsc`, 100% type coverage, Pest with 100% code coverage, and Vitest                            |
+| `npm run test:twin`           | Vitest only: physics, rules, history, forecasting, validation, gateway                                                                                              |
+| `npm run test:e2e`            | Playwright in real Chrome with software WebGL (needs `npm run build` first)                                                                                         |
+| `npm run gateway [twin.json]` | The gateway, serving `public/samples/northshore.json` unless you name another                                                                                       |
+| `npm run generate:context`    | Rebuilds the sample 3D Tiles tileset                                                                                                                                |
+| `npm run generate:model`      | Rebuilds the sample pump skid model                                                                                                                                 |
+| `npm run screenshots`         | Regenerates `docs/images` by walking through a seeded app with the real broker and converter (needs `npm run build`, Docker and the `meridian-converter:dev` image) |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   subgraph browser [Browser]
-    P[Inertia pages: twins, members, layout editor]
+    P[Inertia pages: projects, twins, members, layout editor]
     VW[Viewer: React panels + TwinScene on Cesium]
     ST[(zustand store)]
     P -->|definition prop| ST
@@ -110,9 +117,9 @@ flowchart LR
 
   subgraph laravel [Laravel control plane]
     C[Controllers + policies]
-    A[Actions: CreateTwin, SaveTwinVersion, StoreTwinAsset, ...]
+    A[Actions: CreateTwin, SaveTwinVersion, StoreProjectAsset, ...]
     VAL[TwinDefinitionValidator]
-    DB[(organisations, memberships, projects, project_assets, twins, twin_versions)]
+    DB[(Postgres + TimescaleDB: organisations, projects, twins, versions, devices, readings)]
     DISK[(assets disk: local or S3)]
     C --> A
     A --> VAL
@@ -120,15 +127,27 @@ flowchart LR
     A --> DISK
   end
 
+  subgraph workers [Queue workers]
+    QW[default: checks direct uploads]
+    CV[conversions: PDAL + py3dtiles]
+  end
+
   subgraph core [resources/js/twin/core: no DOM]
-    E[engine, rules, history, forecast, validate]
+    E[engine, rules, history, forecast, validate, telemetry]
   end
 
   GW[gateway: runner + /ws + POST /ingest]
+  MQ[Mosquitto + go-auth]
+  DEV[devices] -->|MQTT publish| MQ
   SENS[sensors, SCADA, BMS] -->|POST /ingest| GW
+  MQ -->|login and topic checks| C
+  MQ -->|subscribed topics| GW
+  GW -->|definition, check-ins, readings| C
 
   P <-->|Inertia visits, forms| C
-  VW -->|GET twins/.../files/...| C
+  VW -->|GET assets/.../files/...| C
+  A -.->|jobs| workers
+  workers --> DISK
   ST --> E
   GW --> E
   GW <-->|frames, commands| ST
@@ -258,6 +277,14 @@ flowchart TD
   F -->|Retry, maybe with an EPSG code| J
 ```
 
+![A point cloud converting in the library, with its log](docs/images/library-converting.png)
+
+_A wharf scan at 45%: the log shows each step as the converter reaches it._
+
+![The converted scan placed beside Harbour Depot](docs/images/point-cloud.png)
+
+_The same scan, georeferenced in NZTM (EPSG:2193), landing beside Harbour Depot with no placement of its own._
+
 The job runs only in the `converter` image (`docker/converter`): Alpine's PDAL has no E57 reader and py3dtiles needs glibc, so that image is Debian with PDAL from conda-forge and py3dtiles from PyPI. Conversions get their own queue connection, `conversions`, whose `retry_after` outlasts the four-hour job timeout; it uses the same driver as `QUEUE_CONNECTION`. A failed conversion keeps the original and the last lines from the tool that failed, and is tried once, so the reason is on screen rather than lost in a retry. py3dtiles is always run with `--pyproj-always-xy`: LAS stores easting as X whatever the CRS's axis order, and without it a northing-first system such as NZTM lands on the other side of the planet. A cloud with no coordinate system (common for E57) is tiled in its own metres and starts placed at the twin's origin.
 
 #### Terrain
@@ -303,6 +330,7 @@ Uploads go into the project's library (`project_assets`), and adding one to a tw
 | Send commands (setpoints, maintenance, scenarios)                   |   ✓   |   ✓   |    ✓     |        |
 | Create projects and twins, upload, place, save and restore versions |   ✓   |   ✓   |          |        |
 | Import, save and delete types in the type library                   |   ✓   |   ✓   |          |        |
+| Issue gateway tokens, add devices, map telemetry                    |   ✓   |   ✓   |          |        |
 | Add members and change roles                                        |   ✓   |   ✓   |          |        |
 
 An organisation always keeps at least one owner: demoting or removing the last one is refused. A viewer's controls are disabled in the inspector, and the store drops their commands too.
@@ -369,6 +397,8 @@ MERIDIAN_URL=http://localhost:8000 MERIDIAN_GATEWAY_TOKEN=mgw_… npm run gatewa
 
 The gateway fetches the twin's latest version from `GET /api/gateway/definition`, polls it every few seconds (answered `304` while nothing changed), and restarts the model on each new version. Every poll is also a check-in that reports where browsers can reach it. While it has checked in within the last 30 seconds, the twin page offers a **Simulator / Live** switch and follows the gateway.
 
+![Issuing a gateway token](docs/images/gateway-token.png)
+
 Browsers get in with a ticket the control plane signs for each page view. The HMAC key is the token's SHA-256, which both sides can compute without the control plane holding the token. The ticket names the twin, the user and whether they may operate, so a viewer's socket can watch but not send commands. The same token authorises `POST /ingest`. Rotating or revoking the token cuts the gateway off.
 
 | Variable                         |                                                                     |
@@ -382,6 +412,31 @@ Browsers get in with a ticket the control plane signs for each page view. The HM
 
 ### MQTT and history
 
+```mermaid
+sequenceDiagram
+  participant D as Device
+  participant M as Mosquitto
+  participant L as Laravel
+  participant G as Gateway
+  participant B as Browsers
+  G->>M: CONNECT twin-<id> / gateway token
+  M->>L: POST /api/mqtt/<secret>/user
+  L-->>M: 200
+  G->>M: SUBSCRIBE p/<key>/depot/store/temp
+  M->>L: POST /api/mqtt/<secret>/acl (acc 4)
+  L-->>M: 200
+  D->>M: CONNECT device-<id> / mdv_…
+  M->>L: POST /api/mqtt/<secret>/user
+  L-->>M: 200, last connected noted
+  D->>M: PUBLISH p/<key>/depot/store/temp 1.3
+  M->>L: POST /api/mqtt/<secret>/acl (acc 2)
+  L-->>M: 200
+  M->>G: 1.3
+  G->>G: map onto store.tempC, pin it in the model
+  G-->>B: tick {measured: [store.tempC]}
+  G->>L: POST /api/gateway/readings (every 10 s)
+```
+
 Every project has a topic prefix, `p/<key>/`, where the key is the project's first name as a slug plus four random characters (`p/pilot-sites-ayjl/`). It doesn't change when the project is renamed. Each project's MQTT traffic sits below its prefix.
 
 A twin's `telemetry` maps MQTT topics, written relative to that prefix, onto asset metrics. Edit the mappings in the **Telemetry** section of the **Layout** panel; saving makes a new version, and the twin's gateway follows it, subscribing to new topics and dropping old ones.
@@ -393,9 +448,37 @@ A twin's `telemetry` maps MQTT topics, written relative to that prefix, onto ass
 ]
 ```
 
+Each message, in the gateway:
+
+```text
+for each mapping whose topic filter matches (prefix + topic):
+    value ← the payload as a number
+            or JSON: the number at path (dotted keys), else at "value"
+    if no number: count it on /health as unmapped, and skip
+    value ← value × scale + offset
+    pin asset.metric at value for ttlS seconds      # the model integrates from it
+    add {asset, metric, value, at} to the outbox
+```
+
 `+` matches one topic level and a final `#` the rest. A payload is a bare number, or JSON with the number at `path` (dotted keys) or at `value`. The value is multiplied by `scale` and then `offset` is added. Mappings onto a metric the asset doesn't have are skipped with a warning, and messages without a number are counted on the gateway's `/health`.
 
+![Mapping a topic onto the Seafood store's temperature](docs/images/telemetry.png)
+
 Every reading, from MQTT or `/ingest`, is also sent to the control plane at `POST /api/gateway/readings` in batches every 10 seconds, authenticated with the gateway's token. While the control plane can't be reached the gateway keeps up to 10,000 readings, dropping the oldest first. The asset's inspector charts what was recorded over the last 24 hours, 7 days or 30 days, in real time rather than the simulated clock.
+
+```text
+outbox: up to 10,000 readings, oldest dropped first
+every 10 s:
+    while the outbox has readings:
+        send the oldest 1,000 to POST /api/gateway/readings
+        refused or unreachable? keep them all and try again next time
+        accepted? drop them from the outbox
+control plane: check each against the twin's assets and a recent time window, then insert
+```
+
+![Recorded readings in the inspector](docs/images/recorded.png)
+
+_What the store's probe reported over the last day, with the morning's spike, charted from the readings table rather than the model._
 
 Readings are kept for `MERIDIAN_READINGS_RETENTION_DAYS`. In Docker, Postgres runs TimescaleDB: readings become a hypertable in day chunks, compressed after a week, and old chunks are dropped automatically. On plain Postgres or SQLite they stay an ordinary table that the scheduled `model:prune` trims.
 
@@ -403,7 +486,21 @@ Readings are kept for `MERIDIAN_READINGS_RETENTION_DAYS`. In Docker, Postgres ru
 
 Add devices under **Devices** on the project page. Each one gets a broker login, `device-<id>`, and a password that is shown once and can be reset; only its SHA-256 is kept. The page shows when each device last connected.
 
+![A project's devices](docs/images/devices.png)
+
 Mosquitto asks the control plane about every login and topic, through [mosquitto-go-auth](https://github.com/iegomez/mosquitto-go-auth)'s HTTP backend:
+
+```text
+login(username, password):
+    device-<uuid> → the device exists and sha256(password) matches; note last connected
+    twin-<uuid>   → sha256(password) matches the twin's gateway token
+    otherwise     → refuse
+
+acl(username, topic, acc):                 # acc: 1 read, 2 write, 4 subscribe
+    device → acc is write,            project ← the device's project
+    twin   → acc is read or subscribe, project ← the twin's project (while it has a token)
+    allow only if topic starts with p/<project key>/ and has something after it
+```
 
 - **Devices** may publish below their project's prefix, and nothing else: no subscribing, and no other project's topics.
 - **Gateways** log in as `twin-<id>` with the twin's gateway token. They may subscribe to and receive their twin's project topics, and may not publish.
@@ -416,6 +513,8 @@ The Docker `gateway` profile starts the broker on port 1883. Set the same `MERID
 ```bash
 mosquitto_pub -h localhost -p 1883 -u device-<id> -P mdv_… -t 'p/pilot-sites-ayjl/depot/store/temp' -m -17.5
 ```
+
+![The twin's gateway, online and connected to the broker](docs/images/gateway-online.png)
 
 The broker speaks plain MQTT. Put it behind TLS (port 8883) before devices connect over networks you don't control.
 
@@ -624,7 +723,7 @@ A model always has a placement. A tileset without one keeps its own georeference
 
 The validator reports every problem at once: unknown kinds, zones and types, dangling `fedBy` and `cools` references, feed cycles, a missing main bus, stops off a route, rules without a target, scenarios aimed at assets that don't exist, malformed types, and layers with no URL or a bad placement.
 
-![Harbour Depot with the placed skid](docs/images/harbour-depot.png)
+![Harbour Depot with the placed skid and a converted scan](docs/images/point-cloud.png)
 
 ![Pulled back to the whole Earth](docs/images/globe.png)
 
