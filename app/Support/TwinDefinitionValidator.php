@@ -7,21 +7,12 @@ namespace App\Support;
 /**
  * Mirrors resources/js/twin/core/validate.ts message for message, so a twin the
  * control plane accepts is one the viewer and gateway can run. Both are held to
- * tests/fixtures/definition-cases.json.
+ * tests/fixtures/definition-cases.json. Checks of shape live in the schema both
+ * read (DefinitionSchema); these are the ones that need the whole definition:
+ * references, duplicates, cycles and expressions.
  */
 final readonly class TwinDefinitionValidator
 {
-    private const array KINDS = [
-        'site', 'weather', 'grid', 'solar', 'battery', 'genset', 'bus',
-        'chiller', 'coldstore', 'building', 'charger', 'vehicle', 'custom',
-    ];
-
-    private const array SHAPES = ['box', 'cylinder'];
-
-    private const int MAX_KPIS = 8;
-
-    private const array STATUSES = ['running', 'standby', 'off', 'fault', 'maintenance'];
-
     /**
      * Names every custom type's expressions can read besides its own.
      */
@@ -31,26 +22,20 @@ final readonly class TwinDefinitionValidator
 
     private const string METRIC_KEY = '/^[a-z][A-Za-z0-9_]{0,63}$/';
 
-    private const string PATH = '/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/';
+    public function __construct(private DefinitionSchema $schema = new DefinitionSchema()) {}
 
     /**
      * @return list<string>
      */
     public function errors(mixed $definition): array
     {
+        $errors = $this->schema->errors($definition);
+
         if (! $this->isObject($definition)) {
-            return ['Definition must be a JSON object'];
+            return $errors;
         }
 
         /** @var array<string, mixed> $definition */
-        $errors = [];
-
-        foreach (['id', 'name'] as $field) {
-            if (! $this->isText($definition[$field] ?? null)) {
-                $errors[] = 'Missing '.$field;
-            }
-        }
-
         $origin = $this->object($definition['origin'] ?? null);
         $lon = $origin['lon'] ?? null;
         $lat = $origin['lat'] ?? null;
@@ -63,26 +48,8 @@ final readonly class TwinDefinitionValidator
             $errors[] = 'origin.lat must be -90..90';
         }
 
-        foreach (['tariff', 'climate', 'camera'] as $field) {
-            if (! $this->isObject($definition[$field] ?? null)) {
-                $errors[] = 'Missing '.$field;
-            }
-        }
-
         if (! $this->isList($definition['assets'] ?? null)) {
-            return [...$errors, 'assets must be an array'];
-        }
-
-        foreach (['zones', 'routes', 'rules', 'scenarios'] as $field) {
-            if (! $this->isList($definition[$field] ?? null)) {
-                $errors[] = $field.' must be an array';
-            }
-        }
-
-        foreach (['types', 'tilesets', 'models', 'telemetry', 'kpis', 'panels'] as $field) {
-            if (array_key_exists($field, $definition) && ! $this->isList($definition[$field])) {
-                $errors[] = $field.' must be an array';
-            }
+            return $this->unique($errors);
         }
 
         /** @var list<array{string, string}> $refs */
@@ -92,46 +59,43 @@ final readonly class TwinDefinitionValidator
         /** @var array<string, array<string, mixed>> $byId */
         $byId = [];
 
-        foreach ($this->items($definition['assets']) as $asset) {
-            if (! $this->isObject($asset) || ! $this->isText($asset['id'] ?? null)) {
-                $errors[] = 'An asset has no id';
+        foreach ($this->objects($definition['assets']) as $asset) {
+            $id = $asset['id'] ?? null;
 
+            if (! $this->isText($id)) {
                 continue;
             }
 
-            /** @var array<string, mixed> $asset */
             /** @var string $id */
-            $id = $asset['id'];
-
             if (array_key_exists($id, $byId)) {
                 $errors[] = 'Duplicate asset id '.$id;
             }
 
             $byId[$id] = $asset;
-
-            if (! in_array($asset['kind'] ?? null, self::KINDS, true)) {
-                $errors[] = sprintf('%s: unknown kind %s', $id, $this->describe($asset, 'kind'));
-            }
         }
 
-        $zones = $this->ids($definition['zones'] ?? null);
-        $routes = $this->ids($definition['routes'] ?? null);
+        $zones = [];
+
+        foreach ($this->objects($definition['zones'] ?? null) as $zone) {
+            $id = $zone['id'] ?? null;
+
+            if (! $this->isText($id)) {
+                continue;
+            }
+
+            /** @var string $id */
+            if (in_array($id, $zones, true)) {
+                $errors[] = 'Duplicate zone id '.$id;
+            }
+
+            $zones[] = $id;
+        }
+
+        $routes = array_map(fn (array $route): mixed => $route['id'] ?? null, $this->objects($definition['routes'] ?? null));
 
         foreach ($byId as $id => $asset) {
             $id = (string) $id;
             $kind = $asset['kind'] ?? null;
-
-            if (! array_key_exists('footprint', $asset) && ! array_key_exists('position', $asset) && $kind !== 'vehicle' && $kind !== 'site') {
-                $errors[] = $id.': needs a footprint or position';
-            }
-
-            if (array_key_exists('footprint', $asset) && ! $this->isPolygon($asset['footprint'])) {
-                $errors[] = $id.': footprint needs 3+ points';
-            }
-
-            if (array_key_exists('position', $asset) && ! $this->isPoint($asset['position'])) {
-                $errors[] = $id.': position must be [east, north]';
-            }
 
             if (array_key_exists('zone', $asset) && $asset['zone'] !== '' && ! in_array($asset['zone'], $zones, true)) {
                 $errors[] = sprintf('%s: unknown zone %s', $id, $this->describe($asset, 'zone'));
@@ -157,6 +121,7 @@ final readonly class TwinDefinitionValidator
                 $errors[] = sprintf('%s: unknown type %s', $id, $this->describe($asset, 'type'));
             }
 
+            // A cycle would otherwise hang the feed-tree walk.
             $seen = [$id => true];
 
             for ($cursor = $asset['fedBy'] ?? null; is_string($cursor); $cursor = $byId[$cursor]['fedBy'] ?? null) {
@@ -177,24 +142,13 @@ final readonly class TwinDefinitionValidator
         }
 
         foreach ($this->objects($definition['routes'] ?? null) as $route) {
-            $name = $this->label($route['id'] ?? null);
             $length = count($this->items($route['path'] ?? null));
-
-            if (! $this->isList($route['path'] ?? null) || $length < 2) {
-                $errors[] = sprintf('Route %s: path needs 2+ points', $name);
-            }
 
             foreach ($this->objects($route['stops'] ?? null) as $stop) {
                 $at = $stop['at'] ?? null;
 
-                if (! is_int($at) || $at < 0 || $at >= $length) {
-                    $errors[] = sprintf('Route %s: stop at %s is off the path', $name, $this->describe($stop, 'at'));
-                }
-
-                $dwell = $stop['dwellS'] ?? null;
-
-                if (! $this->isNumber($dwell) || $dwell <= 0) {
-                    $errors[] = sprintf('Route %s: stop dwell must be positive', $name);
+                if (is_int($at) && $at >= $length) {
+                    $errors[] = sprintf('Route %s: stop at %s is off the path', $this->label($route['id'] ?? null), $this->describe($stop, 'at'));
                 }
             }
         }
@@ -202,38 +156,48 @@ final readonly class TwinDefinitionValidator
         foreach ($this->objects($definition['rules'] ?? null) as $rule) {
             $name = $this->label($rule['id'] ?? null);
 
-            if (! array_key_exists('kind', $rule) && ! array_key_exists('asset', $rule)) {
-                $errors[] = sprintf('Rule %s: needs a kind or an asset', $name);
-            }
-
             if (array_key_exists('asset', $rule) && ! array_key_exists($this->describe($rule, 'asset'), $byId)) {
                 $errors[] = sprintf('Rule %s: unknown asset %s', $name, $this->describe($rule, 'asset'));
             }
 
-            if (array_key_exists('when', $rule)) {
-                // Which names an asset has depends on its kind, so only the
-                // gateway knows; here the expressions must parse.
-                $this->checkExpression($errors, sprintf('Rule %s: when', $name), $rule['when'], null, $refs);
-
-                if (array_key_exists('clearWhen', $rule)) {
-                    $this->checkExpression($errors, sprintf('Rule %s: clearWhen', $name), $rule['clearWhen'], null, $refs);
-                }
-
+            if (! array_key_exists('when', $rule)) {
                 continue;
             }
 
-            if (! in_array($rule['op'] ?? null, ['gt', 'lt'], true)) {
-                $errors[] = sprintf('Rule %s: op must be gt or lt', $name);
-            }
+            // Which names an asset has depends on its kind, so only the
+            // gateway knows; here the expressions must parse.
+            $this->checkExpression($errors, sprintf('Rule %s: when', $name), $rule['when'], null, $refs);
 
-            $overS = $this->object($rule['change'] ?? null)['overS'] ?? null;
-
-            if (array_key_exists('change', $rule) && (! $this->isObject($rule['change']) || ! $this->isNumber($overS) || $overS <= 0)) {
-                $errors[] = sprintf('Rule %s: change.overS must be positive', $name);
+            if (array_key_exists('clearWhen', $rule)) {
+                $this->checkExpression($errors, sprintf('Rule %s: clearWhen', $name), $rule['clearWhen'], null, $refs);
             }
         }
 
-        $this->checkFigures($errors, $definition, $refs);
+        // Figures for the top bar and site summary: site-wide, so they read
+        // other assets by reference and have no bare names of their own.
+        foreach ($this->items($definition['kpis'] ?? null) as $kpi) {
+            $this->checkReadout($errors, 'KPI', $kpi, $refs);
+        }
+
+        foreach ($this->objects($definition['panels'] ?? null) as $panel) {
+            $title = $panel['title'] ?? null;
+
+            if (! $this->isText($title)) {
+                continue;
+            }
+
+            /** @var string $title */
+            $owner = 'Panel '.$title;
+
+            foreach ($this->items($panel['items'] ?? null) as $item) {
+                $this->checkReadout($errors, $owner, $item, $refs);
+            }
+
+            if (array_key_exists('chart', $panel)) {
+                $chart = $panel['chart'];
+                $this->checkReadout($errors, $owner, $this->isObject($chart) ? ['label' => 'chart', ...$chart] : $chart, $refs);
+            }
+        }
 
         foreach ($refs as [$owner, $asset]) {
             if (! array_key_exists($asset, $byId)) {
@@ -249,10 +213,48 @@ final readonly class TwinDefinitionValidator
             }
         }
 
-        $this->checkLayers($errors, $definition);
-        $this->checkTelemetry($errors, $definition, $byId);
+        // Context layers share one set of ids, across tilesets and models.
+        $layers = [];
 
-        return $errors;
+        foreach (['tilesets', 'models'] as $field) {
+            foreach ($this->objects($definition[$field] ?? null) as $layer) {
+                $id = $layer['id'] ?? null;
+
+                if (! $this->isText($id)) {
+                    continue;
+                }
+
+                /** @var string $id */
+                if (in_array($id, $layers, true)) {
+                    $errors[] = 'Duplicate layer id '.$id;
+                }
+
+                $layers[] = $id;
+            }
+        }
+
+        // Telemetry: which MQTT topics feed which metrics. Only the gateway knows
+        // every kind's metrics, so it checks the metric when it applies one.
+        foreach ($this->objects($definition['telemetry'] ?? null) as $mapping) {
+            $topic = $mapping['topic'] ?? null;
+
+            if (! $this->isText($topic)) {
+                continue;
+            }
+
+            /** @var string $topic */
+            $owner = 'Telemetry '.$topic;
+
+            if (! $this->isTopicFilter($topic)) {
+                $errors[] = $owner.': bad topic filter';
+            }
+
+            if (! array_key_exists($this->describe($mapping, 'asset'), $byId)) {
+                $errors[] = sprintf('%s: unknown asset %s', $owner, $this->describe($mapping, 'asset'));
+            }
+        }
+
+        return $this->unique($errors);
     }
 
     /**
@@ -268,12 +270,13 @@ final readonly class TwinDefinitionValidator
             return ['errors' => ['A type must be a JSON object'], 'reads' => []];
         }
 
-        $errors = [];
+        $wrapped = ['types' => [$type]];
+        $errors = $this->schema->errors($wrapped, 'types');
         /** @var list<array{string, string}> $refs */
         $refs = [];
-        $this->checkTypes($errors, ['types' => [$type]], $refs);
+        $this->checkTypes($errors, $wrapped, $refs);
 
-        return ['errors' => $errors, 'reads' => array_values(array_unique(array_column($refs, 1)))];
+        return ['errors' => $this->unique($errors), 'reads' => array_values(array_unique(array_column($refs, 1)))];
     }
 
     /**
@@ -296,102 +299,173 @@ final readonly class TwinDefinitionValidator
     }
 
     /**
-     * Which MQTT topics feed which metrics. Only the gateway knows every kind's
-     * metrics, so it checks the metric when it applies a mapping.
-     *
-     * @param  list<string>  $errors
-     * @param  array<string, mixed>  $definition
-     * @param  array<string, array<string, mixed>>  $assets
-     */
-    private function checkTelemetry(array &$errors, array $definition, array $assets): void
-    {
-        foreach ($this->items($definition['telemetry'] ?? null) as $mapping) {
-            if (! $this->isObject($mapping) || ! $this->isText($mapping['topic'] ?? null)) {
-                $errors[] = 'A telemetry mapping has no topic';
-
-                continue;
-            }
-
-            /** @var array<string, mixed> $mapping */
-            /** @var string $topic */
-            $topic = $mapping['topic'];
-            $owner = 'Telemetry '.$topic;
-
-            if (! $this->isTopicFilter($topic)) {
-                $errors[] = $owner.': bad topic filter';
-            }
-
-            if (! array_key_exists($this->describe($mapping, 'asset'), $assets)) {
-                $errors[] = sprintf('%s: unknown asset %s', $owner, $this->describe($mapping, 'asset'));
-            }
-
-            $metric = $mapping['metric'] ?? null;
-
-            if (! is_string($metric) || preg_match(self::METRIC_KEY, $metric) !== 1) {
-                $errors[] = $owner.': metric must be a camelCase identifier';
-            }
-
-            if (array_key_exists('path', $mapping) && (! is_string($mapping['path']) || preg_match(self::PATH, $mapping['path']) !== 1)) {
-                $errors[] = $owner.': path must be dotted keys';
-            }
-
-            foreach (['scale', 'offset'] as $field) {
-                if (array_key_exists($field, $mapping) && ! $this->isNumber($mapping[$field])) {
-                    $errors[] = sprintf('%s: %s must be a number', $owner, $field);
-                }
-            }
-
-            if (array_key_exists('ttlS', $mapping) && (! $this->isNumber($mapping['ttlS']) || $mapping['ttlS'] <= 0)) {
-                $errors[] = $owner.': ttlS must be positive';
-            }
-        }
-    }
-
-    /**
-     * Figures for the top bar and site summary: site-wide, so they read other
-     * assets by reference and have no bare names of their own.
+     * What a type needs beyond its shape: unique metrics and states, a
+     * primary among its metrics, and expressions that read only what the
+     * type has.
      *
      * @param  list<string>  $errors
      * @param  array<string, mixed>  $definition
      * @param  list<array{string, string}>  $refs
+     * @return array<string, true>
      */
-    private function checkFigures(array &$errors, array $definition, array &$refs): void
+    private function checkTypes(array &$errors, array $definition, array &$refs): array
     {
-        $kpis = $this->items($definition['kpis'] ?? null);
+        $types = [];
 
-        if (count($kpis) > self::MAX_KPIS) {
-            $errors[] = sprintf('At most %d KPIs fit in the top bar', self::MAX_KPIS);
-        }
+        foreach ($this->objects($definition['types'] ?? null) as $type) {
+            $id = $type['id'] ?? null;
 
-        foreach ($kpis as $kpi) {
-            $this->checkReadout($errors, 'KPI', $kpi, $refs);
-        }
-
-        foreach ($this->items($definition['panels'] ?? null) as $panel) {
-            $title = $this->isObject($panel) ? ($panel['title'] ?? null) : null;
-
-            if (! $this->isText($title)) {
-                $errors[] = 'A panel needs a title';
-
+            if (! is_string($id) || preg_match(self::ID, $id) !== 1) {
                 continue;
             }
 
-            /** @var array<string, mixed> $panel */
-            /** @var string $title */
-            $owner = 'Panel '.$title;
-
-            if (array_key_exists('items', $panel) && ! $this->isList($panel['items'])) {
-                $errors[] = $owner.': items must be an array';
+            if (array_key_exists($id, $types)) {
+                $errors[] = 'Duplicate type id '.$id;
             }
 
-            foreach ($this->items($panel['items'] ?? null) as $item) {
-                $this->checkReadout($errors, $owner, $item, $refs);
+            $types[$id] = true;
+            $keys = [];
+
+            foreach ($this->objects($type['metrics'] ?? null) as $metric) {
+                $key = $metric['key'] ?? null;
+
+                if (! $this->isKey($key)) {
+                    continue;
+                }
+
+                /** @var string $key */
+                if (in_array($key, $keys, true)) {
+                    $errors[] = sprintf('Type %s: duplicate metric %s', $id, $key);
+                }
+
+                $keys[] = $key;
             }
 
-            if (array_key_exists('chart', $panel)) {
-                $chart = $panel['chart'];
-                $this->checkReadout($errors, $owner, $this->isObject($chart) ? ['label' => 'chart', ...$chart] : $chart, $refs);
+            if (! in_array($type['primary'] ?? null, $keys, true)) {
+                $errors[] = sprintf('Type %s: primary must be one of its metrics', $id);
             }
+
+            $states = [];
+
+            foreach ($this->objects($type['states'] ?? null) as $state) {
+                $name = $state['id'] ?? null;
+
+                if (! $this->isKey($name)) {
+                    continue;
+                }
+
+                /** @var string $name */
+                if (in_array($name, $states, true)) {
+                    $errors[] = sprintf('Type %s: duplicate state %s', $id, $name);
+                }
+
+                $states[] = $name;
+
+                if (in_array($name, $keys, true) || in_array($name, self::TYPE_BUILTINS, true)) {
+                    $errors[] = sprintf('Type %s: state %s clashes with a metric or built-in name', $id, $name);
+                }
+            }
+
+            $allowed = [...$keys, ...$states, ...self::TYPE_BUILTINS];
+
+            foreach ($this->objects($type['metrics'] ?? null) as $metric) {
+                $key = $this->describe($metric, 'key');
+
+                if (! in_array($key, $keys, true)) {
+                    continue;
+                }
+
+                $owner = sprintf('Type %s: metric %s', $id, $key);
+
+                if (array_key_exists('expr', $metric) && ! array_key_exists('setpoint', $metric)) {
+                    $this->checkExpression($errors, $owner, $metric['expr'], $allowed, $refs);
+                }
+
+                $setpoint = $this->object($metric['setpoint'] ?? null);
+                $min = $setpoint['min'] ?? null;
+                $max = $setpoint['max'] ?? null;
+
+                if ($this->isNumber($min) && $this->isNumber($max) && $min >= $max) {
+                    $errors[] = $owner.' setpoint needs a min below its max';
+                }
+            }
+
+            $transitions = $this->objects($type['transitions'] ?? null);
+
+            if ($transitions !== [] && $states === []) {
+                $errors[] = sprintf('Type %s: transitions need states', $id);
+            } else {
+                foreach ($transitions as $transition) {
+                    $from = $this->describe($transition, 'from');
+                    $to = $this->describe($transition, 'to');
+
+                    if ($from !== '*' && ! in_array($from, $states, true)) {
+                        $errors[] = sprintf('Type %s: transition from unknown state %s', $id, $from);
+                    }
+
+                    if (! in_array($to, $states, true)) {
+                        $errors[] = sprintf('Type %s: transition to unknown state %s', $id, $to);
+
+                        continue;
+                    }
+
+                    $this->checkExpression($errors, sprintf('Type %s: transition to %s', $id, $to), $transition['when'] ?? null, $allowed, $refs);
+                }
+            }
+
+            if (! $this->isObject($type['visual'] ?? null)) {
+                $errors[] = sprintf('Type %s: visual.color must be a #rrggbb colour', $id);
+                $errors[] = sprintf('Type %s: visual.shape must be box or cylinder', $id);
+            }
+        }
+
+        return $types;
+    }
+
+    private function isKey(mixed $value): bool
+    {
+        return is_string($value) && preg_match(self::METRIC_KEY, $value) === 1 && $value !== 'state';
+    }
+
+    /**
+     * @param  list<string>  $errors
+     * @return list<string>
+     */
+    private function unique(array $errors): array
+    {
+        return array_values(array_unique($errors));
+    }
+
+    /**
+     * Checks one expression: that it parses, and reads only names in $allowed
+     * (when given). References to other assets are collected for checking
+     * once every asset is known.
+     *
+     * @param  list<string>  $errors
+     * @param  list<string>|null  $allowed
+     * @param  list<array{string, string}>  $refs
+     */
+    private function checkExpression(array &$errors, string $owner, mixed $source, ?array $allowed, array &$refs): void
+    {
+        $error = Expression::error($source);
+
+        if ($error !== null) {
+            $errors[] = sprintf('%s: %s', $owner, $error);
+
+            return;
+        }
+
+        /** @var string $source */
+        $read = Expression::references($source);
+
+        foreach ($read['names'] as $name) {
+            if ($allowed !== null && ! in_array($name, $allowed, true)) {
+                $errors[] = sprintf('%s uses unknown name %s', $owner, $name);
+            }
+        }
+
+        foreach ($read['refs'] as $ref) {
+            $refs[] = [$owner, $ref['asset']];
         }
     }
 
@@ -429,285 +503,6 @@ final readonly class TwinDefinitionValidator
     }
 
     /**
-     * Checks one expression: that it parses, and reads only names in $allowed
-     * (when given). References to other assets are collected for checking
-     * once every asset is known.
-     *
-     * @param  list<string>  $errors
-     * @param  list<string>|null  $allowed
-     * @param  list<array{string, string}>  $refs
-     */
-    private function checkExpression(array &$errors, string $owner, mixed $source, ?array $allowed, array &$refs): void
-    {
-        $error = Expression::error($source);
-
-        if ($error !== null) {
-            $errors[] = sprintf('%s: %s', $owner, $error);
-
-            return;
-        }
-
-        /** @var string $source */
-        $read = Expression::references($source);
-
-        foreach ($read['names'] as $name) {
-            if ($allowed !== null && ! in_array($name, $allowed, true)) {
-                $errors[] = sprintf('%s uses unknown name %s', $owner, $name);
-            }
-        }
-
-        foreach ($read['refs'] as $ref) {
-            $refs[] = [$owner, $ref['asset']];
-        }
-    }
-
-    /**
-     * Behaviour: states, then what each expression may read.
-     *
-     * @param  list<string>  $errors
-     * @param  array<string, mixed>  $type
-     * @param  list<string>  $keys
-     * @param  list<array{string, string}>  $refs
-     */
-    private function checkBehaviour(array &$errors, string $id, array $type, array $keys, array &$refs): void
-    {
-        $states = [];
-
-        foreach ($this->items($type['states'] ?? null) as $state) {
-            $name = $this->isObject($state) ? ($state['id'] ?? null) : null;
-
-            if (! is_string($name) || preg_match(self::METRIC_KEY, $name) !== 1 || $name === 'state') {
-                $errors[] = sprintf('Type %s: state ids must be camelCase identifiers other than state', $id);
-
-                continue;
-            }
-
-            /** @var array<string, mixed> $state */
-            if (in_array($name, $states, true)) {
-                $errors[] = sprintf('Type %s: duplicate state %s', $id, $name);
-            }
-
-            $states[] = $name;
-
-            if (in_array($name, $keys, true) || in_array($name, self::TYPE_BUILTINS, true)) {
-                $errors[] = sprintf('Type %s: state %s clashes with a metric or built-in name', $id, $name);
-            }
-
-            if (! in_array($state['status'] ?? null, self::STATUSES, true)) {
-                $errors[] = sprintf('Type %s: state %s status must be running, standby, off, fault or maintenance', $id, $name);
-            }
-        }
-
-        $allowed = [...$keys, ...$states, ...self::TYPE_BUILTINS];
-
-        foreach ($this->objects($type['metrics'] ?? null) as $metric) {
-            $key = $this->describe($metric, 'key');
-
-            if (! in_array($key, $keys, true)) {
-                continue;
-            }
-
-            $owner = sprintf('Type %s: metric %s', $id, $key);
-
-            if (array_key_exists('expr', $metric) && array_key_exists('setpoint', $metric)) {
-                $errors[] = $owner." can't have both an expr and a setpoint";
-            } elseif (array_key_exists('expr', $metric)) {
-                $this->checkExpression($errors, $owner, $metric['expr'], $allowed, $refs);
-            } elseif (array_key_exists('setpoint', $metric)) {
-                $setpoint = $this->object($metric['setpoint']);
-                $min = $setpoint['min'] ?? null;
-                $max = $setpoint['max'] ?? null;
-
-                if (! $this->isNumber($min) || ! $this->isNumber($max) || $min >= $max) {
-                    $errors[] = $owner.' setpoint needs a min below its max';
-                }
-
-                if (array_key_exists('step', $setpoint) && (! $this->isNumber($setpoint['step']) || $setpoint['step'] <= 0)) {
-                    $errors[] = $owner.' setpoint step must be positive';
-                }
-            }
-        }
-
-        $transitions = $this->objects($type['transitions'] ?? null);
-
-        if ($transitions !== [] && $states === []) {
-            $errors[] = sprintf('Type %s: transitions need states', $id);
-
-            return;
-        }
-
-        foreach ($transitions as $transition) {
-            $from = $this->describe($transition, 'from');
-            $to = $this->describe($transition, 'to');
-
-            if ($from !== '*' && ! in_array($from, $states, true)) {
-                $errors[] = sprintf('Type %s: transition from unknown state %s', $id, $from);
-            }
-
-            if (! in_array($to, $states, true)) {
-                $errors[] = sprintf('Type %s: transition to unknown state %s', $id, $to);
-
-                continue;
-            }
-
-            $this->checkExpression($errors, sprintf('Type %s: transition to %s', $id, $to), $transition['when'] ?? null, $allowed, $refs);
-        }
-    }
-
-    /**
-     * @param  list<string>  $errors
-     * @param  array<string, mixed>  $definition
-     * @param  list<array{string, string}>  $refs
-     * @return array<string, true>
-     */
-    private function checkTypes(array &$errors, array $definition, array &$refs): array
-    {
-        $types = [];
-
-        foreach ($this->items($definition['types'] ?? null) as $type) {
-            $id = $this->isObject($type) ? ($type['id'] ?? null) : null;
-
-            if (! is_string($id) || preg_match(self::ID, $id) !== 1) {
-                $errors[] = 'A type needs an id of lowercase letters, digits, - or _';
-
-                continue;
-            }
-
-            /** @var array<string, mixed> $type */
-            if (array_key_exists($id, $types)) {
-                $errors[] = 'Duplicate type id '.$id;
-            }
-
-            $types[$id] = true;
-
-            if (! $this->isText($type['name'] ?? null)) {
-                $errors[] = sprintf('Type %s: needs a name', $id);
-            }
-
-            $metrics = $this->items($type['metrics'] ?? null);
-
-            if ($metrics === []) {
-                $errors[] = sprintf('Type %s: needs at least one metric', $id);
-            }
-
-            $keys = [];
-
-            foreach ($metrics as $metric) {
-                $key = $this->isObject($metric) ? ($metric['key'] ?? null) : null;
-
-                if (! is_string($key) || preg_match(self::METRIC_KEY, $key) !== 1 || $key === 'state') {
-                    $errors[] = sprintf('Type %s: metric keys must be camelCase identifiers other than state', $id);
-
-                    continue;
-                }
-
-                /** @var array<string, mixed> $metric */
-                if (in_array($key, $keys, true)) {
-                    $errors[] = sprintf('Type %s: duplicate metric %s', $id, $key);
-                }
-
-                $keys[] = $key;
-
-                if (! is_string($metric['unit'] ?? null)) {
-                    $errors[] = sprintf('Type %s: metric %s needs a unit', $id, $key);
-                }
-
-                if (array_key_exists('default', $metric) && ! $this->isNumber($metric['default'])) {
-                    $errors[] = sprintf('Type %s: metric %s default must be a number', $id, $key);
-                }
-            }
-
-            if (! in_array($type['primary'] ?? null, $keys, true)) {
-                $errors[] = sprintf('Type %s: primary must be one of its metrics', $id);
-            }
-
-            $this->checkBehaviour($errors, $id, $type, $keys, $refs);
-
-            $visual = $this->object($type['visual'] ?? null);
-            $color = $visual['color'] ?? null;
-
-            if (! is_string($color) || preg_match('/^#[0-9a-f]{6}$/i', $color) !== 1) {
-                $errors[] = sprintf('Type %s: visual.color must be a #rrggbb colour', $id);
-            }
-
-            if (! in_array($visual['shape'] ?? null, self::SHAPES, true)) {
-                $errors[] = sprintf('Type %s: visual.shape must be box or cylinder', $id);
-            }
-        }
-
-        return $types;
-    }
-
-    /**
-     * @param  list<string>  $errors
-     * @param  array<string, mixed>  $definition
-     */
-    private function checkLayers(array &$errors, array $definition): void
-    {
-        $layers = [];
-
-        foreach (['tilesets' => 'Tileset', 'models' => 'Model'] as $field => $noun) {
-            foreach ($this->items($definition[$field] ?? null) as $layer) {
-                $id = $this->isObject($layer) ? ($layer['id'] ?? null) : null;
-
-                if (! $this->isText($id)) {
-                    $errors[] = sprintf('A %s has no id', mb_strtolower($noun));
-
-                    continue;
-                }
-
-                /** @var string $id */
-                /** @var array<string, mixed> $layer */
-                if (array_key_exists($id, $layers)) {
-                    $errors[] = 'Duplicate layer id '.$id;
-                }
-
-                $layers[$id] = true;
-
-                if (! $this->isText($layer['url'] ?? null)) {
-                    $errors[] = sprintf('%s %s: needs a url', $noun, $id);
-                }
-
-                if ($field === 'models' || array_key_exists('placement', $layer)) {
-                    $this->checkPlacement($errors, sprintf('%s %s', $noun, $id), $layer['placement'] ?? null);
-                }
-            }
-        }
-
-        if (array_key_exists('terrain', $definition)) {
-            $terrain = $definition['terrain'];
-
-            if (! $this->isObject($terrain) || ! $this->isText($terrain['url'] ?? null)) {
-                $errors[] = 'Terrain needs a url';
-            }
-        }
-    }
-
-    /**
-     * @param  list<string>  $errors
-     */
-    private function checkPlacement(array &$errors, string $owner, mixed $placement): void
-    {
-        if (! $this->isObject($placement)) {
-            $errors[] = $owner.': placement must be an object';
-
-            return;
-        }
-
-        foreach (['east', 'north', 'up', 'headingDeg'] as $field) {
-            if (! $this->isNumber($placement[$field] ?? null)) {
-                $errors[] = sprintf('%s: placement.%s must be a number', $owner, $field);
-            }
-        }
-
-        $scale = $placement['scale'] ?? null;
-
-        if (! $this->isNumber($scale) || $scale <= 0) {
-            $errors[] = $owner.': placement.scale must be positive';
-        }
-    }
-
-    /**
      * A decoded JSON object. An empty object decodes to [] so it counts too.
      *
      * @phpstan-assert-if-true array<string, mixed> $value
@@ -738,18 +533,6 @@ final readonly class TwinDefinitionValidator
         return is_string($value) && $value !== '';
     }
 
-    private function isPoint(mixed $value): bool
-    {
-        return $this->isList($value) && count($value) === 2 && $this->isNumber($value[0]) && $this->isNumber($value[1]);
-    }
-
-    private function isPolygon(mixed $value): bool
-    {
-        $points = $this->items($value);
-
-        return $this->isList($value) && count($points) >= 3 && array_all($points, $this->isPoint(...));
-    }
-
     /**
      * @return array<string, mixed>
      */
@@ -775,14 +558,6 @@ final readonly class TwinDefinitionValidator
         return array_values(array_filter($this->items($value), $this->isObject(...)));
     }
 
-    /**
-     * @return list<mixed>
-     */
-    private function ids(mixed $value): array
-    {
-        return array_map(fn (array $item): mixed => $item['id'] ?? null, $this->objects($value));
-    }
-
     private function label(mixed $value): string
     {
         return is_string($value) && $value !== '' ? $value : '?';
@@ -800,13 +575,6 @@ final readonly class TwinDefinitionValidator
 
     private function describeValue(mixed $value): string
     {
-        return match (true) {
-            $value === null => 'null',
-            is_bool($value) => $value ? 'true' : 'false',
-            is_string($value) => $value,
-            is_int($value), is_float($value) => (string) $value,
-            $this->isList($value) => implode(',', array_map($this->describeValue(...), $value)),
-            default => '[object Object]',
-        };
+        return $this->schema->show($value);
     }
 }

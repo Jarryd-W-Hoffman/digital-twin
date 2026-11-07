@@ -309,3 +309,56 @@ test('outsiders are sent to log in', async ({ page }) => {
   await page.goto('/twins');
   await expect(page).toHaveURL(/\/login$/);
 });
+
+test('zones and assets are edited as forms, checked as they change, and saved as one version', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+
+  await page.getByRole('button', { name: 'Zones and assets' }).click();
+  const editor = page.getByRole('complementary', { name: 'Zones and assets' });
+  const save = editor.getByRole('button', { name: 'Save', exact: true });
+  await expect(editor.getByText('No changes yet.')).toBeVisible();
+  await expect(save).toBeDisabled();
+
+  await editor.getByRole('list', { name: 'Zones' }).getByRole('button', { name: /^Cold storage/ }).click();
+  const zone = editor.getByRole('form', { name: 'Edit cold' });
+  await zone.getByLabel('Id').fill('');
+  await expect(editor.getByRole('alert')).toContainText('A zone has no id');
+  await expect(editor.getByRole('alert')).toContainText('unknown zone cold');
+  await expect(save).toBeDisabled();
+  await editor.getByRole('form', { name: 'Edit zone' }).getByLabel('Id').fill('cold');
+  await zone.getByLabel('Name').fill('Cold rooms');
+  await zone.getByLabel('Footprint').fill('0, 0\n1, 1');
+  await expect(editor.getByRole('alert')).toContainText('Zone cold: footprint needs 3+ points');
+  await zone.getByLabel('Footprint').fill('-150, -60\n60, -60\n60, 110\n-150, 110');
+
+  await editor.getByRole('button', { name: 'Add asset' }).click();
+  const asset = editor.getByRole('form', { name: 'Edit building' });
+  await asset.getByLabel('Name').fill('Workshop');
+  await asset.getByLabel('Zone').selectOption('plant');
+  await asset.getByLabel('Kind').selectOption('vehicle');
+  await expect(editor.getByRole('alert')).toContainText('building: unknown route undefined');
+  await asset.getByLabel('Kind').selectOption('building');
+  await asset.getByLabel('New parameter').fill('baseKw');
+  await asset.getByRole('button', { name: 'Add', exact: true }).click();
+  await asset.getByLabel('baseKw', { exact: true }).fill('12');
+  await expect(editor.getByText('No problems.')).toBeVisible();
+
+  await save.click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+  await expect(editor).toHaveCount(0);
+
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => {
+    const def = (window as unknown as { __twin: { getState(): { def?: { zones: { id: string; name: string }[]; assets: { id: string; name: string; zone?: string; params?: Record<string, number> }[] } } } }).__twin.getState().def;
+    return def && { zone: def.zones[0].name, asset: def.assets.find((a) => a.id === 'building') };
+  }), { timeout: 90_000 }).toEqual({ zone: 'Cold rooms', asset: expect.objectContaining({ name: 'Workshop', zone: 'plant', params: { baseKw: 12 } }) });
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Zones and assets' }).click();
+  await editor.getByRole('button', { name: 'Add zone' }).click();
+  await editor.getByRole('button', { name: 'Discard' }).click();
+  await expect(editor).toHaveCount(0);
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+});

@@ -1,0 +1,733 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$comment": "The structure of a twin definition, read by resources/js/twin/core/validate.ts (ajv) and app/Support/TwinDefinitionValidator.php (opis). x-message is what a failed check reports: {N:field} is a field of the Nth list item on the way to the problem, {value} the value found. Checks that need the rest of the definition (references, duplicates, expressions) stay in the validators. x-form tells the definition editor how to show a field.",
+    "type": "object",
+    "x-message": "Definition must be a JSON object",
+    "required": [
+        "id",
+        "name",
+        "tariff",
+        "climate",
+        "camera",
+        "assets",
+        "zones",
+        "routes",
+        "rules",
+        "scenarios"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "minLength": 1,
+            "x-message": "Missing id"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "x-message": "Missing name"
+        },
+        "tariff": {
+            "type": "object",
+            "x-message": "Missing tariff"
+        },
+        "climate": {
+            "type": "object",
+            "x-message": "Missing climate"
+        },
+        "camera": {
+            "type": "object",
+            "x-message": "Missing camera"
+        },
+        "assets": {
+            "type": "array",
+            "x-message": "assets must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "An asset has no id",
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "x-message": "An asset has no id",
+                        "title": "Id"
+                    }
+                },
+                "if": {
+                    "required": ["id"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["kind"],
+                    "properties": {
+                        "name": {
+                            "title": "Name",
+                            "x-form": "text"
+                        },
+                        "kind": {
+                            "enum": [
+                                "site",
+                                "weather",
+                                "grid",
+                                "solar",
+                                "battery",
+                                "genset",
+                                "bus",
+                                "chiller",
+                                "coldstore",
+                                "building",
+                                "charger",
+                                "vehicle",
+                                "custom"
+                            ],
+                            "title": "Kind",
+                            "x-form": "select",
+                            "x-message": "{0:id}: unknown kind {value}"
+                        },
+                        "type": {
+                            "title": "Type",
+                            "description": "Custom assets: which of the twin's types it is.",
+                            "x-form": "type",
+                            "x-when": {
+                                "kind": ["custom"]
+                            }
+                        },
+                        "zone": {
+                            "title": "Zone",
+                            "x-form": "zone"
+                        },
+                        "position": {
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "items": {
+                                "type": "number"
+                            },
+                            "title": "Position",
+                            "description": "Metres east and north of the origin.",
+                            "x-form": "point",
+                            "x-message": "{0:id}: position must be [east, north]"
+                        },
+                        "footprint": {
+                            "type": "array",
+                            "minItems": 3,
+                            "items": {
+                                "type": "array",
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "items": {
+                                    "type": "number"
+                                }
+                            },
+                            "x-message": "{0:id}: footprint needs 3+ points",
+                            "title": "Footprint",
+                            "description": "Corners in metres east and north of the origin, one per line.",
+                            "x-form": "polygon"
+                        },
+                        "height": {
+                            "title": "Height (m)",
+                            "x-form": "number"
+                        },
+                        "baseHeight": {
+                            "title": "Base height (m)",
+                            "description": "How far above the ground it starts.",
+                            "x-form": "number"
+                        },
+                        "fedBy": {
+                            "title": "Fed by",
+                            "description": "The board or supply it draws power from.",
+                            "x-form": "asset"
+                        },
+                        "cools": {
+                            "title": "Cools",
+                            "description": "Cold stores this chiller serves.",
+                            "x-form": "assets",
+                            "x-when": {
+                                "kind": ["chiller"]
+                            },
+                            "x-of-kind": "coldstore"
+                        },
+                        "route": {
+                            "title": "Route",
+                            "description": "Vehicles: the route they run.",
+                            "x-form": "route",
+                            "x-when": {
+                                "kind": ["vehicle"]
+                            }
+                        },
+                        "shedPriority": {
+                            "title": "Shed priority",
+                            "description": "Lower is shed last when the site is short of power.",
+                            "x-form": "number"
+                        },
+                        "params": {
+                            "title": "Parameters",
+                            "description": "Numbers the model uses for this kind, such as capacityKw.",
+                            "x-form": "params"
+                        }
+                    },
+                    "allOf": [
+                        {
+                            "x-message": "{0:id}: needs a footprint or position",
+                            "if": {
+                                "required": ["kind"],
+                                "properties": {
+                                    "kind": {
+                                        "enum": ["vehicle", "site"]
+                                    }
+                                }
+                            },
+                            "else": {
+                                "anyOf": [
+                                    {
+                                        "required": ["footprint"]
+                                    },
+                                    {
+                                        "required": ["position"]
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "zones": {
+            "type": "array",
+            "x-message": "zones must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "A zone has no id",
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "x-message": "A zone has no id",
+                        "title": "Id"
+                    }
+                },
+                "if": {
+                    "required": ["id"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["footprint"],
+                    "properties": {
+                        "name": {
+                            "title": "Name",
+                            "x-form": "text"
+                        },
+                        "footprint": {
+                            "type": "array",
+                            "minItems": 3,
+                            "items": {
+                                "type": "array",
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "items": {
+                                    "type": "number"
+                                }
+                            },
+                            "x-message": "Zone {0:id}: footprint needs 3+ points",
+                            "title": "Footprint",
+                            "description": "Corners in metres east and north of the origin, one per line.",
+                            "x-form": "polygon"
+                        }
+                    }
+                }
+            }
+        },
+        "routes": {
+            "type": "array",
+            "x-message": "routes must be an array",
+            "items": {
+                "required": ["path"],
+                "properties": {
+                    "path": {
+                        "type": "array",
+                        "minItems": 2,
+                        "x-message": "Route {0:id}: path needs 2+ points"
+                    },
+                    "stops": {
+                        "items": {
+                            "properties": {
+                                "at": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "x-message": "Route {0:id}: stop at {value} is off the path"
+                                },
+                                "dwellS": {
+                                    "type": "number",
+                                    "exclusiveMinimum": 0,
+                                    "x-message": "Route {0:id}: stop dwell must be positive"
+                                }
+                            },
+                            "required": ["at", "dwellS"]
+                        }
+                    }
+                }
+            }
+        },
+        "rules": {
+            "type": "array",
+            "x-message": "rules must be an array",
+            "items": {
+                "anyOf": [
+                    {
+                        "required": ["kind"]
+                    },
+                    {
+                        "required": ["asset"]
+                    }
+                ],
+                "x-message": "Rule {0:id}: needs a kind or an asset",
+                "allOf": [
+                    {
+                        "if": {
+                            "required": ["when"]
+                        },
+                        "else": {
+                            "required": ["op"],
+                            "properties": {
+                                "op": {
+                                    "enum": ["gt", "lt"],
+                                    "x-message": "Rule {0:id}: op must be gt or lt"
+                                },
+                                "change": {
+                                    "type": "object",
+                                    "x-message": "Rule {0:id}: change.overS must be positive",
+                                    "required": ["overS"],
+                                    "properties": {
+                                        "overS": {
+                                            "type": "number",
+                                            "exclusiveMinimum": 0,
+                                            "x-message": "Rule {0:id}: change.overS must be positive"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        "scenarios": {
+            "type": "array",
+            "x-message": "scenarios must be an array"
+        },
+        "types": {
+            "type": "array",
+            "x-message": "types must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "A type needs an id of lowercase letters, digits, - or _",
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                        "x-message": "A type needs an id of lowercase letters, digits, - or _",
+                        "title": "Id"
+                    }
+                },
+                "if": {
+                    "required": ["id"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["name", "metrics"],
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "x-message": "Type {0:id}: needs a name"
+                        },
+                        "metrics": {
+                            "type": "array",
+                            "x-message": "Type {0:id}: needs at least one metric",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "x-message": "Type {0:id}: metric keys must be camelCase identifiers other than state",
+                                "required": ["key"],
+                                "properties": {
+                                    "key": {
+                                        "type": "string",
+                                        "pattern": "^[a-z][A-Za-z0-9_]{0,63}$",
+                                        "not": {
+                                            "const": "state"
+                                        },
+                                        "x-message": "Type {0:id}: metric keys must be camelCase identifiers other than state",
+                                        "title": "Id"
+                                    }
+                                },
+                                "if": {
+                                    "required": ["key"],
+                                    "properties": {
+                                        "key": {
+                                            "type": "string",
+                                            "pattern": "^[a-z][A-Za-z0-9_]{0,63}$",
+                                            "not": {
+                                                "const": "state"
+                                            }
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "required": ["unit"],
+                                    "not": {
+                                        "required": ["expr", "setpoint"]
+                                    },
+                                    "x-messages": {
+                                        "not": "Type {0:id}: metric {1:key} can't have both an expr and a setpoint"
+                                    },
+                                    "properties": {
+                                        "unit": {
+                                            "type": "string",
+                                            "x-message": "Type {0:id}: metric {1:key} needs a unit"
+                                        },
+                                        "default": {
+                                            "type": "number",
+                                            "x-message": "Type {0:id}: metric {1:key} default must be a number"
+                                        },
+                                        "setpoint": {
+                                            "type": "object",
+                                            "x-message": "Type {0:id}: metric {1:key} setpoint needs a min below its max",
+                                            "required": ["min", "max"],
+                                            "properties": {
+                                                "min": {
+                                                    "type": "number",
+                                                    "x-message": "Type {0:id}: metric {1:key} setpoint needs a min below its max"
+                                                },
+                                                "max": {
+                                                    "type": "number",
+                                                    "x-message": "Type {0:id}: metric {1:key} setpoint needs a min below its max"
+                                                },
+                                                "step": {
+                                                    "type": "number",
+                                                    "exclusiveMinimum": 0,
+                                                    "x-message": "Type {0:id}: metric {1:key} setpoint step must be positive"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "states": {
+                            "items": {
+                                "type": "object",
+                                "x-message": "Type {0:id}: state ids must be camelCase identifiers other than state",
+                                "required": ["id"],
+                                "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-z][A-Za-z0-9_]{0,63}$",
+                                        "not": {
+                                            "const": "state"
+                                        },
+                                        "x-message": "Type {0:id}: state ids must be camelCase identifiers other than state",
+                                        "title": "Id"
+                                    }
+                                },
+                                "if": {
+                                    "required": ["id"],
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "pattern": "^[a-z][A-Za-z0-9_]{0,63}$",
+                                            "not": {
+                                                "const": "state"
+                                            }
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "required": ["status"],
+                                    "properties": {
+                                        "status": {
+                                            "enum": [
+                                                "running",
+                                                "standby",
+                                                "off",
+                                                "fault",
+                                                "maintenance"
+                                            ],
+                                            "x-message": "Type {0:id}: state {1:id} status must be running, standby, off, fault or maintenance"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "visual": {
+                            "type": "object",
+                            "x-message": "Type {0:id}: visual.color must be a #rrggbb colour",
+                            "required": ["color", "shape"],
+                            "properties": {
+                                "color": {
+                                    "type": "string",
+                                    "pattern": "^#[0-9a-fA-F]{6}$",
+                                    "x-message": "Type {0:id}: visual.color must be a #rrggbb colour"
+                                },
+                                "shape": {
+                                    "enum": ["box", "cylinder"],
+                                    "x-message": "Type {0:id}: visual.shape must be box or cylinder"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "tilesets": {
+            "type": "array",
+            "x-message": "tilesets must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "A tileset has no id",
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "x-message": "A tileset has no id",
+                        "title": "Id"
+                    }
+                },
+                "if": {
+                    "required": ["id"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["url"],
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "minLength": 1,
+                            "x-message": "Tileset {0:id}: needs a url"
+                        },
+                        "placement": {
+                            "type": "object",
+                            "x-message": "Tileset {0:id}: placement must be an object",
+                            "required": [
+                                "east",
+                                "north",
+                                "up",
+                                "headingDeg",
+                                "scale"
+                            ],
+                            "properties": {
+                                "east": {
+                                    "type": "number",
+                                    "x-message": "Tileset {0:id}: placement.east must be a number"
+                                },
+                                "north": {
+                                    "type": "number",
+                                    "x-message": "Tileset {0:id}: placement.north must be a number"
+                                },
+                                "up": {
+                                    "type": "number",
+                                    "x-message": "Tileset {0:id}: placement.up must be a number"
+                                },
+                                "headingDeg": {
+                                    "type": "number",
+                                    "x-message": "Tileset {0:id}: placement.headingDeg must be a number"
+                                },
+                                "scale": {
+                                    "type": "number",
+                                    "exclusiveMinimum": 0,
+                                    "x-message": "Tileset {0:id}: placement.scale must be positive"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "models": {
+            "type": "array",
+            "x-message": "models must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "A model has no id",
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "x-message": "A model has no id",
+                        "title": "Id"
+                    }
+                },
+                "if": {
+                    "required": ["id"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["url", "placement"],
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "minLength": 1,
+                            "x-message": "Model {0:id}: needs a url"
+                        },
+                        "placement": {
+                            "type": "object",
+                            "x-message": "Model {0:id}: placement must be an object",
+                            "required": [
+                                "east",
+                                "north",
+                                "up",
+                                "headingDeg",
+                                "scale"
+                            ],
+                            "properties": {
+                                "east": {
+                                    "type": "number",
+                                    "x-message": "Model {0:id}: placement.east must be a number"
+                                },
+                                "north": {
+                                    "type": "number",
+                                    "x-message": "Model {0:id}: placement.north must be a number"
+                                },
+                                "up": {
+                                    "type": "number",
+                                    "x-message": "Model {0:id}: placement.up must be a number"
+                                },
+                                "headingDeg": {
+                                    "type": "number",
+                                    "x-message": "Model {0:id}: placement.headingDeg must be a number"
+                                },
+                                "scale": {
+                                    "type": "number",
+                                    "exclusiveMinimum": 0,
+                                    "x-message": "Model {0:id}: placement.scale must be positive"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "telemetry": {
+            "type": "array",
+            "x-message": "telemetry must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "A telemetry mapping has no topic",
+                "required": ["topic"],
+                "properties": {
+                    "topic": {
+                        "type": "string",
+                        "minLength": 1,
+                        "x-message": "A telemetry mapping has no topic",
+                        "title": "Id"
+                    }
+                },
+                "if": {
+                    "required": ["topic"],
+                    "properties": {
+                        "topic": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["metric"],
+                    "properties": {
+                        "metric": {
+                            "type": "string",
+                            "pattern": "^[a-z][A-Za-z0-9_]{0,63}$",
+                            "x-message": "Telemetry {0:topic}: metric must be a camelCase identifier"
+                        },
+                        "path": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)*$",
+                            "x-message": "Telemetry {0:topic}: path must be dotted keys"
+                        },
+                        "scale": {
+                            "type": "number",
+                            "x-message": "Telemetry {0:topic}: scale must be a number"
+                        },
+                        "offset": {
+                            "type": "number",
+                            "x-message": "Telemetry {0:topic}: offset must be a number"
+                        },
+                        "ttlS": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "x-message": "Telemetry {0:topic}: ttlS must be positive"
+                        }
+                    }
+                }
+            }
+        },
+        "kpis": {
+            "type": "array",
+            "x-message": "kpis must be an array",
+            "maxItems": 8,
+            "x-messages": {
+                "maxItems": "At most 8 KPIs fit in the top bar"
+            }
+        },
+        "panels": {
+            "type": "array",
+            "x-message": "panels must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "A panel needs a title",
+                "required": ["title"],
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "x-message": "A panel needs a title"
+                    },
+                    "items": {
+                        "type": "array",
+                        "x-message": "Panel {0:title}: items must be an array"
+                    }
+                }
+            }
+        },
+        "terrain": {
+            "type": "object",
+            "x-message": "Terrain needs a url",
+            "required": ["url"],
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "x-message": "Terrain needs a url"
+                }
+            }
+        }
+    }
+}

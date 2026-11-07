@@ -7,13 +7,18 @@
         {
             "name": "header fields",
             "ops": [{ "unset": "id" }, { "set": "name", "value": "" }, { "set": "origin.lon", "value": 200 }, { "unset": "origin.lat" }, { "set": "tariff", "value": 3 }, { "unset": "camera" }],
-            "errors": ["Missing id", "Missing name", "origin.lon must be -180..180", "origin.lat must be -90..90", "Missing tariff", "Missing camera"]
+            "errors": ["Missing camera", "Missing id", "Missing name", "Missing tariff", "origin.lon must be -180..180", "origin.lat must be -90..90"]
         },
-        { "name": "assets not a list stops early", "ops": [{ "set": "assets", "value": { "a": 1 } }, { "unset": "zones" }], "errors": ["assets must be an array"] },
+        { "name": "assets not a list stops the cross-checks", "ops": [{ "set": "assets", "value": { "a": 1 } }, { "unset": "zones" }], "errors": ["assets must be an array", "zones must be an array"] },
+        {
+            "name": "zones",
+            "ops": [{ "push": "zones", "value": { "name": "Nameless" } }, { "push": "zones", "value": { "id": "yard", "footprint": [[0, 0], [1, 1]] } }, { "push": "zones", "value": 7 }],
+            "errors": ["A zone has no id", "Zone yard: footprint needs 3+ points", "Duplicate zone id yard"]
+        },
         {
             "name": "lists and optional lists",
             "ops": [{ "unset": "zones" }, { "set": "rules", "value": { "first": 1 } }, { "set": "types", "value": 4 }, { "set": "models", "value": "x" }],
-            "errors": ["zones must be an array", "rules must be an array", "types must be an array", "models must be an array", "site: unknown zone yard", "wx: unknown zone yard", "grid: unknown zone yard", "board: unknown zone yard", "plant: unknown zone yard", "store: unknown zone yard"]
+            "errors": ["models must be an array", "rules must be an array", "types must be an array", "zones must be an array", "site: unknown zone yard", "wx: unknown zone yard", "grid: unknown zone yard", "board: unknown zone yard", "plant: unknown zone yard", "store: unknown zone yard"]
         },
         {
             "name": "asset problems",
@@ -32,21 +37,7 @@
                 { "push": "assets", "value": { "id": "pin", "kind": "building", "position": [1, "x"], "zone": "yard" } },
                 { "push": "assets", "value": { "id": "shed", "kind": "building", "zone": "yard" } }
             ],
-            "errors": [
-                "wx: unknown kind volcano",
-                "grid: unknown kind undefined",
-                "An asset has no id",
-                "An asset has no id",
-                "Duplicate asset id grid",
-                "plant: fedBy unknown asset nowhere",
-                "plant: cools grid, which is not a cold store",
-                "plant: cools ghost, which is not a cold store",
-                "store: unknown zone attic",
-                "van: unknown route loop",
-                "pad: footprint needs 3+ points",
-                "pin: position must be [east, north]",
-                "shed: needs a footprint or position"
-            ]
+            "errors": ["wx: unknown kind volcano", "grid: unknown kind undefined", "An asset has no id", "pad: footprint needs 3+ points", "pin: position must be [east, north]", "shed: needs a footprint or position", "Duplicate asset id grid", "plant: fedBy unknown asset nowhere", "plant: cools grid, which is not a cold store", "plant: cools ghost, which is not a cold store", "store: unknown zone attic", "van: unknown route loop"]
         },
         {
             "name": "feed tree",
@@ -61,16 +52,7 @@
                 { "push": "rules", "value": { "id": "lost", "asset": "ghost", "op": "lt" } },
                 { "set": "scenarios.0.faults.0.target", "value": "ghost" }
             ],
-            "errors": [
-                "Route r1: path needs 2+ points",
-                "Route r1: stop at 3 is off the path",
-                "Route r1: stop dwell must be positive",
-                "Route ?: stop at undefined is off the path",
-                "Rule loose: needs a kind or an asset",
-                "Rule loose: op must be gt or lt",
-                "Rule lost: unknown asset ghost",
-                "Scenario trip: unknown target ghost"
-            ]
+            "errors": ["Route r1: path needs 2+ points", "Route r1: stop dwell must be positive", "Route ?: stop at undefined is off the path", "Rule loose: needs a kind or an asset", "Rule loose: op must be gt or lt", "Route r1: stop at 3 is off the path", "Rule lost: unknown asset ghost", "Scenario trip: unknown target ghost"]
         },
         {
             "name": "custom types",
@@ -84,22 +66,7 @@
                 { "push": "assets", "value": { "id": "p1", "kind": "custom", "type": "pump", "position": [10, 10], "zone": "yard" } },
                 { "push": "assets", "value": { "id": "p2", "kind": "custom", "position": [12, 10], "zone": "yard" } }
             ],
-            "errors": [
-                "A type needs an id of lowercase letters, digits, - or _",
-                "Type empty: needs at least one metric",
-                "Type empty: primary must be one of its metrics",
-                "Duplicate type id pump",
-                "Type pump: needs a name",
-                "Type pump: metric keys must be camelCase identifiers other than state",
-                "Type pump: metric keys must be camelCase identifiers other than state",
-                "Type pump: metric a default must be a number",
-                "Type pump: duplicate metric a",
-                "Type pump: metric a needs a unit",
-                "Type pump: primary must be one of its metrics",
-                "Type pump: visual.color must be a #rrggbb colour",
-                "Type pump: visual.shape must be box or cylinder",
-                "p2: unknown type undefined"
-            ]
+            "errors": ["A type needs an id of lowercase letters, digits, - or _", "Type empty: needs at least one metric", "Type pump: metric keys must be camelCase identifiers other than state", "Type pump: metric a default must be a number", "Type pump: metric a needs a unit", "Type pump: needs a name", "Type pump: visual.color must be a #rrggbb colour", "Type pump: visual.shape must be box or cylinder", "Type empty: primary must be one of its metrics", "Duplicate type id pump", "Type pump: duplicate metric a", "Type pump: primary must be one of its metrics", "p2: unknown type undefined"]
         },
         {
             "name": "layers",
@@ -107,14 +74,7 @@
                 { "set": "tilesets", "value": [{ "id": "city", "url": "/t/tileset.json" }, { "id": "scan", "url": "", "placement": { "east": 0, "north": 0, "up": 0, "headingDeg": 0, "scale": 0 } }, { "name": "anon" }] },
                 { "set": "models", "value": [{ "id": "city", "url": "/m.glb" }, { "id": "skid", "url": "/s.glb", "placement": { "east": 1, "north": "2", "up": 0, "headingDeg": 90, "scale": 1 } }] }
             ],
-            "errors": [
-                "Tileset scan: needs a url",
-                "Tileset scan: placement.scale must be positive",
-                "A tileset has no id",
-                "Duplicate layer id city",
-                "Model city: placement must be an object",
-                "Model skid: placement.north must be a number"
-            ]
+            "errors": ["Model city: placement must be an object", "Model skid: placement.north must be a number", "Tileset scan: placement.scale must be positive", "Tileset scan: needs a url", "A tileset has no id", "Duplicate layer id city"]
         },
         {
             "name": "telemetry that maps well",
@@ -145,21 +105,7 @@
                     ]
                 }
             ],
-            "errors": [
-                "A telemetry mapping has no topic",
-                "A telemetry mapping has no topic",
-                "Telemetry a/#/b: bad topic filter",
-                "Telemetry a/#/b: unknown asset nowhere",
-                "Telemetry a/#/b: metric must be a camelCase identifier",
-                "Telemetry a/b+: bad topic filter",
-                "Telemetry a/b+: path must be dotted keys",
-                "Telemetry a/b+: scale must be a number",
-                "Telemetry a/b+: offset must be a number",
-                "Telemetry a/b+: ttlS must be positive",
-                "Telemetry c: unknown asset undefined",
-                "Telemetry c: metric must be a camelCase identifier",
-                "Telemetry c: path must be dotted keys"
-            ]
+            "errors": ["A telemetry mapping has no topic", "Telemetry a/#/b: metric must be a camelCase identifier", "Telemetry a/b+: offset must be a number", "Telemetry a/b+: path must be dotted keys", "Telemetry a/b+: scale must be a number", "Telemetry a/b+: ttlS must be positive", "Telemetry c: metric must be a camelCase identifier", "Telemetry c: path must be dotted keys", "Telemetry a/#/b: bad topic filter", "Telemetry a/#/b: unknown asset nowhere", "Telemetry a/b+: bad topic filter", "Telemetry c: unknown asset undefined"]
         },
         {
             "name": "custom type behaviour",
@@ -167,25 +113,7 @@
                 {"set": "types", "value": [{"id": "tank", "name": "Tank", "primary": "levelPct", "metrics": [{"key": "levelPct", "unit": "%", "default": 80, "expr": "clamp(levelPct - outflowLps * dt / 600, 0, 100)"}, {"key": "outflowLps", "unit": "L/s", "expr": "draining ? 2 : 0"}, {"key": "powerKw", "unit": "kW", "expr": "pumping && {store.tempC} < 8 ? 4 : 0"}, {"key": "targetPct", "unit": "%", "default": 90, "setpoint": {"min": 0, "max": 100, "step": 5}}], "states": [{"id": "pumping", "status": "running"}, {"id": "draining", "label": "Draining", "status": "standby"}], "transitions": [{"from": "pumping", "to": "draining", "when": "levelPct >= targetPct"}, {"from": "*", "to": "pumping", "when": "levelPct < targetPct - 10 && powered"}], "visual": {"color": "#3a7ca5", "shape": "cylinder"}}, {"id": "broken", "name": "Broken", "primary": "a", "metrics": [{"key": "a", "unit": "", "expr": "a +"}, {"key": "b", "unit": "", "expr": "ghost * {nowhere.x} + hour"}, {"key": "c", "unit": "", "expr": "1", "setpoint": {"min": 0, "max": 1}}, {"key": "d", "unit": "", "setpoint": {"min": 5, "max": 5, "step": 0}}, {"key": "e", "unit": "", "expr": 3}], "states": [{"id": "on", "status": "running"}, {"id": "on", "status": "glowing"}, {"id": "a", "status": "off"}, {"id": "dt", "status": "off"}, {"id": "State"}], "transitions": [{"from": "off", "to": "on", "when": "b > 1"}, {"from": "*", "to": "nowhere", "when": "1"}, {"from": "on", "to": "on", "when": "missing"}, {"from": "on", "to": "a"}], "visual": {"color": "#000000", "shape": "box"}}, {"id": "loose", "name": "Loose", "primary": "x", "metrics": [{"key": "x", "unit": ""}], "transitions": [{"from": "*", "to": "x", "when": "1"}], "visual": {"color": "#000000", "shape": "box"}}]},
                 {"push": "assets", "value": {"id": "tank-1", "kind": "custom", "type": "tank", "position": [10, 10], "zone": "yard", "fedBy": "board", "shedPriority": 5}}
             ],
-            "errors": [
-                "Type broken: duplicate state on",
-                "Type broken: state on status must be running, standby, off, fault or maintenance",
-                "Type broken: state a clashes with a metric or built-in name",
-                "Type broken: state dt clashes with a metric or built-in name",
-                "Type broken: state ids must be camelCase identifiers other than state",
-                "Type broken: metric a: unexpected end",
-                "Type broken: metric b uses unknown name ghost",
-                "Type broken: metric c can't have both an expr and a setpoint",
-                "Type broken: metric d setpoint needs a min below its max",
-                "Type broken: metric d setpoint step must be positive",
-                "Type broken: metric e: must be text",
-                "Type broken: transition from unknown state off",
-                "Type broken: transition to unknown state nowhere",
-                "Type broken: transition to on uses unknown name missing",
-                "Type broken: transition to a: must be text",
-                "Type loose: transitions need states",
-                "Type broken: metric b refers to unknown asset nowhere"
-            ]
+            "errors": ["Type broken: metric c can't have both an expr and a setpoint", "Type broken: metric d setpoint step must be positive", "Type broken: state on status must be running, standby, off, fault or maintenance", "Type broken: state ids must be camelCase identifiers other than state", "Type broken: duplicate state on", "Type broken: state a clashes with a metric or built-in name", "Type broken: state dt clashes with a metric or built-in name", "Type broken: metric a: unexpected end", "Type broken: metric b uses unknown name ghost", "Type broken: metric d setpoint needs a min below its max", "Type broken: metric e: must be text", "Type broken: transition from unknown state off", "Type broken: transition to unknown state nowhere", "Type broken: transition to on uses unknown name missing", "Type broken: transition to a: must be text", "Type loose: transitions need states", "Type broken: metric b refers to unknown asset nowhere"]
         },
         {
             "name": "rule expressions and change rules",
@@ -196,12 +124,7 @@
                 {"push": "rules", "value": {"id": "rising", "name": "Rising", "severity": "warning", "asset": "store", "metric": "tempC", "op": "gt", "threshold": 1, "change": {"overS": 600}, "message": "x"}},
                 {"push": "rules", "value": {"id": "bad-change", "name": "x", "severity": "info", "asset": "store", "metric": "tempC", "op": "gt", "threshold": 1, "change": {"overS": 0}, "message": "x"}}
             ],
-            "errors": [
-                "Rule bad-when: when: unexpected end",
-                "Rule bad-clear: clearWhen: must be text",
-                "Rule bad-change: change.overS must be positive",
-                "Rule bad-clear: when refers to unknown asset ghost"
-            ]
+            "errors": ["Rule bad-change: change.overS must be positive", "Rule bad-when: when: unexpected end", "Rule bad-clear: clearWhen: must be text", "Rule bad-clear: when refers to unknown asset ghost"]
         },
         {
             "name": "KPIs and panels",
@@ -209,25 +132,10 @@
                 {"set": "kpis", "value": [{"label": "Store", "value": "{store.tempC}", "unit": "°C", "decimals": 1}, {"label": "Load", "value": "{board.loadKw} +", "unit": 3}, {"label": "Free", "value": "tempC * 2", "decimals": 7}, {"label": "Ghost", "value": "{ghost.x}", "decimals": 2.5}, {"value": "1"}, "x", {"label": "A", "value": "1"}, {"label": "B", "value": "1"}, {"label": "C", "value": "1"}, {"label": "D", "value": "1"}]},
                 {"set": "panels", "value": [{"title": "Cold store", "items": [{"label": "Margin", "value": "5 - {store.tempC}", "unit": "°C", "decimals": 1}], "chart": {"value": "{store.tempC}", "unit": "°C"}}, {"title": "Broken", "items": {"label": "x"}, "chart": {"label": "Trend", "value": ""}}, {"title": "Bad chart", "items": [{"label": "Ok", "value": "0"}, {"label": "Nope"}], "chart": "line"}, {"items": []}]}
             ],
-            "errors": [
-                "At most 8 KPIs fit in the top bar",
-                "KPI Load: value: unexpected end",
-                "KPI Load: unit must be text",
-                "KPI Free: value uses unknown name tempC",
-                "KPI Free: decimals must be 0 to 6",
-                "KPI Ghost: decimals must be 0 to 6",
-                "KPI: every figure needs a label",
-                "KPI: every figure needs a label",
-                "Panel Broken: items must be an array",
-                "Panel Broken: Trend: value: empty expression",
-                "Panel Bad chart: Nope: value: must be text",
-                "Panel Bad chart: every figure needs a label",
-                "A panel needs a title",
-                "KPI Ghost: value refers to unknown asset ghost"
-            ]
+            "errors": ["At most 8 KPIs fit in the top bar", "Panel Broken: items must be an array", "A panel needs a title", "KPI Load: value: unexpected end", "KPI Load: unit must be text", "KPI Free: value uses unknown name tempC", "KPI Free: decimals must be 0 to 6", "KPI Ghost: decimals must be 0 to 6", "KPI: every figure needs a label", "Panel Broken: Trend: value: empty expression", "Panel Bad chart: Nope: value: must be text", "Panel Bad chart: every figure needs a label", "KPI Ghost: value refers to unknown asset ghost"]
         },
         { "name": "terrain with a url", "ops": [{ "set": "terrain", "value": { "name": "Ground", "url": "/assets/x/files/layer.json" } }], "errors": [] },
-        { "name": "terrain without a url", "ops": [{ "set": "terrain", "value": { "name": "Ground" } }, { "set": "telemetry", "value": [{}] }], "errors": ["Terrain needs a url", "A telemetry mapping has no topic"] },
+        { "name": "terrain without a url", "ops": [{ "set": "terrain", "value": { "name": "Ground" } }, { "set": "telemetry", "value": [{}] }], "errors": ["A telemetry mapping has no topic", "Terrain needs a url"] },
         { "name": "terrain not an object", "ops": [{ "set": "terrain", "value": "hills" }], "errors": ["Terrain needs a url"] }
     ]
 }

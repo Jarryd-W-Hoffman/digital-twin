@@ -161,7 +161,9 @@ React doesn't render the scene. `TwinScene` is a plain class that owns the Cesiu
 
 ### One definition, two validators
 
-The browser validates a definition before running it, and the server validates it before saving it. The two must agree, or the control plane could accept a twin the viewer refuses. So `app/Support/TwinDefinitionValidator.php` mirrors `resources/js/twin/core/validate.ts` message for message, and both are tested against the same cases in `tests/fixtures/definition-cases.json`:
+The browser validates a definition before running it, and the server validates it before saving it. The two must agree, or the control plane could accept a twin the viewer refuses.
+
+The shape of a definition (which fields, of what type, in what range) lives in one JSON Schema, `resources/js/twin/core/definition.schema.json`, which both sides read: ajv in the browser and gateway, opis/json-schema on the server. Each check carries its message (`x-message`, with `{0:id}` naming the list item and `{value}` the value found), and the same schema tells the definition editor which fields to show and how (`title`, `description`, `x-form`). What needs the whole definition (references to zones, routes, types and assets, duplicates, feed cycles, the main bus, expressions) stays in code: `app/Support/TwinDefinitionValidator.php` mirrors `resources/js/twin/core/validate.ts` message for message. Schema problems come first, ordered by where they are in the definition, then the rest. Both are tested against the same cases in `tests/fixtures/definition-cases.json`:
 
 ```text
 for each case in definition-cases.json:
@@ -721,6 +723,8 @@ Quantized-mesh terrain to stand the site on; without it, the site sits on the pl
 
 A model always has a placement. A tileset without one keeps its own georeference, which is right for most exports (photogrammetry, BIM, point clouds converted with py3dtiles). Give it a placement when it was built in local metres. The control plane writes these entries for you when you upload, with `assetId` linking each one back to its files.
 
+Zones and assets can also be edited in the app: **Zones and assets** on the twin page lists both, and choosing one opens a form built from the schema, showing only the fields for that asset's kind (a route for a vehicle, a type for a custom asset, the stores it cools for a chiller). Footprints are typed a point per line as `east, north`. Every change is checked as you type, with the same messages the server gives, and **Save** stays off until there are none; saving writes one version noted "Edited zones and assets", and **Discard** drops the draft.
+
 The validator reports every problem at once: unknown kinds, zones and types, dangling `fedBy` and `cools` references, feed cycles, a missing main bus, stops off a route, rules without a target, scenarios aimed at assets that don't exist, malformed types, and layers with no URL or a bad placement.
 
 ![Harbour Depot with the placed skid and a converted scan](docs/images/point-cloud.png)
@@ -798,6 +802,6 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 4. **IoT: devices, MQTT and history** (done): devices registered per project with their own broker logins, a broker that asks the control plane who may publish and subscribe where, an MQTT bridge mapping topics onto any asset's metrics, gateways issued, rotated and watched from the control plane, and TimescaleDB for long-term readings and charts beyond the live window.
 5. **Customisation core** (done): behaviour for custom types as data (derived metrics written as safe expressions, state machines, setpoints, power drawn from the feed tree), expression and rate-of-change rules, KPIs and panels declared in the definition, and a type library per organisation that twins copy types from and save them to.
 6. **Terrain** (done): DEMs uploaded to the library and converted to quantized-mesh terrain by the conversions worker, which a twin can stand on.
-7. **Definition editor:** edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators.
+7. **Definition editor** (in progress): edit zones, assets, types, rules and scenarios in the app, with forms generated from one JSON Schema that also replaces the two hand-kept validators. Done: the schema and the slimmer validators, and **Zones and assets** on the twin page, a draft checked as you type and saved as one version. Next: types, rules, scenarios, KPIs and panels.
 8. **Scene editing and BIM:** drawing footprints and routes in the scene, IFC import, binding tileset features to assets.
 9. **OPC UA and actuation:** read from OPC UA servers, and write back through the custom setpoints, off by default and audited.
