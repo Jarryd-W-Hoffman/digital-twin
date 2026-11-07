@@ -13,7 +13,7 @@
         "gateway": "tsx gateway/gateway.ts",
         "generate:context": "tsx scripts/generate-context.ts",
         "generate:model": "tsx scripts/generate-sample-model.ts",
-        "screenshots": "tsx scripts/screenshots.ts",
+        "screenshots": "playwright test -c playwright.screenshots.config.ts",
         "postinstall": "node scripts/copy-cesium.mjs"
     },
     "devDependencies": {

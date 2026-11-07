@@ -1,0 +1,158 @@
+# Running Meridian
+
+This chapter is for whoever installs and looks after Meridian for a team. Meridian is a Laravel app with a few helpers around it: a queue worker for uploads, a converter for point clouds, a gateway per live twin, and an MQTT broker for devices. The Docker stack runs all of them.
+
+## What runs where
+
+```mermaid
+flowchart TB
+    subgraph Stack["Docker stack"]
+        NG["nginx + php<br/>the control plane :8085"]
+        SUP["supervisor<br/>queue worker, scheduler"]
+        CONV["converter<br/>PDAL + py3dtiles"]
+        PG[("Postgres + TimescaleDB")]
+        RD[("Redis<br/>cache, queues, sessions")]
+        RFS[("RustFS<br/>uploads (S3)")]
+        GW["gateway<br/>one twin, :8788"]
+        MQ["mosquitto<br/>MQTT :1883"]
+    end
+    Browser --> NG
+    Browser -->|"parts, direct"| RFS
+    Browser <-->|WebSocket| GW
+    NG --- PG & RD & RFS
+    SUP -->|"checks uploads"| RFS
+    CONV -->|"converts point clouds"| RFS
+    GW -->|"definition, check-ins, readings"| NG
+    MQ -->|"who may log in and publish?"| NG
+    Devices -->|publish| MQ -->|subscribed topics| GW
+```
+
+| Service        | Job                                                                              | Needed for               |
+| -------------- | -------------------------------------------------------------------------------- | ------------------------ |
+| `php`, `nginx` | The control plane                                                                | Everything               |
+| `supervisor`   | The queue worker (checks direct uploads) and the scheduler (prunes old readings) | Direct uploads, history  |
+| `converter`    | Works the `conversions` queue with PDAL and py3dtiles                            | Point clouds             |
+| `postgres`     | The database, with TimescaleDB for readings                                      | Everything               |
+| `redis`        | Cache, queues and sessions                                                       | Everything               |
+| `rustfs`       | S3-compatible storage for uploads                                                | Uploads in Docker        |
+| `gateway`      | Runs one twin live (profile `gateway`)                                           | Live twins               |
+| `mosquitto`    | The MQTT broker (profile `gateway`)                                              | Devices                  |
+| `mailpit`      | Catches outgoing mail for local testing                                          | Password resets, locally |
+
+## Start the stack
+
+```bash
+cd docker
+cp .env.example .env
+# Merge app.env.example into the project's own .env (database, Redis, RustFS hosts).
+
+docker compose up -d --build
+docker compose exec php composer install
+docker compose exec php npm install
+docker compose exec php php artisan key:generate
+docker compose exec php php artisan migrate --seed
+docker compose exec php npm run build
+```
+
+Open `http://localhost:8085` and sign in as `test@example.com` with the password `password`. For a real installation, skip `--seed`, register, and create your organisation from the switcher.
+
+## Uploads and storage
+
+By default uploads are kept on the server's disk. In Docker they go to RustFS, and browsers upload straight to it in parts:
+
+| Setting                            | What it does                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `MERIDIAN_ASSETS_DISK=s3`          | Keep uploads in S3-compatible storage (RustFS, AWS S3, MinIO…)                                   |
+| `MERIDIAN_DIRECT_UPLOADS=true`     | Browsers send files straight to storage in parts, up to `MERIDIAN_DIRECT_UPLOADS_MAX_GB` (20 GB) |
+| `MERIDIAN_DIRECT_UPLOADS_ENDPOINT` | Storage's address as browsers see it, if different from the server's view                        |
+| `MERIDIAN_MAX_UPLOAD_KB`           | Largest upload through the server itself, default 512 MB. PHP's limits must allow it too         |
+
+Direct uploads need the bucket to allow cross-origin `PUT` requests from Meridian's address and to expose the `ETag` header (in Docker, `rustfs-buckets` sets this up), and a queue worker to check each file once it arrives.
+
+## The converter
+
+Point clouds are converted by a worker on the `conversions` queue, in its own image because PDAL and py3dtiles are large. In Docker it's the `converter` service and starts with the stack. Without Docker, install PDAL (from conda-forge) and `pip install "py3dtiles[las]"`, then run:
+
+```bash
+php artisan queue:work conversions --queue=conversions --timeout=14400
+```
+
+| Setting                                | What it does                                                    |
+| -------------------------------------- | --------------------------------------------------------------- |
+| `MERIDIAN_POINT_CLOUD_JOBS`            | Processes py3dtiles tiles with, default 2                       |
+| `MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES` | Longest each conversion step may run, default 240               |
+| `MERIDIAN_PDAL`, `MERIDIAN_PY3DTILES`  | Where the tools are, default `pdal` and `py3dtiles` on the path |
+
+Give the converter memory and shared memory to match your largest scans; the Docker service has 2 GB of `/dev/shm`.
+
+## The broker
+
+The broker checks every login and topic with Meridian, using a secret they share.
+
+1. Choose a long random secret:
+
+    ```bash
+    openssl rand -hex 32
+    ```
+
+2. Put it in **both** `docker/.env` and the app's `.env` as `MERIDIAN_MQTT_AUTH_SECRET`. It may only use letters, digits, `-` and `_`. Without it, the broker won't start, and the app's broker routes answer 404.
+3. Set `MERIDIAN_MQTT_BROKER_URL` in the app's `.env` to the address devices should use, such as `mqtts://mqtt.example.com:8883`. The project page shows it.
+4. Start it with `docker compose --profile gateway up -d mosquitto`.
+
+The broker speaks plain MQTT on port 1883. **Before devices connect over networks you don't control, put it behind TLS** (port 8883), for example with a TLS-terminating proxy, or a `listener 8883` with your certificate in [`docker/mosquitto/mosquitto.conf`](../../docker/mosquitto/mosquitto.conf).
+
+Logins are limited to 30 a minute per username, and each answer is cached for about 30 seconds, so a deleted device or reset password is shut out within a minute.
+
+## The gateway
+
+Each live twin needs a gateway. In Docker:
+
+1. Issue a token in the twin's **Layout → Gateway** (see [Gateways and live data](08-gateways-and-live-data.md#issue-a-token)).
+2. Put it in `docker/.env` as `MERIDIAN_GATEWAY_TOKEN`.
+3. Start it:
+
+    ```bash
+    docker compose --profile gateway up -d gateway
+    ```
+
+Elsewhere, run `npm run gateway` from a copy of the code with these set:
+
+| Setting                        | What it does                                                          |
+| ------------------------------ | --------------------------------------------------------------------- |
+| `MERIDIAN_URL`                 | Meridian's address                                                    |
+| `MERIDIAN_GATEWAY_TOKEN`       | The twin's token                                                      |
+| `GATEWAY_HOST`, `GATEWAY_PORT` | Where it listens, default `127.0.0.1:8787`                            |
+| `GATEWAY_PUBLIC_URL`           | Where browsers reach its socket, such as `wss://twin1.example.com/ws` |
+| `GATEWAY_ORIGINS`              | Meridian's address, so browsers from it may open the socket           |
+| `MQTT_URL`                     | The broker, such as `mqtt://localhost:1883`                           |
+
+## Readings and history
+
+Readings are kept for `MERIDIAN_READINGS_RETENTION_DAYS` (365 by default). On TimescaleDB they're stored in day chunks, compressed after a week, and old chunks are dropped automatically. On plain Postgres or SQLite, the scheduler trims them each day, so make sure the scheduler runs.
+
+## Basemaps
+
+The default basemap is bundled with Meridian and makes no outside requests. To offer your own tiles in the **Basemap** menu, set `VITE_BASEMAP_URL` (a `{z}/{x}/{y}` address) and `VITE_BASEMAP_ATTRIBUTION`, then rebuild with `npm run build`.
+
+## Upgrading
+
+```bash
+git pull
+docker compose exec php composer install
+docker compose exec php npm install
+docker compose exec php php artisan migrate
+docker compose exec php npm run build
+docker compose restart supervisor converter
+docker compose --profile gateway restart gateway mosquitto
+```
+
+## Tips
+
+- **Back up two things:** the database and the uploads bucket. Everything else can be rebuilt.
+- **Check health at a glance:** `docker compose ps` shows each service's health, and a gateway's `/health` shows its MQTT connection and message counts.
+- **Look at the logs:** `docker compose logs -f php supervisor converter gateway mosquitto`.
+
+## See also
+
+- The project [README](../../README.md#configuration) lists every setting.
+- [`docker/README.md`](../../docker/README.md): the Docker stack in detail.
