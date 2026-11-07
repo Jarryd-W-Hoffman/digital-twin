@@ -18,6 +18,8 @@ final readonly class TwinDefinitionValidator
 
     private const array SHAPES = ['box', 'cylinder'];
 
+    private const int MAX_KPIS = 8;
+
     private const array STATUSES = ['running', 'standby', 'off', 'fault', 'maintenance'];
 
     /**
@@ -77,7 +79,7 @@ final readonly class TwinDefinitionValidator
             }
         }
 
-        foreach (['types', 'tilesets', 'models', 'telemetry'] as $field) {
+        foreach (['types', 'tilesets', 'models', 'telemetry', 'kpis', 'panels'] as $field) {
             if (array_key_exists($field, $definition) && ! $this->isList($definition[$field])) {
                 $errors[] = $field.' must be an array';
             }
@@ -231,6 +233,8 @@ final readonly class TwinDefinitionValidator
             }
         }
 
+        $this->checkFigures($errors, $definition, $refs);
+
         foreach ($refs as [$owner, $asset]) {
             if (! array_key_exists($asset, $byId)) {
                 $errors[] = sprintf('%s refers to unknown asset %s', $owner, $asset);
@@ -319,6 +323,87 @@ final readonly class TwinDefinitionValidator
             if (array_key_exists('ttlS', $mapping) && (! $this->isNumber($mapping['ttlS']) || $mapping['ttlS'] <= 0)) {
                 $errors[] = $owner.': ttlS must be positive';
             }
+        }
+    }
+
+    /**
+     * Figures for the top bar and site summary: site-wide, so they read other
+     * assets by reference and have no bare names of their own.
+     *
+     * @param  list<string>  $errors
+     * @param  array<string, mixed>  $definition
+     * @param  list<array{string, string}>  $refs
+     */
+    private function checkFigures(array &$errors, array $definition, array &$refs): void
+    {
+        $kpis = $this->items($definition['kpis'] ?? null);
+
+        if (count($kpis) > self::MAX_KPIS) {
+            $errors[] = sprintf('At most %d KPIs fit in the top bar', self::MAX_KPIS);
+        }
+
+        foreach ($kpis as $kpi) {
+            $this->checkReadout($errors, 'KPI', $kpi, $refs);
+        }
+
+        foreach ($this->items($definition['panels'] ?? null) as $panel) {
+            $title = $this->isObject($panel) ? ($panel['title'] ?? null) : null;
+
+            if (! $this->isText($title)) {
+                $errors[] = 'A panel needs a title';
+
+                continue;
+            }
+
+            /** @var array<string, mixed> $panel */
+            /** @var string $title */
+            $owner = 'Panel '.$title;
+
+            if (array_key_exists('items', $panel) && ! $this->isList($panel['items'])) {
+                $errors[] = $owner.': items must be an array';
+            }
+
+            foreach ($this->items($panel['items'] ?? null) as $item) {
+                $this->checkReadout($errors, $owner, $item, $refs);
+            }
+
+            if (array_key_exists('chart', $panel)) {
+                $chart = $panel['chart'];
+                $this->checkReadout($errors, $owner, $this->isObject($chart) ? ['label' => 'chart', ...$chart] : $chart, $refs);
+            }
+        }
+    }
+
+    /**
+     * A label, a value expression over references, a unit and decimals.
+     * $owner names where it sits ("KPI", "Panel Fire"); the label follows.
+     *
+     * @param  list<string>  $errors
+     * @param  list<array{string, string}>  $refs
+     */
+    private function checkReadout(array &$errors, string $owner, mixed $readout, array &$refs): void
+    {
+        $label = $this->isObject($readout) ? ($readout['label'] ?? null) : null;
+
+        if (! $this->isText($label)) {
+            $errors[] = $owner.': every figure needs a label';
+
+            return;
+        }
+
+        /** @var array<string, mixed> $readout */
+        /** @var string $label */
+        $owner = $owner === 'KPI' ? 'KPI '.$label : sprintf('%s: %s', $owner, $label);
+        $this->checkExpression($errors, $owner.': value', $readout['value'] ?? null, [], $refs);
+
+        if (array_key_exists('unit', $readout) && ! is_string($readout['unit'])) {
+            $errors[] = $owner.': unit must be text';
+        }
+
+        $decimals = $readout['decimals'] ?? null;
+
+        if (array_key_exists('decimals', $readout) && ! ($this->isNumber($decimals) && floor($decimals) === (float) $decimals && $decimals >= 0 && $decimals <= 6)) {
+            $errors[] = $owner.': decimals must be 0 to 6';
         }
     }
 

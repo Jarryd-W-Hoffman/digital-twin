@@ -87,6 +87,37 @@ function checkExpression(
     for (const ref of read.refs) refs.push([owner, ref.asset]);
 }
 
+const MAX_KPIS = 8;
+
+/**
+ * A label, a value expression over references, a unit and decimals. `owner`
+ * names where it sits ("KPI", "Panel Fire"); the figure's label follows.
+ */
+function checkReadout(
+    errors: string[],
+    owner: string,
+    r: unknown,
+    refs: [string, string][],
+): void {
+    if (!isObj(r) || !isText(r.label)) {
+        errors.push(`${owner}: every figure needs a label`);
+        return;
+    }
+    owner = owner === 'KPI' ? `KPI ${r.label}` : `${owner}: ${r.label}`;
+    checkExpression(errors, `${owner}: value`, r.value, new Set(), refs);
+    if (r.unit !== undefined && typeof r.unit !== 'string')
+        errors.push(`${owner}: unit must be text`);
+    if (
+        r.decimals !== undefined &&
+        !(
+            Number.isInteger(r.decimals) &&
+            (r.decimals as number) >= 0 &&
+            (r.decimals as number) <= 6
+        )
+    )
+        errors.push(`${owner}: decimals must be 0 to 6`);
+}
+
 function checkPlacement(errors: string[], owner: string, p: unknown): void {
     if (!isObj(p)) {
         errors.push(`${owner}: placement must be an object`);
@@ -126,7 +157,14 @@ export function validateDefinition(input: unknown): string[] {
         if (!Array.isArray(def[field]))
             errors.push(`${field} must be an array`);
     }
-    for (const field of ['types', 'tilesets', 'models', 'telemetry']) {
+    for (const field of [
+        'types',
+        'tilesets',
+        'models',
+        'telemetry',
+        'kpis',
+        'panels',
+    ]) {
         if (def[field] !== undefined && !Array.isArray(def[field]))
             errors.push(`${field} must be an array`);
     }
@@ -374,6 +412,33 @@ export function validateDefinition(input: unknown): string[] {
         )
             errors.push(`Rule ${label(r.id)}: change.overS must be positive`);
     }
+    // Figures for the top bar and site summary: site-wide, so they read
+    // other assets by reference and have no bare names of their own.
+    const kpis = list(def.kpis);
+    if (kpis.length > MAX_KPIS)
+        errors.push(`At most ${MAX_KPIS} KPIs fit in the top bar`);
+    for (const k of kpis) checkReadout(errors, 'KPI', k, refs);
+    for (const panel of list(def.panels)) {
+        if (!isObj(panel) || !isText(panel.title)) {
+            errors.push('A panel needs a title');
+            continue;
+        }
+        const owner = `Panel ${panel.title}`;
+        if (panel.items !== undefined && !Array.isArray(panel.items))
+            errors.push(`${owner}: items must be an array`);
+        for (const item of list(panel.items))
+            checkReadout(errors, owner, item, refs);
+        if (panel.chart !== undefined)
+            checkReadout(
+                errors,
+                owner,
+                isObj(panel.chart)
+                    ? { label: 'chart', ...panel.chart }
+                    : panel.chart,
+                refs,
+            );
+    }
+
     for (const [owner, asset] of refs) {
         if (!ids.has(asset))
             errors.push(`${owner} refers to unknown asset ${asset}`);

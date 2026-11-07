@@ -202,6 +202,29 @@
                 "Rule bad-change: change.overS must be positive",
                 "Rule bad-clear: when refers to unknown asset ghost"
             ]
+        },
+        {
+            "name": "KPIs and panels",
+            "ops": [
+                {"set": "kpis", "value": [{"label": "Store", "value": "{store.tempC}", "unit": "°C", "decimals": 1}, {"label": "Load", "value": "{board.loadKw} +", "unit": 3}, {"label": "Free", "value": "tempC * 2", "decimals": 7}, {"label": "Ghost", "value": "{ghost.x}", "decimals": 2.5}, {"value": "1"}, "x", {"label": "A", "value": "1"}, {"label": "B", "value": "1"}, {"label": "C", "value": "1"}, {"label": "D", "value": "1"}]},
+                {"set": "panels", "value": [{"title": "Cold store", "items": [{"label": "Margin", "value": "5 - {store.tempC}", "unit": "°C", "decimals": 1}], "chart": {"value": "{store.tempC}", "unit": "°C"}}, {"title": "Broken", "items": {"label": "x"}, "chart": {"label": "Trend", "value": ""}}, {"title": "Bad chart", "items": [{"label": "Ok", "value": "0"}, {"label": "Nope"}], "chart": "line"}, {"items": []}]}
+            ],
+            "errors": [
+                "At most 8 KPIs fit in the top bar",
+                "KPI Load: value: unexpected end",
+                "KPI Load: unit must be text",
+                "KPI Free: value uses unknown name tempC",
+                "KPI Free: decimals must be 0 to 6",
+                "KPI Ghost: decimals must be 0 to 6",
+                "KPI: every figure needs a label",
+                "KPI: every figure needs a label",
+                "Panel Broken: items must be an array",
+                "Panel Broken: Trend: value: empty expression",
+                "Panel Bad chart: Nope: value: must be text",
+                "Panel Bad chart: every figure needs a label",
+                "A panel needs a title",
+                "KPI Ghost: value refers to unknown asset ghost"
+            ]
         }
     ]
 }

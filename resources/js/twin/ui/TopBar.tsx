@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { formatMetric } from '../core/metrics.ts';
+import { compileReadout } from '../core/readouts.ts';
 import { alertsAt, useTwin } from '../state/store.ts';
 import { clock, kw } from './format.ts';
 
@@ -59,6 +61,7 @@ export function TopBar({ header }: { header?: ReactNode }) {
         return Math.min(worst, margin);
     }, Infinity);
     const islanded = v['site.islanded'] === 1;
+    const kpis = useMemo(() => def?.kpis?.map((k) => compileReadout(k)), [def]);
 
     return (
         <header className="topbar panel">
@@ -141,40 +144,53 @@ export function TopBar({ header }: { header?: ReactNode }) {
                 </div>
             )}
 
-            <div className="kpis">
-                <Kpi label="Site load" value={kw(v['site.loadKw'])} />
-                <Kpi label="Solar" value={kw(v['site.solarKw'])} />
-                <Kpi
-                    label={
-                        islanded
-                            ? 'Grid'
-                            : (v['site.gridKw'] ?? 0) < 0
-                              ? 'Export'
-                              : 'Grid import'
-                    }
-                    value={
-                        islanded ? 'Lost' : kw(Math.abs(v['site.gridKw'] ?? 0))
-                    }
-                />
-                {battery && (
+            {kpis ? (
+                <div className="kpis">
+                    {kpis.map((k) => (
+                        <Kpi
+                            key={k.metric.label}
+                            label={k.metric.label}
+                            value={formatMetric(k.metric, k.value(v))}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <div className="kpis">
+                    <Kpi label="Site load" value={kw(v['site.loadKw'])} />
+                    <Kpi label="Solar" value={kw(v['site.solarKw'])} />
                     <Kpi
-                        label="Battery"
-                        value={`${Math.round(v[`${battery.id}.socPct`] ?? 0)}%`}
-                    />
-                )}
-                {Number.isFinite(worstMargin) && (
-                    <Kpi
-                        label="Tightest store"
-                        value={
-                            worstMargin < 0
-                                ? 'Over limit'
-                                : `${worstMargin.toFixed(1)} °C`
+                        label={
+                            islanded
+                                ? 'Grid'
+                                : (v['site.gridKw'] ?? 0) < 0
+                                  ? 'Export'
+                                  : 'Grid import'
                         }
-                        note={worstMargin < 0 ? undefined : 'to limit'}
+                        value={
+                            islanded
+                                ? 'Lost'
+                                : kw(Math.abs(v['site.gridKw'] ?? 0))
+                        }
                     />
-                )}
-            </div>
-
+                    {battery && (
+                        <Kpi
+                            label="Battery"
+                            value={`${Math.round(v[`${battery.id}.socPct`] ?? 0)}%`}
+                        />
+                    )}
+                    {Number.isFinite(worstMargin) && (
+                        <Kpi
+                            label="Tightest store"
+                            value={
+                                worstMargin < 0
+                                    ? 'Over limit'
+                                    : `${worstMargin.toFixed(1)} °C`
+                            }
+                            note={worstMargin < 0 ? undefined : 'to limit'}
+                        />
+                    )}
+                </div>
+            )}
             <div className="topbar-end">
                 <button
                     className={`alert-pill ${critical ? 'is-critical' : active.length ? 'is-warning' : ''}`}

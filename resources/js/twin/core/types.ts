@@ -238,6 +238,25 @@ export interface TelemetryMapping {
     ttlS?: number;
 }
 
+/**
+ * A figure worked out from the twin's values: an expression that reads
+ * other assets as `{asset.metric}`, with how to show it.
+ */
+export interface ReadoutDef {
+    label: string;
+    value: string;
+    unit?: string;
+    decimals?: number;
+}
+
+/** A section of the site summary, with its figures and an optional chart. */
+export interface PanelDef {
+    title: string;
+    items?: ReadoutDef[];
+    /** Charted over the history the twin keeps; its label defaults to the title. */
+    chart?: Omit<ReadoutDef, 'label'> & { label?: string };
+}
+
 export interface TwinDefinition {
     id: string;
     name: string;
@@ -257,6 +276,10 @@ export interface TwinDefinition {
     models?: ModelDef[];
     types?: AssetTypeDef[];
     telemetry?: TelemetryMapping[];
+    /** Replaces the built-in figures in the top bar. */
+    kpis?: ReadoutDef[];
+    /** Added to the site summary in the inspector. */
+    panels?: PanelDef[];
 }
 
 /** Numeric state codes stored in each asset's `state` metric. */
