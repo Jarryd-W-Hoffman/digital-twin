@@ -97,6 +97,38 @@ describe('OPC UA through the gateway', { timeout: 40_000 }, () => {
     expect(after.opcua.servers).toEqual({});
   });
 
+  it('keeps what OPC UA measured when only the write switch changes, and measures it again on a new version', async () => {
+    const sim = await startSimulator({ port: 48_484 });
+    cleanups.push(sim.stop);
+    const [plc] = standaloneServers(JSON.stringify([{ name: 'Plant PLC', endpoint: sim.endpoint }]));
+    const cp = controlPlane([{ server: 'Plant PLC', node: 'ns=1;s=Store.TempC', asset: 'store', metric: 'tempC', samplingMs: 100, ttlS: 600 }], [plc!]);
+    const url = await listening(cp.server);
+    cleanups.push(() => void cp.server.close());
+    const gateway = await startGateway({
+      controlPlane: { url, token: TOKEN, pollMs: 100, flushMs: 60_000 },
+      opcua: { pkiDir: mkdtempSync(join(tmpdir(), 'meridian-gateway-pki-')) },
+      port: 0,
+    });
+    cleanups.push(() => gateway.close());
+    await vi.waitFor(() => expect(gateway.runner.tick(0).measured).toContain('store.tempC'), { timeout: 20_000 });
+    const model = gateway.runner;
+
+    cp.state.writes = true;
+    await vi.waitFor(async () => {
+      const health = await (await fetch(`http://127.0.0.1:${gateway.port}/health`)).json();
+      expect(health.opcua.writes).toBe(true);
+    });
+    expect(gateway.runner).toBe(model);
+
+    // The store's temperature holds steady, so the server says nothing new.
+    cp.state.version = 2;
+    await vi.waitFor(() => expect(gateway.version).toBe(2));
+    expect(gateway.runner).not.toBe(model);
+    const tick = gateway.runner.tick(0);
+    expect(tick.measured).toContain('store.tempC');
+    expect(tick.live.values['store.tempC']).toBe(-18.5);
+  });
+
   it('reads standalone servers as JSON, anonymous and unsecured by default', () => {
     expect(standaloneServers('[{"name": "PLC", "endpoint": "opc.tcp://plc:4840"}, {"name": "Meter", "endpoint": "opc.tcp://m:4840", "securityMode": "sign", "securityPolicy": "Basic256Sha256", "username": "u", "password": "p"}]')).toEqual([
       { name: 'PLC', endpoint: 'opc.tcp://plc:4840', securityMode: 'none', securityPolicy: 'None', username: null, password: null },
@@ -105,18 +137,22 @@ describe('OPC UA through the gateway', { timeout: 40_000 }, () => {
   });
 });
 
-function ticket(operate: boolean) {
-  const payload = Buffer.from(JSON.stringify({ twin: 'twin-1', user: 'operator-1', operate, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
+function ticket(operate: boolean, edit = false) {
+  const payload = Buffer.from(JSON.stringify({ twin: 'twin-1', user: 'operator-1', operate, edit, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
   return `${payload}.${createHmac('sha256', ticketKey(TOKEN)).update(payload).digest('base64url')}`;
 }
 
-async function socketTo(port: number, operate = true) {
-  const socket = new WebSocket(`ws://127.0.0.1:${port}/ws?ticket=${ticket(operate)}`);
+async function socketTo(port: number, operate = true, edit = false) {
+  const socket = new WebSocket(`ws://127.0.0.1:${port}/ws?ticket=${ticket(operate, edit)}`);
   const messages: ServerMessage[] = [];
   socket.on('message', (data) => messages.push(JSON.parse((data as Buffer).toString()) as ServerMessage));
   await new Promise((open) => socket.once('open', open));
   cleanups.push(() => socket.close());
-  return { socket, errors: () => messages.filter((m) => m.type === 'error').map((m) => (m as { message: string }).message) };
+  return {
+    socket,
+    errors: () => messages.filter((m) => m.type === 'error').map((m) => (m as { message: string }).message),
+    answers: () => messages.filter((m) => m.type === 'opcua-browse'),
+  };
 }
 
 describe('writing setpoints through the gateway', { timeout: 40_000 }, () => {
@@ -170,7 +206,7 @@ describe('writing setpoints through the gateway', { timeout: 40_000 }, () => {
     expect(sim.writes).toHaveLength(1);
 
     const health = await (await fetch(`http://127.0.0.1:${gateway.port}/health`)).json();
-    expect(health.opcua).toMatchObject({ written: 1, failedWrites: 0 });
+    expect(health.opcua).toMatchObject({ writes: true, written: 1, failedWrites: 0 });
   });
 
   it('tells the operator when a write fails, and records it as failed', async () => {
@@ -201,5 +237,51 @@ describe('writing setpoints through the gateway', { timeout: 40_000 }, () => {
 
     await vi.waitFor(() => expect(operator.errors()).toEqual(["Couldn't write ns=1;s=Store.Status on Plant PLC: can't write a number to a String node"]), { timeout: 10_000 });
     await vi.waitFor(() => expect(cp.state.audit).toMatchObject([{ succeeded: false, error: "can't write a number to a String node", user: 'operator-1' }]));
+  });
+});
+
+describe('browsing OPC UA servers through the gateway', { timeout: 40_000 }, () => {
+  it('lets an editor browse a project server the twin doesn’t map yet, one request at a time', async () => {
+    const sim = await startSimulator({ port: 48_483 });
+    cleanups.push(sim.stop);
+    const [plc] = standaloneServers(JSON.stringify([{ name: 'Plant PLC', endpoint: sim.endpoint }]));
+    const cp = controlPlane([], [plc!]);
+    const url = await listening(cp.server);
+    cleanups.push(() => void cp.server.close());
+    const gateway = await startGateway({
+      controlPlane: { url, token: TOKEN, pollMs: 100, flushMs: 60_000 },
+      opcua: { pkiDir: mkdtempSync(join(tmpdir(), 'meridian-gateway-pki-')) },
+      port: 0,
+    });
+    cleanups.push(() => gateway.close());
+    const editor = await socketTo(gateway.port, true, true);
+
+    editor.socket.send(JSON.stringify({ type: 'opcua-browse', id: 1, server: 'Plant PLC' }));
+    editor.socket.send(JSON.stringify({ type: 'opcua-browse', id: 2, server: 'Plant PLC' }));
+    editor.socket.send(JSON.stringify({ type: 'opcua-browse', id: 3, server: 'Elsewhere' }));
+    await vi.waitFor(() => expect(editor.answers()).toHaveLength(3), { timeout: 15_000 });
+    const answers = new Map(editor.answers().map((a) => [(a as { id: number }).id, a]));
+    expect(answers.get(2)).toEqual({ type: 'opcua-browse', id: 2, server: 'Plant PLC', node: 'i=85', error: 'Still browsing; wait for the last answer' });
+    expect(answers.get(3)).toEqual({ type: 'opcua-browse', id: 3, server: 'Elsewhere', node: 'i=85', error: 'The project has no OPC UA server called Elsewhere' });
+    const root = answers.get(1) as { children: { node: string; name: string }[] };
+    expect(root.children.map((c) => c.name)).toEqual(['Site']);
+
+    editor.socket.send(JSON.stringify({ type: 'opcua-browse', id: 4, server: 'Plant PLC', node: root.children[0]!.node }));
+    await vi.waitFor(() => expect(editor.answers()).toHaveLength(4), { timeout: 15_000 });
+    expect(editor.answers()[3]).toMatchObject({ id: 4, more: false, children: expect.arrayContaining([expect.objectContaining({ node: 'ns=1;s=Pump.StartBar', writable: true })]) });
+  });
+
+  it('keeps operators who can’t edit from browsing', async () => {
+    const cp = controlPlane([], []);
+    const url = await listening(cp.server);
+    cleanups.push(() => void cp.server.close());
+    const gateway = await startGateway({ controlPlane: { url, token: TOKEN, pollMs: 100, flushMs: 60_000 }, port: 0 });
+    cleanups.push(() => gateway.close());
+    const operator = await socketTo(gateway.port);
+
+    operator.socket.send(JSON.stringify({ type: 'opcua-browse', id: 1, server: 'Plant PLC' }));
+
+    await vi.waitFor(() => expect(operator.errors()).toEqual(['Only editors can browse OPC UA servers']));
+    expect(operator.answers()).toEqual([]);
   });
 });

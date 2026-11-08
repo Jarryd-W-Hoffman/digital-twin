@@ -157,3 +157,47 @@ describe('values for a node’s type', () => {
     expect(() => variantFor(dataType, value)).toThrow(message);
   });
 });
+
+describe('browsing OPC UA servers', { timeout: 40_000 }, () => {
+  it('lists what is below a node, with each variable’s type, value and access', async () => {
+    const sim = await simulator();
+    const { opcua } = bridge();
+
+    const root = await opcua.browse(server(sim.endpoint));
+    expect(root).toMatchObject({ node: 'i=85', more: false });
+    expect(root.children).toEqual([expect.objectContaining({ name: 'Site', kind: 'object' })]);
+
+    const site = await opcua.browse(server(sim.endpoint), root.children[0]!.node);
+    expect(site.children).toEqual([
+      { node: 'ns=1;s=Store.TempC', name: 'Store.TempC', kind: 'variable', dataType: 'Double', value: -18.5, writable: true },
+      { node: 'ns=1;s=Store.DoorOpen', name: 'Store.DoorOpen', kind: 'variable', dataType: 'Boolean', value: false, writable: true },
+      { node: 'ns=1;s=Meter.EnergyWh', name: 'Meter.EnergyWh', kind: 'variable', dataType: 'UInt32', value: 0, writable: true },
+      { node: 'ns=1;s=Store.Status', name: 'Store.Status', kind: 'variable', dataType: 'String', value: 'ok', writable: false },
+      { node: 'ns=1;s=Pump.StartBar', name: 'Pump.StartBar', kind: 'variable', dataType: 'Double', value: 6, writable: true },
+      { node: 'ns=1;s=Fan.SpeedPct', name: 'Fan.SpeedPct', kind: 'variable', dataType: 'UInt16', value: 50, writable: true },
+    ]);
+  });
+
+  it('browses on the session it already has for a server the twin uses', async () => {
+    const sim = await simulator();
+    const { opcua } = bridge();
+    await opcua.follow([server(sim.endpoint)], nodes(['ns=1;s=Store.TempC']));
+    await vi.waitFor(() => expect(opcua.health()['Plant PLC']?.status).toBe('connected'), { timeout: 15_000 });
+    sim.set('Store.TempC', -20);
+
+    const root = await opcua.browse(server(sim.endpoint));
+    const site = await opcua.browse(server(sim.endpoint), root.children[0]!.node);
+    expect(site.children[0]).toMatchObject({ name: 'Store.TempC', value: -20 });
+  });
+
+  it('says why it can’t browse: a bad node, a wrong login, or a server that isn’t there', async () => {
+    const sim = await simulator({ meridian: 'secret' });
+    const { opcua } = bridge();
+
+    await expect(
+      opcua.browse(server(sim.endpoint, { username: 'meridian', password: 'secret' }), 'ns=1;s=No.Such'),
+    ).rejects.toThrow('BadNodeIdUnknown');
+    await expect(opcua.browse(server(sim.endpoint, { username: 'meridian', password: 'wrong' }))).rejects.toThrow();
+    await expect(opcua.browse(server('opc.tcp://127.0.0.1:1/nowhere'))).rejects.toThrow();
+  });
+});

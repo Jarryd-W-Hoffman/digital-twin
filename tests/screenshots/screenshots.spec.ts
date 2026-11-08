@@ -703,27 +703,7 @@ test('screenshots', async ({ page, context }) => {
         const version = Number((await versionChip.innerText()).slice(1));
         await page.getByRole('button', { name: 'Layout', exact: true }).click();
 
-        // The jockey pump's start pressure, held by the PLC in bar.
         const opcua = editor.getByRole('region', { name: 'OPC UA' });
-        await opcua.getByRole('button', { name: 'Add OPC UA mapping' }).click();
-        await opcua.getByLabel('Node').fill('ns=1;s=Pump.StartBar');
-        await opcua.getByLabel('Asset').selectOption({ label: 'Jockey pump' });
-        await opcua.getByLabel('Metric').selectOption({ label: 'Start below' });
-        await opcua.getByLabel('Scale').fill('100');
-        await opcua.getByLabel('Sampling, ms').fill('500');
-        await opcua.getByLabel('Write setpoints').check();
-        await opcua
-            .getByRole('button', { name: 'Save OPC UA mappings' })
-            .click();
-        await expect(versionChip).toHaveText(`v${version + 1}`, {
-            timeout: 60_000,
-        });
-        const allowed = opcua.getByLabel(
-            "Write operators' setpoints to OPC UA",
-        );
-        await allowed.click();
-        await expect(allowed).toBeChecked();
-
         const gatewayPanel = editor.locator('section', {
             has: page.getByRole('heading', { name: 'Gateway' }),
         });
@@ -732,6 +712,11 @@ test('screenshots', async ({ page, context }) => {
             await gatewayPanel.getByLabel('Gateway command').inputValue(),
         )![1];
         const port = GATEWAY_PORT + 1;
+        const health = () =>
+            fetch(`http://127.0.0.1:${port}/health`).then(
+                (r) => (r.ok ? r.json() : null),
+                () => null,
+            );
         const log = openSync(
             resolve(ROOT, 'test-results/screenshots-gateway-northshore.log'),
             'w',
@@ -752,25 +737,75 @@ test('screenshots', async ({ page, context }) => {
             }),
         );
         await expect
+            .poll(health, { timeout: 60_000 })
+            .toMatchObject({ status: 'ok', version });
+        const goLive = () =>
+            expect(async () => {
+                await page.reload();
+                await expect(
+                    page.getByRole('radio', { name: 'Live' }),
+                ).toBeChecked({ timeout: 5000 });
+            }).toPass({ timeout: 60_000 });
+        await goLive();
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+
+        // Find the jockey pump's start pressure on the PLC, held in bar.
+        const nodeBrowser = opcua.getByRole('group', {
+            name: 'OPC UA browser',
+        });
+        await nodeBrowser.getByLabel('Look in').selectOption('Depot PLC');
+        await nodeBrowser.getByRole('button', { name: 'Browse' }).click();
+        await nodeBrowser.getByRole('button', { name: 'Site ›' }).click();
+        await expect(nodeBrowser.getByText('Pump.StartBar')).toBeVisible();
+        await shot(nodeBrowser, 'opcua-browser');
+        await nodeBrowser
+            .getByRole('button', { name: 'Map ns=1;s=Pump.StartBar' })
+            .click();
+        await opcua.getByLabel('Asset').selectOption({ label: 'Jockey pump' });
+        await opcua.getByLabel('Metric').selectOption({ label: 'Start below' });
+        await opcua.getByLabel('Scale').fill('100');
+        await opcua.getByLabel('Sampling, ms').fill('500');
+        await opcua.getByLabel('Write setpoints').check();
+        await opcua
+            .getByRole('button', { name: 'Save OPC UA mappings' })
+            .click();
+        await expect(versionChip).toHaveText(`v${version + 1}`, {
+            timeout: 60_000,
+        });
+        const allowed = opcua.getByLabel(
+            "Write operators' setpoints to OPC UA",
+        );
+        await allowed.click();
+        await expect(allowed).toBeChecked();
+        await expect.poll(health, { timeout: 60_000 }).toMatchObject({
+            opcua: {
+                writes: true,
+                servers: { 'Depot PLC': { status: 'connected' } },
+            },
+        });
+        await goLive();
+        await settle(page, 4000);
+        // The PLC's 6 bar reaches the twin as 600 kPa.
+        await expect
             .poll(
                 () =>
-                    fetch(`http://127.0.0.1:${port}/health`).then(
-                        (r) => (r.ok ? r.json() : null),
-                        () => null,
+                    page.evaluate(
+                        () =>
+                            (
+                                window as unknown as {
+                                    __twin: {
+                                        getState(): {
+                                            live?: {
+                                                values: Record<string, number>;
+                                            };
+                                        };
+                                    };
+                                }
+                            ).__twin.getState().live?.values['jockey.startKpa'],
                     ),
                 { timeout: 60_000 },
             )
-            .toMatchObject({
-                opcua: { servers: { 'Depot PLC': { status: 'connected' } } },
-            });
-
-        await expect(async () => {
-            await page.reload();
-            await expect(page.getByRole('radio', { name: 'Live' })).toBeChecked(
-                { timeout: 5000 },
-            );
-        }).toPass({ timeout: 60_000 });
-        await settle(page, 4000);
+            .toBe(600);
         await page.locator('.asset-row', { hasText: 'Jockey pump' }).click();
         // 600 kPa, read from the PLC, up to 630.
         const raise = page.getByRole('button', { name: 'Raise Start below' });
@@ -797,7 +832,10 @@ test('screenshots', async ({ page, context }) => {
         await expect(
             opcua.getByRole('list', { name: 'Recent OPC UA writes' }),
         ).toContainText('Jockey pump Start below = 630');
-        await shot(opcua, 'opcua-writes');
+        await shot(
+            opcua.getByRole('group', { name: 'Writing setpoints' }),
+            'opcua-writes',
+        );
     });
 
     await test.step('members and account', async () => {

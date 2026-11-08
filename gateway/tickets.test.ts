@@ -8,6 +8,7 @@ const fixture = JSON.parse(readFileSync('tests/fixtures/gateway-ticket.json', 'u
   twin: string;
   user: string;
   operate: boolean;
+  edit: boolean;
   issuedAt: number;
   ticket: string;
 };
@@ -16,7 +17,7 @@ const at = fixture.issuedAt * 1000;
 
 describe('gateway tickets', () => {
   it('accepts a ticket the control plane signed', () => {
-    expect(verifyTicket(fixture.ticket, key, fixture.twin, at)).toEqual({ user: fixture.user, operate: false });
+    expect(verifyTicket(fixture.ticket, key, fixture.twin, at)).toEqual({ user: fixture.user, operate: false, edit: false });
   });
 
   it('refuses it once expired, for another twin, or with another token', () => {
@@ -42,5 +43,8 @@ describe('gateway tickets', () => {
     expect(verifyTicket(sign('null'), key, fixture.twin, at)).toBeNull();
     expect(verifyTicket(sign(JSON.stringify({ twin: fixture.twin, user: 1, operate: true, exp: 9e9 })), key, fixture.twin, at)).toBeNull();
     expect(verifyTicket(sign(JSON.stringify({ twin: fixture.twin, user: 'u', operate: true })), key, fixture.twin, at)).toBeNull();
+    expect(verifyTicket(sign(JSON.stringify({ twin: fixture.twin, user: 'u', operate: true, edit: 'yes', exp: 9e9 })), key, fixture.twin, at)).toBeNull();
+    // A ticket from before the edit claim can't edit.
+    expect(verifyTicket(sign(JSON.stringify({ twin: fixture.twin, user: 'u', operate: true, exp: 9e9 })), key, fixture.twin, at)).toEqual({ user: 'u', operate: true, edit: false });
   });
 });
