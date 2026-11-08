@@ -21,6 +21,8 @@ const CONVERTER =
     process.env.MERIDIAN_CONVERTER_IMAGE ?? 'meridian-converter:dev';
 const GATEWAY_PORT = 8796;
 const OPCUA_PORT = 4841;
+/** Where the IFC shed stands, and the twin made for it. */
+const SHED = [-36.85, 174.76] as const;
 
 const image = (name: string) => resolve(ROOT, 'docs/images', `${name}.png`);
 
@@ -62,6 +64,36 @@ function backfill(
 }
 
 const processes: ChildProcess[] = [];
+
+// One job at a time, run by the converter image against this app's database and files.
+function convertOne(name: string) {
+    const log = openSync(resolve(ROOT, `test-results/${name}.log`), 'w');
+    processes.push(
+        spawn(
+            'docker',
+            [
+                'run',
+                '--rm',
+                '-v',
+                `${ROOT}:/var/www/html`,
+                '-e',
+                'DB_CONNECTION=sqlite',
+                '-e',
+                'DB_DATABASE=/var/www/html/database/e2e.sqlite',
+                CONVERTER,
+                'php',
+                'artisan',
+                'queue:work',
+                'conversions',
+                '--queue=conversions',
+                '--once',
+                '--stop-when-empty',
+                '--timeout=600',
+            ],
+            { cwd: ROOT, stdio: ['ignore', log, log] },
+        ),
+    );
+}
 
 test.beforeAll(() => {
     mkdirSync(resolve(ROOT, 'test-results'), { recursive: true });
@@ -109,6 +141,19 @@ test.beforeAll(() => {
         'python3',
         'scripts/generate-terrain.py',
         'test-results/depot-ground.tif',
+    ]);
+    run('docker', [
+        'run',
+        '--rm',
+        '-v',
+        `${ROOT}:/var/www/html`,
+        CONVERTER,
+        'python3',
+        'scripts/generate-ifc.py',
+        'test-results/shed.ifc',
+        '--site',
+        String(SHED[0]),
+        String(SHED[1]),
     ]);
 });
 
@@ -180,38 +225,6 @@ test('screenshots', async ({ page, context }) => {
             .filter({ hasText: 'Wharf scan' });
         await expect(scan).toContainText('Converting 0%');
 
-        // One job at a time, run by the converter image against this app's database and files.
-        const convertOne = (name: string) => {
-            const log = openSync(
-                resolve(ROOT, `test-results/${name}.log`),
-                'w',
-            );
-            processes.push(
-                spawn(
-                    'docker',
-                    [
-                        'run',
-                        '--rm',
-                        '-v',
-                        `${ROOT}:/var/www/html`,
-                        '-e',
-                        'DB_CONNECTION=sqlite',
-                        '-e',
-                        'DB_DATABASE=/var/www/html/database/e2e.sqlite',
-                        CONVERTER,
-                        'php',
-                        'artisan',
-                        'queue:work',
-                        'conversions',
-                        '--queue=conversions',
-                        '--once',
-                        '--stop-when-empty',
-                        '--timeout=600',
-                    ],
-                    { cwd: ROOT, stdio: ['ignore', log, log] },
-                ),
-            );
-        };
         convertOne('converter');
         await expect(scan).toContainText(/Converting (4[5-9]|[5-8]\d)%/, {
             timeout: 300_000,
@@ -587,6 +600,98 @@ test('screenshots', async ({ page, context }) => {
         await shot(gatewayPanel, 'gateway-online');
     });
 
+    await test.step('a BIM model, the definition editor and drawing', async () => {
+        await page.goto('/projects');
+        await page.getByRole('link', { name: /^Pilot sites/ }).click();
+        await page
+            .getByLabel(/^File \(/)
+            .setInputFiles(resolve(ROOT, 'test-results/shed.ifc'));
+        await page.getByLabel('Name', { exact: true }).fill('Depot shed');
+        await page.getByRole('button', { name: 'Upload', exact: true }).click();
+        const shed = library
+            .getByRole('listitem')
+            .filter({ hasText: 'Depot shed' });
+        await expect(shed).toContainText('Converting', { timeout: 60_000 });
+        convertOne('ifc');
+        await expect(shed).toContainText('BIM · 6 elements', {
+            timeout: 300_000,
+        });
+        await shot(shed, 'library-ifc');
+
+        // A twin of its own, where the shed's site says it is.
+        await page.getByRole('link', { name: 'New twin' }).click();
+        await expect(page.getByLabel('Project')).toHaveValue(/.+/);
+        await page.getByLabel('Name', { exact: true }).fill('Depot shed');
+        await page.getByLabel('Latitude').fill(String(SHED[0]));
+        await page.getByLabel('Longitude').fill(String(SHED[1]));
+        await page.getByRole('button', { name: 'Create twin' }).click();
+        await expect(page.locator('.twin-name')).toHaveText('Depot shed');
+        await settle(page, 4000);
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+        await editor
+            .getByRole('list', { name: 'Library' })
+            .getByRole('listitem')
+            .filter({ hasText: 'Depot shed' })
+            .getByRole('button', { name: 'Add' })
+            .click();
+        await expect(versionChip).toHaveText('v2', { timeout: 60_000 });
+        await page.getByRole('button', { name: 'Close layout' }).click();
+        await settle(page, 6000);
+        await frameModel(page, 'Depot shed', 0, -0.75, 140);
+
+        const definition = page.getByRole('complementary', {
+            name: 'Definition',
+        });
+        await page
+            .getByRole('button', { name: 'Definition', exact: true })
+            .click();
+        await definition.getByRole('button', { name: 'Add zone' }).click();
+        const zone = definition.getByRole('form', { name: 'Edit zone' });
+        await zone.getByLabel('Name').fill('Shed yard');
+        await zone.getByRole('button', { name: 'Draw in scene' }).click();
+        await zone.getByRole('button', { name: 'Start again' }).click();
+        for (const p of [
+            [-6, -6],
+            [26, -6],
+            [26, 18],
+            [-6, 18],
+        ] as [number, number][]) {
+            await clickGround(page, p);
+        }
+        await page.waitForTimeout(1500);
+        await shot(page, 'definition-drawing');
+        await zone.getByRole('button', { name: 'Done drawing' }).click();
+
+        await definition.getByRole('tab', { name: 'Assets' }).click();
+        await definition
+            .getByRole('list', { name: 'Assets' })
+            .getByRole('button', { name: /^Main board/ })
+            .click();
+        const board = definition.getByRole('form', { name: 'Edit board' });
+        const feature = board.getByRole('group', { name: 'Model feature' });
+        // From the west, where the afternoon sun lights the shed's end wall.
+        await frameModel(page, 'Depot shed', 100, -0.3, 60);
+        await feature.getByRole('button', { name: 'Pick in scene' }).click();
+        await clickGround(page, [2, 6]);
+        await expect(feature.getByLabel('Feature')).not.toHaveValue('');
+        await expect(definition.getByText('No problems.')).toBeVisible();
+        await feature.scrollIntoViewIfNeeded();
+        await shot(page, 'definition-editor');
+        await definition
+            .getByRole('button', { name: 'Save', exact: true })
+            .click();
+        await expect(versionChip).toHaveText('v3', { timeout: 60_000 });
+
+        await settle(page, 8000);
+        await frameModel(page, 'Depot shed', 100, -0.3, 60);
+        await clickGround(page, [2, 6]);
+        await expect(
+            page.getByRole('heading', { name: 'Main board' }),
+        ).toBeVisible();
+        await page.waitForTimeout(2000);
+        await shot(page, 'feature-bound');
+    });
+
     await test.step('members and account', async () => {
         await page.goto('/organisation/members');
         await expect(page.getByText('viewer@example.com')).toBeVisible();
@@ -603,6 +708,39 @@ test('screenshots', async ({ page, context }) => {
     });
 });
 
+/**
+ * Clicks a point on the ground, east and north of the twin's origin, once
+ * the camera has stopped moving.
+ */
+async function clickGround(page: Page, point: [number, number]) {
+    type Scene = {
+        __scene: {
+            screenAt(p: [number, number]): { x: number; y: number } | null;
+        };
+    };
+    const at = () =>
+        page.evaluate(
+            (p) => (window as unknown as Scene).__scene.screenAt(p),
+            point,
+        );
+    let last = '';
+    await expect
+        .poll(
+            async () => {
+                const now = JSON.stringify(await at());
+                const settled = now === last;
+                last = now;
+                return settled;
+            },
+            { timeout: 30_000, intervals: [500] },
+        )
+        .toBe(true);
+    const spot = await at();
+    if (!spot) throw new Error(`${point.join(', ')} is off screen`);
+    const box = (await page.locator('canvas').first().boundingBox())!;
+    await page.mouse.click(box.x + spot.x, box.y + spot.y);
+}
+
 /** The project's topic prefix, as the Telemetry section shows it. */
 async function prefix(page: Page): Promise<string> {
     const text = await page
@@ -611,6 +749,53 @@ async function prefix(page: Page): Promise<string> {
         .first()
         .innerText();
     return text;
+}
+
+/** Points the camera at a placed model, from a heading in degrees, a pitch in radians and a range in metres. */
+async function frameModel(
+    page: Page,
+    name: string,
+    headingDeg: number,
+    pitch: number,
+    range: number,
+) {
+    await page.evaluate(
+        ([layer, heading, tilt, distance]) => {
+            const w = window as unknown as {
+                __scene: {
+                    layerPrimitives: Map<string, { boundingSphere: unknown }>;
+                    viewer: {
+                        camera: {
+                            flyToBoundingSphere(
+                                sphere: unknown,
+                                options: unknown,
+                            ): void;
+                        };
+                    };
+                };
+                __twin: {
+                    getState(): {
+                        def: { models?: { id: string; name: string }[] };
+                    };
+                };
+            };
+            const id = w.__twin
+                .getState()
+                .def.models!.find((m) => m.name === layer)!.id;
+            w.__scene.viewer.camera.flyToBoundingSphere(
+                w.__scene.layerPrimitives.get(id)!.boundingSphere,
+                {
+                    duration: 0,
+                    offset: {
+                        heading: ((heading as number) * Math.PI) / 180,
+                        pitch: tilt,
+                        range: distance,
+                    },
+                },
+            );
+        },
+        [name, headingDeg, pitch, range] as const,
+    );
 }
 
 /** Points the camera at a layer, from the twin's own heading. */

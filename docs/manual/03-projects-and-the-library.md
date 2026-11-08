@@ -25,9 +25,11 @@ Only editors (owners and admins) can create projects. The project page shows:
 | **`.zip`** of a 3D Tiles tileset      | A **tileset**                             | `tileset.json` at the top or inside one top-level folder; only tile files (json, b3dm, i3dm, pnts, cmpt, glb, gltf, bin, subtree and images); no paths that escape the folder; at most 20,000 files and 4 GB unpacked |
 | **`.las`**, **`.laz`** or **`.e57`**  | A **point cloud**, converted to a tileset | See [Point clouds](04-point-clouds.md)                                                                                                                                                                                |
 | **`.tif`**, **`.tiff`** or **`.asc`** | **Terrain**, converted from a DEM         | See [Terrain](05-terrain.md)                                                                                                                                                                                          |
+| **`.ifc`** (IFC2X3 or IFC4)           | A **BIM model**, converted to a model     | See [BIM models](#bim-models)                                                                                                                                                                                         |
 
 - **Models** are things you place by hand: a pump skid, a container, a piece of plant from CAD. You give them a position, heading and scale in the twin.
 - **Tilesets** are large or detailed scenes streamed in pieces: photogrammetry, a BIM export, a city model. A tileset usually knows where on Earth it belongs; if it was built in local metres, you can place it like a model.
+- **BIM models** are buildings from Revit, ArchiCAD or any tool that exports IFC. Meridian converts each one to a model, keeping every element (each wall, slab and pump) as a part you can pick.
 
 ## Upload to the library
 
@@ -39,14 +41,27 @@ Only editors (owners and admins) can create projects. The project page shows:
 
 Each item in the library shows what it is, its size and the original file name, and its state:
 
-| State                                                                  | Meaning                                                                                        |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **Uploading**                                                          | The browser is still sending it (large uploads only)                                           |
-| **Processing** / **Converting N%**                                     | The server is checking or converting it. The page updates itself while anything is in progress |
-| **Model**, **Tileset · N files**, **Point cloud · …**, **Terrain · …** | Ready. Add it to a twin from the twin's **Layout** panel                                       |
-| **Failed**                                                             | It couldn't be used. The reason is shown underneath, and nothing half-finished is kept         |
+| State                                                                                        | Meaning                                                                                        |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Uploading**                                                                                | The browser is still sending it (large uploads only)                                           |
+| **Processing** / **Converting N%**                                                           | The server is checking or converting it. The page updates itself while anything is in progress |
+| **Model**, **Tileset · N files**, **Point cloud · …**, **Terrain · …**, **BIM · N elements** | Ready. Add it to a twin from the twin's **Layout** panel                                       |
+| **Failed**                                                                                   | It couldn't be used. The reason is shown underneath, and nothing half-finished is kept         |
 
 You can also upload from a twin's **Layout** panel: the file goes into the project's library and is added to that twin in one step. See [Layout and versions](08-layout-and-versions.md).
+
+## BIM models
+
+![An IFC model in the library, converted: six elements, placed by its site.](../images/library-ifc.png)
+
+An `.ifc` upload is converted on the server, like a point cloud, and shows **Converting** until it's done. Then the library shows how many elements it has and, when the file says where it is, its coordinate system.
+
+- **Every element is kept.** Each wall, slab, door or pump with a shape becomes a part of the model, with its name, IFC class and storey. In a twin, an asset can stand for one of them; see [Bind an asset to an element](12-twin-definitions.md#bind-an-asset-to-an-element).
+- **Units don't matter.** A file drawn in millimetres, feet or metres comes out in metres.
+- **It knows where it goes,** if the file says. Meridian reads its map conversion (eastings and northings in a coordinate system), or failing that its site's latitude and longitude, and places it there when it's added to a twin. A model with neither, or more than 50 km from the twin, starts at the twin's origin, and you place it by hand like any model.
+- **Colours come from the file:** each surface keeps the colour its material gives it.
+
+If the conversion fails, the reason is shown, as for a point cloud. The usual causes are a file that isn't IFC, or one with no elements that have a shape.
 
 ## Large uploads
 

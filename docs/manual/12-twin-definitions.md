@@ -1,17 +1,66 @@
 # Twin definitions
 
-Behind every twin is a **definition**: one JSON file that describes the site. The control plane writes most of it for you (uploads, placements, telemetry), but some things, like custom equipment and how it behaves, alert rules, the top bar's figures and what-if scenarios, are written by hand. Download the definition, edit it, and load it back as a new version.
+Behind every twin is a **definition**: one JSON file that describes the site: its zones and assets, how they're powered, custom equipment and how it behaves, alert rules, the top bar's figures and what-if scenarios. You edit all of it in the **Definition** panel, with forms that check what you enter as you type, and draw zones and routes on the ground. Or download the JSON, edit it by hand, and load it back. Either way, every save is a new version.
 
 ![Fire water tank, a custom asset type defined in the definition, in the inspector.](../images/custom-type.png)
 
 ## Edit a definition
+
+![The Definition panel on the Assets tab, editing the main board, with its model feature picked from the shed's west wall.](../images/definition-editor.png)
+
+Only editors can change a definition.
+
+1. On the twin page, choose **Definition** in the top bar. The panel opens on the right.
+2. Choose a tab for the list you want: **Zones**, **Assets**, **Routes**, **Types**, **Rules**, **Scenarios**, **KPIs** or **Panels**.
+3. Choose an item in the list to edit it, or **Add zone** (**Add asset**, and so on) for a new one.
+4. Change the form. It shows only the fields that apply: a vehicle gets a route, a custom asset a type, a chiller the stores it cools. Lists inside an item, such as a route's stops or a type's metrics, are edited in place. Where a field refers to something else, such as a zone, a route or a rule's metric, it offers what the definition has.
+5. Choose **Save**. Everything you changed, on every tab, is saved as one version, with a note naming the lists that changed, such as **Edited zones and assets**.
+
+While you edit:
+
+- **Everything is checked as you type**, with the same checks the server makes. Problems are listed at the bottom of the panel, and **Save** stays off until there are none. Deleting a zone that assets are in, for example, lists each of those assets until you move them.
+- **The scene shows your changes** before you save.
+- **Discard** drops everything you changed since the last save, after asking. **Delete asset** (or zone, and so on) removes the item you're editing.
+
+### Draw in the scene
+
+![Drawing the Shed yard zone: four corners clicked on the ground around the shed.](../images/definition-drawing.png)
+
+A zone's **Footprint** and a route's **Path** are lists of points, one per line, as `east, north` in metres from the twin's origin. Type them, or draw them:
+
+1. Choose **Draw in scene** under the field.
+2. Click the ground for each point, in order. Each click adds one.
+3. Drag a point to move it. **Undo point** takes off the last one, and **Start again** clears them all.
+4. Choose **Done drawing**.
+
+An asset's position works the same way: choose **Place in scene**, click where it stands (click again to move it), and **Done placing**.
+
+### Bind an asset to an element
+
+![The main board, bound to the shed's west wall and selected by clicking it: the wall takes the selection's colour, and the inspector shows the board.](../images/feature-bound.png)
+
+An asset can stand for one element of a model or tileset, such as a wall, a pump or a switchboard in a [BIM model](03-projects-and-the-library.md#bim-models). The element then takes the asset's colour (by status, temperature or power, as you've chosen in the viewer), clicking it selects the asset, and the asset's own box isn't drawn.
+
+1. In the **Definition** panel, edit the asset.
+2. Under **Model feature**, either:
+    - choose **Pick in scene**, then click the element in the scene; or
+    - choose the **Layer**, then the element from **Feature**. A BIM model lists its elements by name; for a tileset, type the element's id.
+3. **Save**.
+
+To unbind it, set **Layer** to **None**. Removing the layer from the twin unbinds its assets for you.
+
+A tileset's elements can only be bound if its metadata gives each one an id. Elements are matched on the layer's `featureProperty`, which is `id` unless the JSON says otherwise, such as `"featureProperty": "GlobalId"`.
+
+## Edit the JSON
+
+For changes in bulk, or to copy a definition between twins:
 
 1. Open the twin, choose **Layout**, and under **Definition** choose **Download JSON**.
 2. Edit the file in any text editor. One that checks JSON as you type helps.
 3. Back under **Definition**, choose **Replace…** and pick the file.
 4. Meridian checks it. If anything is wrong, every problem is listed and the twin is left as it was. Otherwise it's saved as a new version, **Replaced from your-file.json**.
 
-You can also start a new twin from a file: **New twin → A definition file**.
+You can also start a new twin from a file: **New twin → A definition file**. The rest of this chapter describes what's in the file, which is also what the editor's forms are built from.
 
 ## What's in it
 

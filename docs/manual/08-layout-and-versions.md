@@ -23,7 +23,7 @@ flowchart LR
 
 On the twin page, choose **Layout** in the top bar. Only editors see it. The panel opens on the right, over the inspector; choose **✕** to close it.
 
-The panel has these sections, from the top: **Upload**, **Layers**, **Library**, **Types**, **Gateway**, **Telemetry**, **Definition** and **History**.
+The panel has these sections, from the top: **Upload**, **Layers**, **Library**, **Types**, **Gateway**, **Telemetry**, **OPC UA**, **Definition** and **History**. Zones, assets and everything else in the twin are edited in the separate **Definition** panel; see [Edit a definition](12-twin-definitions.md#edit-a-definition).
 
 ## Add an upload
 
@@ -31,6 +31,8 @@ From the project's library:
 
 1. Under **Library**, find the upload. Every ready upload in the project is listed.
 2. Choose **Add**. It's added to the twin's **Layers** and saved as a new version.
+
+A BIM model that knows where it is lands there, turned to match the file; one that doesn't starts at the twin's origin. See [BIM models](03-projects-and-the-library.md#bim-models).
 
 A converted DEM shows **Use as terrain** instead: the twin stands on it, replacing any terrain it had. See [Terrain](05-terrain.md).
 
@@ -56,7 +58,7 @@ Models always need placing. Tilesets usually already know where they belong; if 
 
 ## Remove a layer
 
-Choose **Remove** beside the layer and confirm. It's taken out of this twin as a new version but **stays in the project library**, for this twin or others to use later. To delete an upload everywhere, delete it from the library on the [project page](03-projects-and-the-library.md#delete-an-upload).
+Choose **Remove** beside the layer and confirm. It's taken out of this twin as a new version, any assets [bound to its elements](12-twin-definitions.md#bind-an-asset-to-an-element) are unbound, and it **stays in the project library**, for this twin or others to use later. To delete an upload everywhere, delete it from the library on the [project page](03-projects-and-the-library.md#delete-an-upload).
 
 ## Types
 
@@ -75,7 +77,7 @@ A type has to fit the twin. The jockey pump reads `{fire-tank.pressureKpa}`, so 
 
 Under **Definition**:
 
-- **Download JSON** saves the latest version as a twin definition file. Use it as a backup, to edit by hand, or to start another twin from it.
+- **Download JSON** saves the latest version as a twin definition file. Use it as a backup, to edit by hand or in bulk, or to start another twin from it.
 - **Replace…** loads a definition file as the next version. It's checked first; if it has problems, they're listed under the buttons and nothing changes.
 
 See [Twin definitions](12-twin-definitions.md) for what's in the file.
