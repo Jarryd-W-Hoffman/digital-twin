@@ -8,6 +8,7 @@ import type {
     Command,
     Frame,
     Placement,
+    Point,
     SimState,
     TwinDefinition,
 } from '../core/types.ts';
@@ -83,6 +84,16 @@ export interface TwinStore {
     placingLayer: string | null;
     setDraft: (id: string, placement: Placement | undefined) => void;
     setPlacingLayer: (id: string | null) => void;
+    /** A footprint or path being drawn on the ground, by the editor field that owns it. */
+    sketch: Sketching | null;
+    setSketch: (sketch: Sketching | null) => void;
+}
+
+export interface Sketching {
+    owner: string;
+    points: Point[];
+    /** One point only, as for a position: a click moves it. */
+    single?: boolean;
 }
 
 /** A metric's recorded readings, averaged into time buckets (wall-clock ms). */
@@ -142,6 +153,8 @@ export const useTwin = create<TwinStore>((set, get) => ({
     setDraft: (id, placement) =>
         set((s) => ({ drafts: { ...s.drafts, [id]: placement } })),
     setPlacingLayer: (id) => set({ placingLayer: id }),
+    sketch: null,
+    setSketch: (sketch) => set({ sketch }),
     showGlobe: () => set((s) => ({ globeRequest: s.globeRequest + 1 })),
 
     select: (id, fly = false) =>
@@ -303,6 +316,7 @@ export function runDefinition(
         canOperate: options.canOperate,
         drafts: {},
         placingLayer: null,
+        sketch: null,
     });
     try {
         startSource(new LocalSource(parseDefinition(def)));

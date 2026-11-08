@@ -15,6 +15,12 @@ export function metresToLonLat(
     return { lon, lat };
 }
 
+/** A ground point kept to a tenth of a metre, as the editors store them. */
+export const snapPoint = ([east, north]: Point): Point => [
+    Math.round(east * 10) / 10,
+    Math.round(north * 10) / 10,
+];
+
 /** The inverse of metresToLonLat. */
 export function lonLatToMetres(
     origin: { lon: number; lat: number },

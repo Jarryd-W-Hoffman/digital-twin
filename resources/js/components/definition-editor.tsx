@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { store as storeVersion } from '@/routes/twins/versions';
 import {
     LISTS,
@@ -20,8 +20,9 @@ import {
     type Item,
     type ListName,
 } from '@/twin/core/editing';
-import type { TwinDefinition } from '@/twin/core/types';
+import type { Point, TwinDefinition } from '@/twin/core/types';
 import { validateDefinition } from '@/twin/core/validate';
+import { useTwin } from '@/twin/state/store';
 
 const text = (v: unknown): string =>
     typeof v === 'string' || typeof v === 'number' ? String(v) : '';
@@ -515,6 +516,9 @@ function PointInput({
     onChange: (value: unknown) => void;
 }) {
     const point = Array.isArray(value) ? (value as unknown[]) : [];
+    const { sketch, draw, stop } = useSketch(([first]) => {
+        if (first) onChange(first);
+    });
     const set = (i: number, v: string) => {
         const next = [point[0], point[1]];
         next[i] = numberOrUndefined(v);
@@ -535,9 +539,65 @@ function PointInput({
                     </label>
                 ))}
             </div>
-            <Description field={field} />
+            {sketch ? (
+                <small className="muted">
+                    Click the ground to move it there, or drag it.
+                </small>
+            ) : (
+                <Description field={field} />
+            )}
+            <button
+                type="button"
+                className="link"
+                onClick={() =>
+                    sketch
+                        ? stop()
+                        : draw(
+                              point.length === 2 &&
+                                  point.every((n) => typeof n === 'number')
+                                  ? [point as Point]
+                                  : [],
+                              true,
+                          )
+                }
+            >
+                {sketch ? 'Done placing' : 'Place in scene'}
+            </button>
         </fieldset>
     );
+}
+
+/**
+ * Lets one field draw on the ground: the points drawn in the scene are
+ * reported as they change, and leaving the field (another item, or closing
+ * the editor) ends its sketch.
+ */
+function useSketch(onPoints: (points: Point[]) => void) {
+    const owner = useId();
+    const sketch = useTwin((s) =>
+        s.sketch?.owner === owner ? s.sketch : null,
+    );
+    const report = useRef(onPoints);
+    useEffect(() => {
+        report.current = onPoints;
+    });
+    useEffect(() => {
+        const unsubscribe = useTwin.subscribe((s, prev) => {
+            if (s.sketch === prev.sketch || s.sketch?.owner !== owner) return;
+            report.current(s.sketch.points);
+        });
+        return () => {
+            unsubscribe();
+            if (useTwin.getState().sketch?.owner === owner)
+                useTwin.getState().setSketch(null);
+        };
+    }, [owner]);
+    return {
+        sketch,
+        draw: (points: Point[], single = false) =>
+            useTwin.getState().setSketch({ owner, points, single }),
+        stop: () => useTwin.getState().setSketch(null),
+    };
 }
 
 function PolygonInput({
@@ -550,6 +610,10 @@ function PolygonInput({
     onChange: (value: unknown) => void;
 }) {
     const [typed, setTyped] = useState(formatPoints(value));
+    const { sketch, draw, stop } = useSketch((points) => {
+        setTyped(formatPoints(points));
+        if (points.length > 0) onChange(points);
+    });
     return (
         <div className="def-editor-field">
             <label>
@@ -558,6 +622,7 @@ function PolygonInput({
                     rows={5}
                     className="mono"
                     value={typed}
+                    readOnly={sketch !== null}
                     onChange={(e) => {
                         setTyped(e.target.value);
                         const parsed = parsePoints(e.target.value);
@@ -565,12 +630,50 @@ function PolygonInput({
                     }}
                 />
             </label>
-            {parsePoints(typed) === null ? (
-                <small className="editor-error">
-                    Each line needs two numbers: east, north.
-                </small>
+            {sketch ? (
+                <>
+                    <small className="muted">
+                        Click the ground to add a point, or drag a point to move
+                        it.
+                    </small>
+                    <div className="editor-actions">
+                        <button
+                            type="button"
+                            className="link"
+                            disabled={sketch.points.length === 0}
+                            onClick={() => draw(sketch.points.slice(0, -1))}
+                        >
+                            Undo point
+                        </button>
+                        <button
+                            type="button"
+                            className="link"
+                            onClick={() => draw([])}
+                        >
+                            Start again
+                        </button>
+                        <button type="button" className="link" onClick={stop}>
+                            Done drawing
+                        </button>
+                    </div>
+                </>
             ) : (
-                <Description field={field} />
+                <>
+                    {parsePoints(typed) === null ? (
+                        <small className="editor-error">
+                            Each line needs two numbers: east, north.
+                        </small>
+                    ) : (
+                        <Description field={field} />
+                    )}
+                    <button
+                        type="button"
+                        className="link"
+                        onClick={() => draw(parsePoints(typed) ?? [])}
+                    >
+                        Draw in scene
+                    </button>
+                </>
             )}
         </div>
     );

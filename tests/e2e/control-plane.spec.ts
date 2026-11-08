@@ -412,3 +412,69 @@ test('types, rules and scenarios are edited with their nested lists', async ({ p
     return def && [def.types?.find((t) => t.id === 'equipment')?.primary, def.rules.find((r) => r.id === 'rule')?.op, def.scenarios.find((s) => s.id === 'scenario')?.faults];
   }), { timeout: 90_000 }).toEqual(['flowLps', 'gt', [{ type: 'trip', target: 'store' }]]);
 });
+
+test('a zone is drawn on the ground, a corner dragged, an asset placed, and saved', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+  type Scene = { __scene: { screenAt(p: [number, number]): { x: number; y: number } | null } };
+  const screen = async (p: [number, number]) => {
+    const at = await page.evaluate((point) => (window as unknown as Scene).__scene.screenAt(point), p);
+    if (!at) throw new Error(`${p.join(', ')} is off screen`);
+    const box = (await page.locator('canvas').first().boundingBox())!;
+    return { x: box.x + at.x, y: box.y + at.y };
+  };
+
+  await page.getByRole('button', { name: 'Definition' }).click();
+  const editor = page.getByRole('complementary', { name: 'Definition' });
+  await editor.getByRole('button', { name: 'Add zone' }).click();
+  const zone = editor.getByRole('form', { name: 'Edit zone' });
+  await zone.getByRole('button', { name: 'Draw in scene' }).click();
+  await zone.getByRole('button', { name: 'Start again' }).click();
+  await expect(zone.getByLabel('Footprint')).toHaveValue('');
+
+  for (const p of [[-60, 0], [-20, 0], [-20, 30], [-60, 30]] as [number, number][]) {
+    const at = await screen(p);
+    await page.mouse.click(at.x, at.y);
+  }
+  await expect(zone.getByLabel('Footprint')).toHaveValue(/^(.+\n){3}.+$/);
+  await zone.getByRole('button', { name: 'Undo point' }).click();
+  await expect(zone.getByLabel('Footprint')).toHaveValue(/^(.+\n){2}.+$/);
+
+  const corner = await screen([-20, 30]);
+  const target = await screen([-10, 40]);
+  await page.mouse.move(corner.x, corner.y);
+  await page.mouse.down();
+  await page.mouse.move((corner.x + target.x) / 2, (corner.y + target.y) / 2, { steps: 4 });
+  await page.mouse.move(target.x, target.y, { steps: 4 });
+  await page.mouse.up();
+  await zone.getByRole('button', { name: 'Done drawing' }).click();
+  await expect(zone.getByRole('button', { name: 'Draw in scene' })).toBeVisible();
+
+  const points = (await zone.getByLabel('Footprint').inputValue()).split('\n').map((l) => l.split(', ').map(Number));
+  const expected = [[-60, 0], [-20, 0], [-10, 40]];
+  expect(points).toHaveLength(3);
+  points.forEach(([e, n], i) => {
+    expect(Math.abs(e - expected[i][0])).toBeLessThan(1.5);
+    expect(Math.abs(n - expected[i][1])).toBeLessThan(1.5);
+  });
+
+  await editor.getByRole('tab', { name: 'Assets' }).click();
+  await editor.getByRole('button', { name: 'Add asset' }).click();
+  const asset = editor.getByRole('form', { name: 'Edit building' });
+  await asset.getByRole('button', { name: 'Place in scene' }).click();
+  for (const p of [[-50, 10], [-40, 15]] as [number, number][]) {
+    const at = await screen(p);
+    await page.mouse.click(at.x, at.y);
+  }
+  await asset.getByRole('button', { name: 'Done placing' }).click();
+  expect(Math.abs(Number(await asset.getByLabel('East (m)').inputValue()) + 40)).toBeLessThan(1.5);
+  expect(Math.abs(Number(await asset.getByLabel('North (m)').inputValue()) - 15)).toBeLessThan(1.5);
+
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+  await expect.poll(() => page.evaluate(() => {
+    const def = (window as unknown as { __twin: { getState(): { def?: { zones: { id: string; footprint: number[][] }[] } } } }).__twin.getState().def;
+    return def?.zones.find((z) => z.id === 'zone')?.footprint.length;
+  }), { timeout: 90_000 }).toBe(3);
+});
