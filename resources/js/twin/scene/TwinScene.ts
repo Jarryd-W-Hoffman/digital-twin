@@ -79,6 +79,7 @@ import {
     SEVERITY_COLOR,
     temperatureColor,
 } from './colors.ts';
+import { Measure } from './Measure.ts';
 import { Sketch } from './Sketch.ts';
 
 const LABELLED = new Set<AssetDef['kind']>([
@@ -181,6 +182,8 @@ export class TwinScene {
     private readonly handler: ScreenSpaceEventHandler;
     /** A footprint or path being drawn for the definition editor. */
     readonly sketch: Sketch;
+    /** Distances, heights, areas and points measured in the scene. */
+    readonly measure: Measure;
     private readonly sunLight = new SunLight({ intensity: 1.35 });
     private readonly moonLight = new DirectionalLight({
         direction: Cartesian3.normalize(
@@ -279,8 +282,19 @@ export class TwinScene {
             (p, height) => this.cart(p, height),
             () => this.terrainLoaded,
         );
+        // Without terrain the site is level at the origin's height; with it,
+        // the terrain's height where it has loaded.
+        this.measure = new Measure(this.viewer, (at) =>
+            this.terrainLoaded
+                ? (scene.globe.getHeight(at) ?? this.ground)
+                : this.ground,
+        );
         this.handler = new ScreenSpaceEventHandler(scene.canvas);
         this.handler.setInputAction((e: { position: Cartesian2 }) => {
+            if (this.measure.active) {
+                this.measure.click(e.position);
+                return;
+            }
             if (this.sketch.active) {
                 this.sketch.click(e.position);
                 return;
@@ -400,9 +414,11 @@ export class TwinScene {
         );
     }
 
-    /** Where a ground point, in metres from the origin, is on screen. */
-    screenAt(p: Point): { x: number; y: number } | null {
-        const at = this.viewer.scene.cartesianToCanvasCoordinates(this.cart(p));
+    /** Where a point, in metres from the origin and above the ground, is on screen. */
+    screenAt(p: Point, height = 0): { x: number; y: number } | null {
+        const at = this.viewer.scene.cartesianToCanvasCoordinates(
+            this.cart(p, height),
+        );
         return at ? { x: at.x, y: at.y } : null;
     }
 
@@ -1306,6 +1322,7 @@ export class TwinScene {
         this.removePreRender?.();
         this.handler.destroy();
         this.sketch.destroy();
+        this.measure.destroy();
         if (!this.viewer.isDestroyed()) this.viewer.destroy();
     }
 }

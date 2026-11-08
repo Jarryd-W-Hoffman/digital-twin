@@ -365,6 +365,42 @@ test('screenshots', async ({ page, context }) => {
         await shot(night, 'globe');
         await night.close();
 
+        // From the yard to the freezer hall's roof: along the level, and up.
+        const measure = await context.newPage();
+        await measure.goto('/demo');
+        await settle(measure);
+        await measure.getByRole('button', { name: 'Measure' }).click();
+        for (const [point, height] of [
+            [[20, -150], 0],
+            [[-30, -20], 18],
+        ] as [[number, number], number][]) {
+            const at = await measure.evaluate(
+                ([p, h]) =>
+                    (
+                        window as unknown as {
+                            __scene: {
+                                screenAt(
+                                    p: [number, number],
+                                    h: number,
+                                ): { x: number; y: number };
+                            };
+                        }
+                    ).__scene.screenAt(p, h),
+                [point, height] as const,
+            );
+            const box = (await measure
+                .locator('.globe canvas')
+                .first()
+                .boundingBox())!;
+            await measure.mouse.click(box.x + at.x, box.y + at.y);
+        }
+        await expect(
+            measure.getByRole('region', { name: 'Measure' }).getByText('Up'),
+        ).toBeVisible();
+        await measure.waitForTimeout(1500);
+        await shot(measure, 'measure');
+        await measure.close();
+
         // Low and toward the ridge, so the ground's shape shows on the skyline.
         const lowView = resolve(ROOT, 'test-results/harbour-depot-low.json');
         writeFileSync(

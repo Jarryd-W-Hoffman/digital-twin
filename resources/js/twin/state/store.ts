@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { compile, type Model } from '../core/engine.ts';
 import { runForecast, type Forecast } from '../core/forecast.ts';
 import { History } from '../core/history.ts';
+import type { Measurement, MeasureLock, MeasureTool } from '../core/measure.ts';
 import { activeAt, createRuleEngine, type RuleEngine } from '../core/rules.ts';
 import type {
     Alert,
@@ -93,6 +94,17 @@ export interface TwinStore {
     setFeaturePick: (
         pick: { owner: string; picked?: FeatureRef } | null,
     ) => void;
+    /** The measuring tool in use, if any; editing in the scene stops it. */
+    measuring: { tool: MeasureTool; lock: MeasureLock } | null;
+    setMeasuring: (
+        measuring: { tool: MeasureTool; lock: MeasureLock } | null,
+    ) => void;
+    /** What the scene measured, as the pointer moves and clicks. */
+    measurement: Measurement | null;
+    setMeasurement: (measurement: Measurement | null) => void;
+    /** Bumped to clear the measurement and start again with the same tool. */
+    measureClear: number;
+    clearMeasurement: () => void;
 }
 
 export interface Sketching {
@@ -158,11 +170,27 @@ export const useTwin = create<TwinStore>((set, get) => ({
     placingLayer: null,
     setDraft: (id, placement) =>
         set((s) => ({ drafts: { ...s.drafts, [id]: placement } })),
-    setPlacingLayer: (id) => set({ placingLayer: id }),
+    setPlacingLayer: (id) =>
+        set((s) => ({
+            placingLayer: id,
+            measuring: id ? null : s.measuring,
+        })),
     sketch: null,
-    setSketch: (sketch) => set({ sketch }),
+    setSketch: (sketch) =>
+        set((s) => ({ sketch, measuring: sketch ? null : s.measuring })),
     featurePick: null,
-    setFeaturePick: (featurePick) => set({ featurePick }),
+    setFeaturePick: (featurePick) =>
+        set((s) => ({
+            featurePick,
+            measuring: featurePick ? null : s.measuring,
+        })),
+    measuring: null,
+    setMeasuring: (measuring) => set({ measuring, measurement: null }),
+    measurement: null,
+    setMeasurement: (measurement) => set({ measurement }),
+    measureClear: 0,
+    clearMeasurement: () =>
+        set((s) => ({ measureClear: s.measureClear + 1, measurement: null })),
     showGlobe: () => set((s) => ({ globeRequest: s.globeRequest + 1 })),
 
     select: (id, fly = false) =>
@@ -324,6 +352,8 @@ export function runDefinition(
         canOperate: options.canOperate,
         drafts: {},
         placingLayer: null,
+        measuring: null,
+        measurement: null,
         sketch: null,
         featurePick: null,
     });
@@ -350,6 +380,8 @@ export function runGateway(
         canOperate: options.canOperate,
         drafts: {},
         placingLayer: null,
+        measuring: null,
+        measurement: null,
     });
     startSource(new GatewaySource(url));
 }
@@ -367,6 +399,8 @@ export function stopTwin(): void {
         recorded: null,
         drafts: {},
         placingLayer: null,
+        measuring: null,
+        measurement: null,
     });
 }
 
