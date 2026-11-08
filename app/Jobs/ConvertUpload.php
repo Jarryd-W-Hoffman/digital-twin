@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Actions\ConvertIfc;
 use App\Actions\ConvertPointCloud;
 use App\Actions\ConvertTerrain;
 use App\Enums\ProjectAssetKind;
@@ -33,12 +34,14 @@ final class ConvertUpload implements ShouldQueue
         $this->onConnection('conversions')->onQueue('conversions');
     }
 
-    public function handle(ConvertPointCloud $pointCloud, ConvertTerrain $terrain): void
+    public function handle(ConvertPointCloud $pointCloud, ConvertTerrain $terrain, ConvertIfc $ifc): void
     {
         try {
-            $this->asset->kind === ProjectAssetKind::Terrain
-                ? $terrain->handle($this->asset)
-                : $pointCloud->handle($this->asset);
+            match ($this->asset->kind) {
+                ProjectAssetKind::Terrain => $terrain->handle($this->asset),
+                ProjectAssetKind::Bim => $ifc->handle($this->asset),
+                default => $pointCloud->handle($this->asset),
+            };
         } catch (ConversionFailed $conversionFailed) {
             $this->asset->update(['status' => ProjectAssetStatus::Failed, 'error' => $conversionFailed->getMessage()]);
         }

@@ -78,3 +78,14 @@ it('converts a DEM to terrain', function (): void {
     expect($this->asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
         ->and($this->asset->entry)->toBe('layer.json');
 });
+
+it('converts an IFC model to a GLB', function (): void {
+    fakeIfcConverter();
+    $this->asset->update(['kind' => ProjectAssetKind::Bim, 'original_name' => 'shed.ifc']);
+    Storage::disk('local')->put($this->asset->sourceKey(), "ISO-10303-21;\nHEADER;");
+
+    dispatch_sync(new ConvertUpload($this->asset));
+
+    expect($this->asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($this->asset->entry)->toBe('model.glb');
+});

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\ConvertIfc;
 use App\Actions\ConvertPointCloud;
 use App\Actions\ConvertTerrain;
 use App\Enums\ProjectAssetKind;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /*
- * Runs the real PDAL, py3dtiles and meridian-terrain, so it only runs
+ * Runs the real PDAL, py3dtiles, meridian-terrain and meridian-ifc, so it only runs
  * inside the converter image:
  *
  *     docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 \
@@ -239,3 +240,99 @@ it('asks for an EPSG code when a DEM has no coordinate system, then uses it', fu
     expect($asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
         ->and($asset->crs)->toBe('EPSG:2193');
 })->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-terrain (the converter image).');
+
+/**
+ * A 20 m by 12 m shed, written by scripts/generate-ifc.py with these options.
+ *
+ * @param  list<string>  $options
+ */
+function shedIfc(string $work, array $options = []): string
+{
+    $path = $work.'/shed.ifc';
+    Process::run(['python', base_path('scripts/generate-ifc.py'), $path, ...$options])->throw();
+
+    return $path;
+}
+
+/**
+ * A GLB's JSON chunk, and the bounds of all its positions.
+ *
+ * @return array{0: array{nodes: list<array{name: string, extras: array<string, string>}>}, 1: array{0: list<float>, 1: list<float>}}
+ */
+function glbContents(string $glb): array
+{
+    $length = unpack('V', mb_substr($glb, 12, 4, '8bit'))[1];
+    /** @var array{nodes: list<array{name: string, extras: array<string, string>}>, meshes: list<array{primitives: list<array{attributes: array{POSITION: int}}>}>, accessors: list<array{min?: list<float>, max?: list<float>}>} $document */
+    $document = json_decode(mb_substr($glb, 20, $length, '8bit'), true);
+    $positions = collect($document['meshes'])->flatMap(fn (array $mesh): array => array_map(
+        fn (array $primitive): array => $document['accessors'][$primitive['attributes']['POSITION']],
+        $mesh['primitives'],
+    ));
+
+    return [$document, [
+        array_map(fn (int $axis): float => $positions->min(fn (array $a): float => $a['min'][$axis]), [0, 1, 2]),
+        array_map(fn (int $axis): float => $positions->max(fn (array $a): float => $a['max'][$axis]), [0, 1, 2]),
+    ]];
+}
+
+it('converts an IFC model with a map conversion to a GLB of its elements, where it is', function (): void {
+    $asset = ProjectAsset::factory()->bim()->processing()->create(['details' => null]);
+    Storage::disk('local')->put($asset->sourceKey(), File::get(shedIfc($this->work, ['--map', 'EPSG:2193', '1756100', '5920100', '30'])));
+
+    resolve(ConvertIfc::class)->handle($asset);
+
+    [$document, [$low, $high]] = glbContents((string) Storage::disk('local')->get($asset->directory.'/model.glb'));
+    /** @var list<array{id: string, name: string, ifcClass: string, storey: string}> $elements */
+    $elements = json_decode((string) Storage::disk('local')->get($asset->directory.'/elements.json'), true);
+    $georeference = $asset->refresh()->details['georeference'] ?? [];
+
+    expect($asset->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($asset->crs)->toBe('EPSG:2193')
+        ->and($asset->details['elements'] ?? null)->toBe(6)
+        ->and(array_column($elements, 'ifcClass'))->toBe(['IfcSlab', 'IfcWall', 'IfcWall', 'IfcWall', 'IfcWall', 'IfcRoof'])
+        ->and($elements[1])->toMatchArray(['name' => 'South wall', 'storey' => 'Ground floor'])
+        ->and(array_column($document['nodes'], 'name'))->toBe(array_column($elements, 'id'))
+        ->and($document['nodes'][5]['extras']['name'])->toBe('Roof')
+        // Millimetres in the file, metres out; glTF's y is up and its z is south.
+        ->and($low[0])->toEqualWithDelta(0, 0.01)
+        ->and($low[1])->toEqualWithDelta(-0.2, 0.01)
+        ->and($high[0] - $low[0])->toEqualWithDelta(20, 0.01)
+        ->and($high[1] - $low[1])->toEqualWithDelta(5.35, 0.01)
+        ->and($low[2])->toEqualWithDelta(-12, 0.01)
+        ->and($georeference['source'] ?? null)->toBe('IfcMapConversion')
+        ->and($georeference['lat'] ?? null)->toEqualWithDelta(-36.852, 0.01)
+        ->and($georeference['lon'] ?? null)->toEqualWithDelta(174.751, 0.01)
+        ->and($georeference['headingDeg'] ?? null)->toEqualWithDelta(-30, 0.001);
+})->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-ifc (the converter image).');
+
+it('recentres an IFC model drawn far from its origin, and places it by its site', function (): void {
+    $asset = ProjectAsset::factory()->bim()->processing()->create(['details' => null]);
+    Storage::disk('local')->put($asset->sourceKey(), File::get(shedIfc($this->work, ['--site', '-36.85', '174.76', '--true-north', '15', '--offset', '5000', '0'])));
+
+    resolve(ConvertIfc::class)->handle($asset);
+
+    [, [$low, $high]] = glbContents((string) Storage::disk('local')->get($asset->directory.'/model.glb'));
+    $georeference = $asset->refresh()->details['georeference'] ?? [];
+    // The shed's centre is 5,010 m along the project's x axis, which is 15° south of east.
+    $east = 5010 * cos(deg2rad(15)) + 6 * sin(deg2rad(15));
+    $north = -5010 * sin(deg2rad(15)) + 6 * cos(deg2rad(15));
+
+    expect($asset->crs)->toBeNull()
+        ->and($low[0])->toEqualWithDelta(-10, 0.01)
+        ->and($high[0])->toEqualWithDelta(10, 0.01)
+        ->and($georeference['source'] ?? null)->toBe('IfcSite')
+        ->and($georeference['headingDeg'] ?? null)->toEqualWithDelta(15, 0.001)
+        ->and($georeference['lat'] ?? null)->toEqualWithDelta(-36.85 + rad2deg($north / 6_378_137), 0.00001)
+        ->and($georeference['lon'] ?? null)->toEqualWithDelta(174.76 + rad2deg($east / (6_378_137 * cos(deg2rad(-36.85)))), 0.00001);
+})->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-ifc (the converter image).');
+
+it('converts an IFC model that says nothing of where it is', function (): void {
+    $asset = ProjectAsset::factory()->bim()->processing()->create(['details' => null]);
+    Storage::disk('local')->put($asset->sourceKey(), File::get(shedIfc($this->work)));
+
+    resolve(ConvertIfc::class)->handle($asset);
+
+    expect($asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($asset->details)->toBe(['elements' => 6, 'georeference' => null])
+        ->and($asset->log)->toContain('Not georeferenced');
+})->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-ifc (the converter image).');

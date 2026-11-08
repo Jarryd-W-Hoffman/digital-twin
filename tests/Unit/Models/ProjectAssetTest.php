@@ -8,7 +8,7 @@ use App\Models\ProjectAsset;
 
 test('to array', function (): void {
     expect(array_keys(ProjectAsset::factory()->create()->refresh()->toArray()))
-        ->toBe(['id', 'project_id', 'kind', 'name', 'original_name', 'directory', 'entry', 'bytes', 'files', 'created_at', 'updated_at', 'status', 'error', 'upload_id', 'options', 'progress', 'log', 'crs']);
+        ->toBe(['id', 'project_id', 'kind', 'name', 'original_name', 'directory', 'entry', 'bytes', 'files', 'created_at', 'updated_at', 'status', 'error', 'upload_id', 'options', 'progress', 'log', 'crs', 'details']);
 });
 
 it('belongs to its project and loads from a route that names only itself', function (): void {
@@ -40,17 +40,20 @@ it('tells models from tileset archives by extension', function (string $filename
     ['site.tif', ProjectAssetKind::Terrain],
     ['site.TIFF', ProjectAssetKind::Terrain],
     ['grid.asc', ProjectAssetKind::Terrain],
+    ['shed.IFC', ProjectAssetKind::Bim],
 ]);
 
 it('shows point clouds and tilesets as tilesets', function (): void {
     expect(ProjectAssetKind::Tileset->isTileset())->toBeTrue()
         ->and(ProjectAssetKind::PointCloud->isTileset())->toBeTrue()
         ->and(ProjectAssetKind::Model->isTileset())->toBeFalse()
-        ->and(ProjectAssetKind::Terrain->isTileset())->toBeFalse();
+        ->and(ProjectAssetKind::Terrain->isTileset())->toBeFalse()
+        ->and(ProjectAssetKind::Bim->isTileset())->toBeFalse();
 });
 
-it('converts point clouds and DEMs on the queue', function (): void {
+it('converts point clouds, DEMs and IFC models on the queue', function (): void {
     expect(ProjectAssetKind::PointCloud->isConverted())->toBeTrue()
+        ->and(ProjectAssetKind::Bim->isConverted())->toBeTrue()
         ->and(ProjectAssetKind::Terrain->isConverted())->toBeTrue()
         ->and(ProjectAssetKind::Tileset->isConverted())->toBeFalse()
         ->and(ProjectAssetKind::Model->isConverted())->toBeFalse();

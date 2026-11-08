@@ -220,6 +220,30 @@ function fakeTerrainTiler(?string $fail = null, bool $writes = true, string $sum
 }
 
 /**
+ * Stands in for meridian-ifc: writes a GLB and an element list, and prints its summary.
+ */
+function fakeIfcConverter(?string $fail = null, bool $writes = true, string $summary = '{"schema": "IFC4", "elements": 6, "triangles": 72, "size": [20.0, 12.0, 5.35], "shift": [0.0, 0.0], "georeference": {"lon": 174.75, "lat": -36.85, "headingDeg": -30.0, "source": "IfcMapConversion"}, "crs": "EPSG:2193"}'): void
+{
+    Process::fake([
+        "'meridian-ifc'*" => function (PendingProcess $process) use ($fail, $writes, $summary): ProcessResult|string {
+            if ($fail !== null) {
+                return Process::result(errorOutput: $fail, exitCode: 1);
+            }
+
+            if ($writes) {
+                /** @var list<string> $command */
+                $command = $process->command;
+                File::ensureDirectoryExists($command[2]);
+                file_put_contents($command[2].'/model.glb', 'glTF');
+                file_put_contents($command[2].'/elements.json', '[]');
+            }
+
+            return $summary;
+        },
+    ]);
+}
+
+/**
  * A twin with a gateway token, and the token.
  *
  * @return array{0: Twin, 1: string}

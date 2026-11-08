@@ -30,7 +30,7 @@ export type TwinVersionSummary = {
 
 export type TwinAssetSummary = {
     id: string;
-    kind: 'model' | 'tileset' | 'pointcloud' | 'terrain';
+    kind: 'model' | 'tileset' | 'pointcloud' | 'terrain' | 'bim';
     name: string;
     originalName: string;
     bytes: number;
@@ -216,7 +216,7 @@ export function TwinEditor({
                     <input
                         aria-label="Upload file"
                         type="file"
-                        accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc"
+                        accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc,.ifc"
                         required
                         onChange={(e) => {
                             const file = e.target.files?.[0] ?? null;
@@ -451,7 +451,9 @@ export function TwinEditor({
                                             ·{' '}
                                             {asset.kind === 'pointcloud'
                                                 ? 'point cloud'
-                                                : asset.kind}{' '}
+                                                : asset.kind === 'bim'
+                                                  ? 'BIM model'
+                                                  : asset.kind}{' '}
                                             · {size(asset.bytes)}
                                         </span>
                                     </span>

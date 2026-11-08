@@ -53,6 +53,15 @@ return [
     ],
 
     /*
+    | IFC models are converted to one GLB, with a list of their elements, by
+    | meridian-ifc (IfcOpenShell) on the same queue.
+    */
+    'ifc' => [
+        'converter' => env('MERIDIAN_IFC_CONVERTER', 'meridian-ifc'),
+        'timeout_minutes' => (int) env('MERIDIAN_IFC_TIMEOUT_MINUTES', 120),
+    ],
+
+    /*
     | Readings gateways report (from MQTT or POST /ingest) are kept this long
     | for history charts. TimescaleDB drops older chunks itself; elsewhere the
     | scheduled model:prune does.

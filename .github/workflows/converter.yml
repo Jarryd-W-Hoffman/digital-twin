@@ -1,8 +1,8 @@
 name: converter
 
-# Builds the converter image and runs real point cloud and terrain
-# conversions in it (PDAL, py3dtiles and meridian-terrain), only when the
-# image or the conversion code changes.
+# Builds the converter image and runs real point cloud, terrain and IFC
+# conversions in it (PDAL, py3dtiles, meridian-terrain and meridian-ifc),
+# only when the image or the conversion code changes.
 on:
   push:
     branches:
@@ -11,6 +11,8 @@ on:
       - docker/converter/**
       - app/Actions/ConvertPointCloud.php
       - app/Actions/ConvertTerrain.php
+      - app/Actions/ConvertIfc.php
+      - scripts/generate-ifc.py
       - app/Support/Converter.php
       - app/Jobs/ConvertUpload.php
       - tests/Feature/Conversions/**
@@ -23,6 +25,8 @@ on:
       - docker/converter/**
       - app/Actions/ConvertPointCloud.php
       - app/Actions/ConvertTerrain.php
+      - app/Actions/ConvertIfc.php
+      - scripts/generate-ifc.py
       - app/Support/Converter.php
       - app/Jobs/ConvertUpload.php
       - tests/Feature/Conversions/**

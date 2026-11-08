@@ -100,3 +100,49 @@ it("makes terrain the twin's ground, replacing any it had", function (): void {
         ->and($action->handle($twin, $user, $first))->toBeNull()
         ->and($action->handle($twin, $user, $second)?->definition['terrain']['assetId'])->toBe($second->id);
 });
+
+it('places an IFC model where its georeference puts it, near the twin', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    ['lon' => $lon, 'lat' => $lat] = $twin->latestVersion()->sole()->definition['origin'];
+    // 120 m east and 80 m north of the twin's origin.
+    $georeference = [
+        'lon' => $lon + rad2deg(120 / (6_378_137 * cos(deg2rad($lat)))),
+        'lat' => $lat + rad2deg(80 / 6_378_137),
+        'headingDeg' => -30.0,
+        'source' => 'IfcMapConversion',
+    ];
+    $asset = ProjectAsset::factory()->for($twin->project)->bim($georeference)->create();
+
+    $models = resolve(AddAssetToTwin::class)->handle($twin, $user, $asset)?->definition['models'];
+
+    expect($models[0]['placement'])->toEqual(['east' => 120, 'north' => 80, 'up' => 0, 'headingDeg' => -30.0, 'scale' => 1])
+        ->and($models[0]['url'])->toEndWith('/files/model.glb');
+});
+
+it('starts an IFC model at the origin when it is far away or not georeferenced', function (?array $georeference): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $asset = ProjectAsset::factory()->for($twin->project)->bim($georeference)->create();
+
+    $models = resolve(AddAssetToTwin::class)->handle($twin, $user, $asset)?->definition['models'];
+
+    expect($models[0]['placement'])->toBe(['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1]);
+})->with([
+    'not georeferenced' => [null],
+    'on another continent' => [['lon' => -0.1276, 'lat' => 51.5072, 'headingDeg' => 0.0, 'source' => 'IfcSite']],
+]);
+
+it('starts an IFC model at the origin when the twin has none', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $version = $twin->latestVersion()->sole();
+    $definition = $version->definition;
+    unset($definition['origin']);
+    $version->update(['definition' => $definition]);
+    $asset = ProjectAsset::factory()->for($twin->project)->bim(['lon' => 174.7, 'lat' => -36.8, 'headingDeg' => 0.0, 'source' => 'IfcSite'])->create();
+
+    $models = resolve(AddAssetToTwin::class)->handle($twin, $user, $asset)?->definition['models'];
+
+    expect($models[0]['placement']['east'])->toBe(0);
+});

@@ -19,7 +19,7 @@ import { destroy as abortUpload } from '@/routes/projects/uploads';
 export type LibraryAsset = {
     id: string;
     name: string;
-    kind: 'model' | 'tileset' | 'pointcloud' | 'terrain';
+    kind: 'model' | 'tileset' | 'pointcloud' | 'terrain' | 'bim';
     originalName: string;
     bytes: number;
     files: number;
@@ -28,6 +28,8 @@ export type LibraryAsset = {
     progress: number | null;
     log: string | null;
     crs: string | null;
+    /** An IFC model's element count. */
+    elements: number | null;
     createdAt: string;
 };
 
@@ -45,6 +47,8 @@ const ready: Record<LibraryAsset['kind'], (asset: LibraryAsset) => string> = {
         `Point cloud · ${asset.files} files · ${asset.crs ?? 'local metres'}`,
     terrain: (asset) =>
         `Terrain · ${asset.files} files · ${asset.crs ?? 'unknown CRS'}`,
+    bim: (asset) =>
+        `BIM · ${asset.elements ?? 0} elements${asset.crs ? ` · ${asset.crs}` : ''}`,
 };
 
 function describe(asset: LibraryAsset): string {
@@ -56,7 +60,9 @@ function describe(asset: LibraryAsset): string {
         case 'uploading':
             return 'Uploading';
         default:
-            return asset.kind === 'pointcloud' || asset.kind === 'terrain'
+            return asset.kind === 'pointcloud' ||
+                asset.kind === 'terrain' ||
+                asset.kind === 'bim'
                 ? `Converting ${asset.progress ?? 0}%`
                 : 'Processing';
     }
@@ -164,7 +170,9 @@ export default function LibraryItem({
                     </details>
                 )}
                 {canUpdate &&
-                    (asset.kind === 'pointcloud' || asset.kind === 'terrain') &&
+                    (asset.kind === 'pointcloud' ||
+                        asset.kind === 'terrain' ||
+                        asset.kind === 'bim') &&
                     asset.status === 'failed' && (
                         <RetryConversion projectId={projectId} asset={asset} />
                     )}
