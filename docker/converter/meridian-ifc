@@ -233,7 +233,9 @@ def main() -> None:
     except Exception as error:  # IfcOpenShell raises plain errors for unreadable files.
         fail(f"Could not read the IFC file: {error}")
 
-    shapes = list(triangulate(model))
+    # The iterator runs on every core, so shapes arrive as they finish: put
+    # them back in file order, so a model converts the same way every time.
+    shapes = sorted(triangulate(model), key=lambda shape: shape[0].id())
     if not shapes:
         fail("The IFC file has no elements with geometry.")
 
