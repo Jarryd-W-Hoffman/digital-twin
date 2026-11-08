@@ -271,6 +271,8 @@ export interface OpcUaMapping {
     /** How long each reading holds, in simulated seconds. */
     ttlS?: number;
     samplingMs?: number;
+    /** Operators' setpoints for this metric are written to the node, when the twin allows it. */
+    write?: boolean;
 }
 
 /** A quantized-mesh terrain tileset: the URL of its layer.json. */

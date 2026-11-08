@@ -99,3 +99,15 @@ it("records each OPC UA server's status, dropping what isn't one", function (?st
     'too long' => [json_encode(['x' => str_repeat('a', 9000)]), null],
     'no header' => [null, null],
 ]);
+
+it('tells the gateway whether it may write setpoints, with a new ETag when that changes', function (): void {
+    [$twin, $token] = gatewayTwin();
+
+    $this->withToken($token)->getJson(route('gateway.definition.show'))->assertJsonPath('opcua.writes', false);
+
+    $twin->update(['opcua_writes' => true]);
+    $this->withToken($token)->withHeader('If-None-Match', '"v1"')->getJson(route('gateway.definition.show'))
+        ->assertOk()
+        ->assertHeader('ETag', '"v1-w"')
+        ->assertJsonPath('opcua.writes', true);
+});

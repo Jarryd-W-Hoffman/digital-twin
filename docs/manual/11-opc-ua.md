@@ -20,7 +20,7 @@ flowchart LR
 - It's only told about changes, so a value that holds steady doesn't send anything. A reading lasts as long as its **TTL**; after that, the model carries on simulating the metric.
 - Readings from OPC UA are kept and charted just like MQTT ones. See [what was recorded](10-devices-and-mqtt.md#see-what-was-recorded).
 
-For now, Meridian only reads from OPC UA servers. It never writes to them.
+Meridian can also write an operator's setpoint back to a server, but only for mappings marked for writing, and only once an editor turns writing on for the twin. See [Write setpoints](#write-setpoints).
 
 ## Add a server
 
@@ -65,6 +65,40 @@ A node id is written as an optional namespace (`ns=2;`) followed by the kind of 
 
 A mapping to a server the project doesn't have is skipped, and so is one to a metric the asset doesn't have. The gateway logs a warning for each.
 
+## Write setpoints
+
+An operator applying a setpoint, such as the jockey pump's **Start below**, changes the model. With writing on, the gateway also writes the new setpoint to the PLC, so the real pump starts at the new pressure.
+
+```mermaid
+flowchart LR
+    Op["Operator<br/>Start below = 600 kPa"] -->|"Apply"| GW["Twin's gateway"]
+    GW -->|"ns=2;s=Jockey.Start = 6"| PLC["Pump PLC"]
+    GW -->|"who, what, and whether it worked"| CP["Meridian<br/>recent writes"]
+    PLC -->|"reads back 6, so 600 kPa"| GW
+```
+
+Only a custom type's setpoints can be written: the metrics an operator can change with **−** and **+** in the inspector. A temperature or a power reading can't.
+
+To set it up (editors only):
+
+1. In the **OPC UA** section of the **Layout** panel, map the setpoint's node as usual, such as the **Jockey pump**'s **Start below**.
+2. Tick **Write setpoints** on that mapping. It's only available for a setpoint.
+3. Choose **Save OPC UA mappings**.
+4. Under **Writing setpoints**, tick **Write operators' setpoints to OPC UA**, and confirm.
+
+From then on, when an operator applies that setpoint:
+
+- It's kept within the type's range first, just as in the model. Asking for 900 kPa when the most is 720 writes 720.
+- The mapping's **Scale** and **Offset** are undone, so the node is sent what it would report back. With a scale of `100` (the PLC holds bar, Meridian shows kPa), 600 kPa is written as `6`.
+- It's written as the node's own type: a whole number for an integer node, rounded, or on or off for a switch (anything but 0 is on). A value that doesn't fit the node, such as 70,000 for a 16-bit counter, is refused.
+- The mapping keeps reading the node, so the model shows what the PLC actually holds.
+
+If the server refuses the write (the node is read-only, or the gateway's login can't write), the operator sees why, and the model keeps the new setpoint until the PLC's own value comes back. While writing is off, applying a mapped setpoint changes only the model, and the operator is told so.
+
+![The OPC UA section with the jockey pump's start pressure mapped for writing, writing turned on, and the recent writes.](../images/opcua-writes.png)
+
+Every write, good or not, is recorded: when, who asked, the node and server, the setpoint asked for and the one written, and any error. The last 20 are listed under **Writing setpoints**. Viewers can't apply setpoints, so they can never write.
+
 ## See the connections
 
 ![The Gateway section with the gateway online, connected to the broker, and connected to the Depot PLC.](../images/gateway-online.png)
@@ -100,18 +134,21 @@ npm run opcua-simulator
 
 It listens at `opc.tcp://127.0.0.1:4840/meridian`, anonymous and unsecured, with:
 
-| Node                    | What it is                                           |
-| ----------------------- | ---------------------------------------------------- |
-| `ns=1;s=Store.TempC`    | A freezer temperature, swinging slowly around −18 °C |
-| `ns=1;s=Store.DoorOpen` | A door switch, open for 10 seconds every 2 minutes   |
-| `ns=1;s=Meter.EnergyWh` | An energy meter, counting up                         |
+| Node                     | What it is                                           |
+| ------------------------ | ---------------------------------------------------- |
+| `ns=1;s=Store.TempC`     | A freezer temperature, swinging slowly around −18 °C |
+| `ns=1;s=Store.DoorOpen`  | A door switch, open for 10 seconds every 2 minutes   |
+| `ns=1;s=Meter.EnergyWh`  | An energy meter, counting up                         |
+| `ns=1;s=Pump.StartBar` | A pump's start pressure in bar, a writable Double: 6 |
+| `ns=1;s=Fan.SpeedPct`    | A writable fan speed, a whole number from 0 to 65535 |
 
 Add it to a project as a server, map `ns=1;s=Store.TempC` onto a cold store's **Temperature**, and start the twin's gateway on the same machine.
 
 ## Tips
 
 - **Name servers for what they are.** "Depot PLC" is clearer to whoever maps nodes than "192.168.1.20".
-- **Give the gateway a login of its own** on the server, with read-only access. Then it can't change anything, and you can see its sessions in the server's logs.
+- **Give the gateway a login of its own** on the server. Give it read-only access unless the twin writes setpoints, and then write access only to those nodes. You can see its sessions in the server's logs.
+- **Write only what's safe to change remotely.** A setpoint's range in its type is the last check before the PLC, so keep it within what the plant can take, and keep the PLC's own interlocks.
 - **Don't sample faster than you need.** Most building and cold chain values change over seconds or minutes. 1000 ms is plenty, and faster sampling loads the PLC.
 - **Use security outside a closed network.** **None** sends values and passwords in the clear.
 

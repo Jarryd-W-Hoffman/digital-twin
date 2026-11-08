@@ -26,6 +26,7 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  * @property-read CarbonInterface|null $gateway_seen_at
  * @property-read string|null $gateway_mqtt
  * @property-read array<string, string>|null $gateway_opcua
+ * @property-read bool $opcua_writes
  * @property-read Organisation $organisation
  * @property-read Project $project
  * @property-read TwinVersion|null $latestVersion
@@ -47,6 +48,13 @@ final class Twin extends Model
     public const int GATEWAY_TIMEOUT_SECONDS = 30;
 
     /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'opcua_writes' => false,
+    ];
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array
@@ -62,6 +70,7 @@ final class Twin extends Model
             'gateway_seen_at' => 'datetime',
             'gateway_mqtt' => 'string',
             'gateway_opcua' => 'array',
+            'opcua_writes' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -81,6 +90,14 @@ final class Twin extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * @return HasMany<OpcUaWrite, $this>
+     */
+    public function opcUaWrites(): HasMany
+    {
+        return $this->hasMany(OpcUaWrite::class);
     }
 
     /**

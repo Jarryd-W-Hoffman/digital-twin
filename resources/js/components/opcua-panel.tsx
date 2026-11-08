@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
 import { useState } from 'react';
+import { update as updateWrites } from '@/routes/twins/opcua-writes';
 import { store as storeVersion } from '@/routes/twins/versions';
 import { metricsFor } from '@/twin/core/metrics';
 import type { OpcUaMapping, TwinDefinition } from '@/twin/core/types';
@@ -13,6 +14,25 @@ type Row = {
     scale: string;
     offset: string;
     samplingMs: string;
+    write: boolean;
+};
+
+/** Whether operators' setpoints go to the servers, and the latest that did. */
+export type OpcUaWrites = {
+    allowed: boolean;
+    recent: {
+        id: string;
+        at: string;
+        user: string | null;
+        server: string;
+        node: string;
+        asset: string;
+        metric: string;
+        requested: number;
+        setpoint: number;
+        value: number;
+        error: string | null;
+    }[];
 };
 
 const text = (n: number | undefined) => (n === undefined ? '' : String(n));
@@ -25,6 +45,7 @@ const toRow = (m: OpcUaMapping): Row => ({
     scale: text(m.scale),
     offset: text(m.offset),
     samplingMs: text(m.samplingMs),
+    write: m.write === true,
 });
 
 const toMapping = (r: Row): OpcUaMapping => ({
@@ -35,20 +56,35 @@ const toMapping = (r: Row): OpcUaMapping => ({
     ...(r.scale.trim() ? { scale: Number(r.scale) } : {}),
     ...(r.offset.trim() ? { offset: Number(r.offset) } : {}),
     ...(r.samplingMs.trim() ? { samplingMs: Number(r.samplingMs) } : {}),
+    ...(r.write ? { write: true } : {}),
 });
+
+/** Whether an operator can set this metric, so it can be written back. */
+const isSetpoint = (def: TwinDefinition, assetId: string, metric: string) => {
+    const asset = def.assets.find((a) => a.id === assetId);
+    return (
+        asset?.kind === 'custom' &&
+        def.types
+            ?.find((t) => t.id === asset.type)
+            ?.metrics.find((m) => m.key === metric)?.setpoint !== undefined
+    );
+};
 
 /**
  * Which OPC UA nodes, on the project's servers, feed which asset metrics.
- * The twin's gateway monitors them; saving makes a new version.
+ * The twin's gateway monitors them; saving makes a new version. Mappings of
+ * a setpoint can also be written back, once the twin allows it.
  */
 export function OpcUaPanel({
     twinId,
     definition,
     servers,
+    writes,
 }: {
     twinId: string;
     definition: TwinDefinition;
     servers: string[];
+    writes: OpcUaWrites;
 }) {
     const [rows, setRows] = useState<Row[]>(() =>
         (definition.opcua ?? []).map(toRow),
@@ -67,6 +103,24 @@ export function OpcUaPanel({
         return asset
             ? metricsFor(definition, asset).filter((m) => !m.hidden)
             : [];
+    };
+
+    const named = (assetId: string) =>
+        definition.assets.find((a) => a.id === assetId)?.name ?? assetId;
+
+    const allow = (allowed: boolean) => {
+        if (
+            allowed &&
+            !window.confirm(
+                "Let operators' setpoints change the OPC UA servers? Each setpoint mapped for writing will be written to the PLC.",
+            )
+        )
+            return;
+        router.put(
+            updateWrites.url(twinId),
+            { allowed },
+            { preserveScroll: true, preserveState: true },
+        );
     };
 
     const save = () => {
@@ -209,6 +263,27 @@ export function OpcUaPanel({
                                         }
                                     />
                                 </label>
+                                <label className="editor-check">
+                                    <input
+                                        type="checkbox"
+                                        checked={row.write}
+                                        disabled={
+                                            !row.write &&
+                                            !isSetpoint(
+                                                definition,
+                                                row.asset,
+                                                row.metric,
+                                            )
+                                        }
+                                        title="Only a custom type's setpoints can be written"
+                                        onChange={(e) =>
+                                            change(i, {
+                                                write: e.target.checked,
+                                            })
+                                        }
+                                    />
+                                    <span>Write setpoints</span>
+                                </label>
                                 <button
                                     className="link"
                                     aria-label={`Remove OPC UA mapping ${row.node || i + 1}`}
@@ -238,6 +313,7 @@ export function OpcUaPanel({
                                 scale: '',
                                 offset: '',
                                 samplingMs: '',
+                                write: false,
                             },
                         ]);
                     }}
@@ -256,6 +332,51 @@ export function OpcUaPanel({
                 <ul className="editor-error" role="alert">
                     {errors.map((error) => (
                         <li key={error}>{error}</li>
+                    ))}
+                </ul>
+            )}
+            <h4>Writing setpoints</h4>
+            <label className="editor-check">
+                <input
+                    type="checkbox"
+                    checked={writes.allowed}
+                    onChange={(e) => allow(e.target.checked)}
+                />
+                <span>Write operators' setpoints to OPC UA</span>
+            </label>
+            <p className="muted hint">
+                {writes.allowed
+                    ? 'When an operator applies a setpoint mapped for writing, the gateway writes it to the node, within the setpoint’s range.'
+                    : 'Off: setpoints only change the model. Turn it on to have the gateway write them to the nodes mapped for writing.'}
+            </p>
+            {writes.recent.length > 0 && (
+                <ul className="editor-layers" aria-label="Recent OPC UA writes">
+                    {writes.recent.map((w) => (
+                        <li key={w.id}>
+                            <strong>
+                                {named(w.asset)}{' '}
+                                {metricsOf(w.asset).find(
+                                    (m) => m.key === w.metric,
+                                )?.label ?? w.metric}{' '}
+                                = {w.setpoint}
+                            </strong>
+                            {w.requested !== w.setpoint &&
+                                ` (asked for ${w.requested})`}
+                            <span className="muted">
+                                {' '}
+                                → {w.node} on {w.server}
+                                {w.value !== w.setpoint &&
+                                    ` as ${w.value}`},{' '}
+                                {w.user ?? 'someone'},{' '}
+                                {new Date(w.at).toLocaleString()}
+                            </span>
+                            {w.error !== null && (
+                                <span className="editor-error">
+                                    {' '}
+                                    Failed: {w.error}
+                                </span>
+                            )}
+                        </li>
                     ))}
                 </ul>
             )}

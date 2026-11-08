@@ -276,6 +276,23 @@ final readonly class TwinDefinitionValidator
             /** @var string $node */
             if (! array_key_exists($this->describe($mapping, 'asset'), $byId)) {
                 $errors[] = sprintf('OPC UA %s: unknown asset %s', $node, $this->describe($mapping, 'asset'));
+
+                continue;
+            }
+
+            if (($mapping['write'] ?? null) !== true) {
+                continue;
+            }
+
+            // Only what an operator may set goes back to a server.
+            $asset = $byId[$this->describe($mapping, 'asset')];
+
+            if (($asset['kind'] ?? null) !== 'custom' || ! $this->isSetpoint($definition, $asset, $mapping['metric'] ?? null)) {
+                $errors[] = sprintf("OPC UA %s: %s %s is not a setpoint, so it can't be written", $node, $this->describe($mapping, 'asset'), $this->describe($mapping, 'metric'));
+            }
+
+            if (($mapping['scale'] ?? null) === 0 || ($mapping['scale'] ?? null) === 0.0) {
+                $errors[] = sprintf("OPC UA %s: a written mapping can't have a scale of 0", $node);
             }
         }
 
@@ -581,6 +598,29 @@ final readonly class TwinDefinitionValidator
     {
         /** @var list<array<string, mixed>> */
         return array_values(array_filter($this->items($value), $this->isObject(...)));
+    }
+
+    /**
+     * Whether a custom asset's type lets an operator set this metric.
+     *
+     * @param  array<string, mixed>  $definition
+     * @param  array<string, mixed>  $asset
+     */
+    private function isSetpoint(array $definition, array $asset, mixed $metric): bool
+    {
+        foreach ($this->objects($definition['types'] ?? null) as $type) {
+            if (($type['id'] ?? null) !== ($asset['type'] ?? null)) {
+                continue;
+            }
+
+            foreach ($this->objects($type['metrics'] ?? null) as $definedMetric) {
+                if (($definedMetric['key'] ?? null) === $metric && $this->isObject($definedMetric['setpoint'] ?? null)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function label(mixed $value): string

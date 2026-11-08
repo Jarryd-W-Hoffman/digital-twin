@@ -2,6 +2,7 @@ import { Head, Link, usePoll } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { DefinitionEditor } from '@/components/definition-editor';
 import type { GatewayStatus } from '@/components/gateway-panel';
+import type { OpcUaWrites } from '@/components/opcua-panel';
 import {
     TwinEditor,
     type LibraryTypeSummary,
@@ -34,6 +35,7 @@ type Props = {
     assets: TwinAssetSummary[];
     types: LibraryTypeSummary[];
     gateway: GatewayStatus;
+    opcuaWrites: OpcUaWrites;
     can: { update: boolean; operate: boolean; manageTypes: boolean };
 };
 
@@ -46,6 +48,7 @@ export default function ShowTwin({
     assets,
     types,
     gateway,
+    opcuaWrites,
     can,
 }: Props) {
     const [editing, setEditing] = useState<'layout' | 'definition' | null>(
@@ -177,6 +180,7 @@ export default function ShowTwin({
                         gateway={gateway}
                         topicPrefix={project.topicPrefix}
                         opcuaServers={project.opcuaServers}
+                        opcuaWrites={opcuaWrites}
                         onClose={() => setEditing(null)}
                     />
                 )}

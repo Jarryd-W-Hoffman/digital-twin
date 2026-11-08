@@ -294,6 +294,49 @@ test('an owner registers an OPC UA server, then maps one of its nodes to a metri
   await expect(page.getByRole('region', { name: 'OPC UA' }).getByLabel('Sampling, ms')).toHaveValue('500');
 });
 
+test('an owner maps a setpoint for writing, then lets operators write to the PLC', async ({ page }) => {
+  page.on('dialog', (dialog) => void dialog.accept());
+  await logIn(page, 'test@example.com');
+  const opcua = page.getByRole('region', { name: 'OPC UA servers' });
+  const form = opcua.getByRole('form', { name: 'Add an OPC UA server' });
+  await form.getByLabel('Server name').fill('Pump PLC');
+  await form.getByLabel('Endpoint').fill('opc.tcp://pumps.local:4840');
+  await form.getByRole('button', { name: 'Add server' }).click();
+  await expect(opcua.getByRole('list', { name: 'OPC UA servers' }).getByText('Pump PLC')).toBeVisible();
+
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const section = page.getByRole('region', { name: 'OPC UA' });
+  await section.getByRole('button', { name: 'Add OPC UA mapping' }).click();
+  const row = section.getByRole('list', { name: 'OPC UA mappings' }).getByRole('listitem').last();
+  await row.getByLabel('Server').selectOption('Pump PLC');
+  await row.getByLabel('Node').fill('ns=2;s=Jockey.Start');
+  // Only a setpoint can be written.
+  await row.getByLabel('Asset').selectOption({ label: 'Freezer hall' });
+  await expect(row.getByLabel('Write setpoints')).toBeDisabled();
+  await row.getByLabel('Asset').selectOption({ label: 'Jockey pump' });
+  await row.getByLabel('Metric').selectOption({ label: 'Start below' });
+  await row.getByLabel('Write setpoints').check();
+  await row.getByLabel('Scale').fill('100');
+  await section.getByRole('button', { name: 'Save OPC UA mappings' }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+
+  const allowed = section.getByLabel("Write operators' setpoints to OPC UA");
+  await expect(allowed).not.toBeChecked();
+  await expect(section.getByText('Off: setpoints only change the model.')).toBeVisible();
+  await allowed.click();
+  await expect(page.getByText('Operators’ setpoints now go to the OPC UA servers.')).toBeVisible();
+  await expect(allowed).toBeChecked();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const saved = page.getByRole('region', { name: 'OPC UA' }).getByRole('list', { name: 'OPC UA mappings' }).getByRole('listitem').last();
+  await expect(saved.getByLabel('Write setpoints')).toBeChecked();
+  await page.getByRole('region', { name: 'OPC UA' }).getByLabel("Write operators' setpoints to OPC UA").click();
+  await expect(page.getByText('Writing to OPC UA is off.')).toBeVisible();
+});
+
 test('the type library: imported, compared with a twin, added to it, and refused where it cannot run', async ({ page }) => {
   page.on('dialog', (dialog) => void dialog.accept());
   await logIn(page, 'test@example.com');

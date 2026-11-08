@@ -142,3 +142,101 @@ describe('mappings', () => {
         });
     });
 });
+
+describe('writing setpoints', () => {
+    const northshore = (opcua: OpcUaMapping[]) =>
+        parseDefinition({
+            ...JSON.parse(
+                readFileSync('public/samples/northshore.json', 'utf8'),
+            ),
+            opcua,
+        });
+
+    it('writes to every written mapping of the metric, clamped and unscaled', () => {
+        const opcua = compileOpcua(
+            northshore([
+                // The PLC holds the start pressure in bar: kPa × 0.01.
+                {
+                    server: 'PLC',
+                    node: 'ns=2;s=Jockey.Start',
+                    asset: 'jockey',
+                    metric: 'startKpa',
+                    scale: 100,
+                    write: true,
+                },
+                {
+                    server: 'PLC',
+                    node: 'ns=2;s=Jockey.StartEcho',
+                    asset: 'jockey',
+                    metric: 'startKpa',
+                },
+                {
+                    server: 'Spare',
+                    node: 'ns=2;s=Jockey.Start',
+                    asset: 'jockey',
+                    metric: 'startKpa',
+                    offset: 50,
+                    write: true,
+                },
+                {
+                    server: 'Nowhere',
+                    node: 'ns=2;s=X',
+                    asset: 'jockey',
+                    metric: 'startKpa',
+                    write: true,
+                },
+            ]),
+            ['PLC', 'Spare'],
+        );
+
+        expect(opcua.writes('jockey', 'startKpa', 600)).toEqual([
+            {
+                server: 'PLC',
+                node: 'ns=2;s=Jockey.Start',
+                asset: 'jockey',
+                metric: 'startKpa',
+                requested: 600,
+                setpoint: 600,
+                value: 6,
+            },
+            {
+                server: 'Spare',
+                node: 'ns=2;s=Jockey.Start',
+                asset: 'jockey',
+                metric: 'startKpa',
+                requested: 600,
+                setpoint: 600,
+                value: 550,
+            },
+        ]);
+        expect(opcua.writes('jockey', 'startKpa', 9000)[0]).toMatchObject({
+            requested: 9000,
+            setpoint: 720,
+            value: 7.2,
+        });
+        expect(opcua.writes('jockey', 'startKpa', 100)[0]).toMatchObject({
+            setpoint: 550,
+            value: 5.5,
+        });
+    });
+
+    it('writes nothing that is not a mapped, written setpoint', () => {
+        const opcua = compileOpcua(
+            northshore([
+                {
+                    server: 'PLC',
+                    node: 'ns=2;s=Jockey.Stop',
+                    asset: 'jockey',
+                    metric: 'stopKpa',
+                },
+            ]),
+            ['PLC'],
+        );
+
+        expect(opcua.writes('jockey', 'stopKpa', 700)).toEqual([]);
+        expect(opcua.writes('jockey', 'pressureKpa', 700)).toEqual([]);
+        expect(opcua.writes('freezer', 'setpointC', -20)).toEqual([]);
+        expect(opcua.writes('ghost', 'startKpa', 600)).toEqual([]);
+        expect(opcua.writes('jockey', 'startKpa', Number.NaN)).toEqual([]);
+    });
+});

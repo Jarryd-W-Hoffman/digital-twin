@@ -8,7 +8,7 @@ import { History } from '../resources/js/twin/core/history.ts';
 import { parseReadings } from '../resources/js/twin/core/ingest.ts';
 import { siteTime, SimRunner } from '../resources/js/twin/core/runner.ts';
 import type { ClientMessage, Reading, ServerMessage } from '../resources/js/twin/core/protocol.ts';
-import { compileOpcua, type OpcUa } from '../resources/js/twin/core/opcua.ts';
+import { compileOpcua, type OpcUa, type OpcUaWrite } from '../resources/js/twin/core/opcua.ts';
 import { OpcUaBridge, type OpcUaOptions, type OpcUaServerConfig, type OpcUaStatus } from './opcua.ts';
 import { compileTelemetry, type Telemetry } from '../resources/js/twin/core/telemetry.ts';
 import { parseDefinition } from '../resources/js/twin/core/validate.ts';
@@ -33,7 +33,9 @@ import { ticketKey, verifyTicket, type TicketAccess } from './tickets.ts';
  *
  * With OPC UA servers (registered in the twin's project, or OPCUA_SERVERS
  * without a control plane), it monitors the nodes in the twin's `opcua`
- * mappings and takes each new value as a reading.
+ * mappings and takes each new value as a reading. Where the twin allows it,
+ * an operator's setpoint is also written to the nodes mapped for writing,
+ * and each write is recorded in the control plane.
  *
  * Binds to localhost by default. To expose it, set GATEWAY_HOST, GATEWAY_TOKEN
  * (or use a control plane token) and GATEWAY_ORIGINS.
@@ -82,7 +84,7 @@ export interface GatewayOptions {
   controlPlane?: ControlPlaneOptions;
   mqtt?: MqttOptions;
   /** OPC UA certificates and trust; `servers` stand in for the control plane's. */
-  opcua?: OpcUaOptions & { servers?: OpcUaServerConfig[] };
+  opcua?: OpcUaOptions & { servers?: OpcUaServerConfig[]; writes?: boolean };
   port?: number;
   host?: string;
   token?: string;
@@ -111,6 +113,8 @@ interface Fetched {
   mqtt: { username: string; topicPrefix: string } | null;
   /** The project's OPC UA servers. */
   opcua: OpcUaServerConfig[];
+  /** Whether operators' setpoints may be written to them. */
+  opcuaWrites: boolean;
   etag: string | null;
 }
 
@@ -142,7 +146,7 @@ export async function fetchDefinition(
     version: number;
     definition: unknown;
     mqtt?: Fetched['mqtt'];
-    opcua?: { servers: OpcUaServerConfig[] };
+    opcua?: { servers: OpcUaServerConfig[]; writes?: boolean };
   };
   return {
     twinId: body.twin.id,
@@ -150,6 +154,7 @@ export async function fetchDefinition(
     definition: parseDefinition(body.definition),
     mqtt: body.mqtt ?? null,
     opcua: body.opcua?.servers ?? [],
+    opcuaWrites: body.opcua?.writes === true,
     etag: res.headers.get('etag'),
   };
 }
@@ -182,7 +187,8 @@ export async function startGateway(options: GatewayOptions = {}) {
   let opcuaServers: OpcUaServerConfig[] = fetched?.opcua ?? options.opcua?.servers ?? [];
   let opcua: OpcUa = compileOpcua({ ...definition, opcua: [] }, []);
   let bridge: OpcUaBridge | null = null;
-  const opcuaStats = { received: 0, mapped: 0, unmapped: 0 };
+  let opcuaWrites = fetched?.opcuaWrites ?? options.opcua?.writes ?? false;
+  const opcuaStats = { received: 0, mapped: 0, unmapped: 0, written: 0, failedWrites: 0 };
   /** Monitors what the twin maps on the project's servers, starting the bridge on first use. */
   const followOpcua = (def: TwinDefinition) => {
     opcua = compileOpcua(def, opcuaServers.map((s) => s.name));
@@ -202,6 +208,52 @@ export async function startGateway(options: GatewayOptions = {}) {
     bridge.follow(opcuaServers, opcua.servers).catch((error: unknown) =>
       console.warn(`Gateway: OPC UA ${error instanceof Error ? error.message : String(error)}`),
     );
+  };
+  /**
+   * Sends an operator's setpoint on to the OPC UA nodes mapped for writing
+   * it, if the twin allows writes, and records each one: in the control
+   * plane's audit log, or the console without one.
+   */
+  const writeSetpoint = (command: { asset: string; metric: string; value: number }, user: string | null, socket: WebSocket) => {
+    const targets = opcua.writes(command.asset, command.metric, command.value);
+    if (targets.length === 0) return;
+    if (!opcuaWrites || !bridge) {
+      send(socket, {
+        type: 'error',
+        message: `Writing to OPC UA is off for this twin, so only the model's ${command.asset} ${command.metric} changed`,
+      });
+      return;
+    }
+    for (const target of targets) {
+      bridge.write(target.server, target.node, target.value).then(
+        () => record(target, user, null),
+        (error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          if (socket.readyState === socket.OPEN)
+            send(socket, { type: 'error', message: `Couldn't write ${target.node} on ${target.server}: ${message}` });
+          record(target, user, message);
+        },
+      );
+    }
+  };
+  const record = (write: OpcUaWrite, user: string | null, error: string | null) => {
+    if (error === null) opcuaStats.written++;
+    else opcuaStats.failedWrites++;
+    const entry = { ...write, user, succeeded: error === null, error, at: Date.now() };
+    console.log(`Gateway: OPC UA write ${JSON.stringify(entry)}`);
+    if (!cp) return;
+    fetch(`${cp.url.replace(/\/+$/, '')}/api/gateway/opcua-writes`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${cp.token}`, accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify(entry),
+      signal: AbortSignal.timeout(10_000),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`the control plane answered ${res.status}`);
+      })
+      .catch((failure: unknown) =>
+        console.warn(`Gateway: OPC UA write not recorded: ${failure instanceof Error ? failure.message : String(failure)}`),
+      );
   };
   const opcuaStatuses = () =>
     bridge ? Object.fromEntries(Object.entries(bridge.health()).map(([name, h]) => [name, h.status])) : undefined;
@@ -347,7 +399,12 @@ export async function startGateway(options: GatewayOptions = {}) {
       try {
         const message = JSON.parse((data as Buffer).toString()) as ClientMessage;
         if (granted !== null && !granted.operate) throw new Error('This connection can watch but not operate');
-        if (message.type === 'command') runner.command(message.command);
+        if (message.type === 'command') {
+          runner.command(message.command);
+          const command = message.command;
+          if (command.type === 'setpoint' && command.metric !== undefined)
+            writeSetpoint({ asset: command.asset, metric: command.metric, value: command.value }, granted?.user ?? null, socket);
+        }
         else if (message.type === 'speed' && [0, 1, 60, 600].includes(message.speed)) runner.speed = message.speed;
         else throw new Error('Unknown message');
       } catch (error) {
@@ -384,6 +441,7 @@ export async function startGateway(options: GatewayOptions = {}) {
           if (next) {
             fetched = next;
             opcuaServers = next.opcua;
+            opcuaWrites = next.opcuaWrites;
             boot(next.definition, Date.now());
             for (const s of sockets.keys()) hello(s);
           }
@@ -477,6 +535,7 @@ if (process.argv[1] === import.meta.filename) {
       pkiDir: process.env.OPCUA_PKI_DIR,
       acceptUnknownCertificates: process.env.OPCUA_ACCEPT_UNKNOWN_CERTIFICATES === '1',
       servers: process.env.OPCUA_SERVERS ? standaloneServers(process.env.OPCUA_SERVERS) : undefined,
+      writes: process.env.OPCUA_WRITES === '1',
     },
     port,
     host: process.env.GATEWAY_HOST,
