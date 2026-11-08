@@ -115,7 +115,7 @@ it('reports every problem in an uploaded definition', function (): void {
         ->assertRedirectToRoute('twins.create')
         ->assertSessionHasErrors('definition');
 
-    expect(session('errors')->first('definition'))->toStartWith("Missing id\nMissing name\n");
+    expect(explode("\n", (string) session('errors')->first('definition')))->toContain('Missing id', 'Missing name', 'Missing camera');
 });
 
 it('needs a sample or a definition', function (): void {

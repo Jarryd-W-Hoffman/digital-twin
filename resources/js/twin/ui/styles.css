@@ -1303,3 +1303,107 @@
 .twin-root .telemetry-row > button {
     justify-self: start;
 }
+
+/* Zones and assets: lists beside a form drawn from the schema. */
+.twin-root .def-editor {
+    width: min(560px, calc(100vw - 2 * var(--gap)));
+}
+.twin-root .def-editor-body {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 12px;
+    min-height: 0;
+}
+.twin-root .def-editor-lists {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.twin-root .def-editor-lists ul {
+    list-style: none;
+    margin: 4px 0;
+    padding: 0;
+}
+.twin-root .def-editor-lists li > button {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border-color: transparent;
+    padding: 3px 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.twin-root .def-editor-lists li > button.selected {
+    background: var(--raised);
+    border-color: var(--line-strong);
+}
+.twin-root .def-editor-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.twin-root .def-editor-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 12px;
+    color: var(--ink-2);
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+.twin-root .def-editor-field legend {
+    padding: 0;
+    margin-bottom: 3px;
+}
+.twin-root .def-editor select,
+.twin-root .def-editor textarea {
+    background: var(--raised);
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    padding: 4px 6px;
+    width: 100%;
+    color: var(--ink);
+    font: inherit;
+}
+.twin-root .def-editor textarea {
+    font-family: var(--mono);
+    resize: vertical;
+}
+.twin-root .def-editor-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.twin-root .def-editor-pair label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--ink-3);
+}
+.twin-root .def-editor-param {
+    display: flex;
+    gap: 6px;
+    align-items: end;
+}
+.twin-root .def-editor-param label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--ink-3);
+}
+.twin-root .def-editor-foot {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+    margin-top: auto;
+}
+@media (max-width: 640px) {
+    .twin-root .def-editor-body {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,5 +1,6 @@
 import { Head, Link, usePoll } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+import { DefinitionEditor } from '@/components/definition-editor';
 import type { GatewayStatus } from '@/components/gateway-panel';
 import {
     TwinEditor,
@@ -42,7 +43,9 @@ export default function ShowTwin({
     gateway,
     can,
 }: Props) {
-    const [editing, setEditing] = useState(false);
+    const [editing, setEditing] = useState<'layout' | 'definition' | null>(
+        null,
+    );
     // Follow the gateway when one is connected, unless the user picks the simulator.
     const [preferSimulator, setPreferSimulator] = useState(false);
     const live =
@@ -133,19 +136,32 @@ export default function ShowTwin({
                                 )}
                             </div>
                         )}
-                        {can.update && (
-                            <button
-                                className={editing ? 'primary' : 'ghost'}
-                                aria-expanded={editing}
-                                onClick={() => setEditing(!editing)}
-                            >
-                                Layout
-                            </button>
-                        )}
+                        {can.update &&
+                            (
+                                [
+                                    ['layout', 'Layout'],
+                                    ['definition', 'Zones and assets'],
+                                ] as const
+                            ).map(([panel, label]) => (
+                                <button
+                                    key={panel}
+                                    className={
+                                        editing === panel ? 'primary' : 'ghost'
+                                    }
+                                    aria-expanded={editing === panel}
+                                    onClick={() =>
+                                        setEditing(
+                                            editing === panel ? null : panel,
+                                        )
+                                    }
+                                >
+                                    {label}
+                                </button>
+                            ))}
                     </>
                 }
             >
-                {editing && (
+                {editing === 'layout' && (
                     <TwinEditor
                         twinId={twin.id}
                         definition={definition}
@@ -155,7 +171,15 @@ export default function ShowTwin({
                         canManageTypes={can.manageTypes}
                         gateway={gateway}
                         topicPrefix={project.topicPrefix}
-                        onClose={() => setEditing(false)}
+                        onClose={() => setEditing(null)}
+                    />
+                )}
+                {editing === 'definition' && (
+                    <DefinitionEditor
+                        key={version}
+                        twinId={twin.id}
+                        definition={definition}
+                        onClose={() => setEditing(null)}
                     />
                 )}
             </Viewer>
