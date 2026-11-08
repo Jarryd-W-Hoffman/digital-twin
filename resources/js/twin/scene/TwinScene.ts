@@ -6,6 +6,7 @@ import {
     Cartesian2,
     Cartesian3,
     Cesium3DTileset,
+    Cesium3DTileStyle,
     CesiumTerrainProvider,
     Color,
     Credit,
@@ -63,6 +64,7 @@ import {
 import type {
     Alert,
     AssetDef,
+    FeatureRef,
     Frame,
     Placement,
     Point,
@@ -131,6 +133,15 @@ interface Vehicle {
     startedAt: number;
     entity: Entity;
 }
+
+/** A feature's id property as text: tilesets may store ids as numbers. */
+const featureKey = (value: unknown): string | null =>
+    typeof value === 'string' || typeof value === 'number'
+        ? String(value)
+        : null;
+
+/** A selected asset's feature: the selection outline's colour. */
+const SELECTED_FEATURE = '#ffd166';
 
 interface AssetVisual {
     def: AssetDef;
@@ -203,10 +214,20 @@ export class TwinScene {
     onPick?: (assetId: string | null) => void;
     /** While set, a click reports the ground point instead of selecting. */
     onGroundPick?: (point: Point) => void;
+    /** While set, a click on a layer's feature reports it instead of selecting. */
+    onFeaturePick?: (feature: FeatureRef) => void;
+    /** Assets that are a layer's features: layer id, then feature id, to asset id. */
+    private readonly bound = new Map<string, Map<string, string>>();
 
     constructor(container: HTMLElement, def: TwinDefinition) {
         this.def = def;
         this.origin = def.origin;
+        for (const a of def.assets) {
+            if (!a.feature) continue;
+            const features = this.bound.get(a.feature.layer) ?? new Map();
+            features.set(a.feature.id, a.id);
+            this.bound.set(a.feature.layer, features);
+        }
         this.viewer = new Viewer(container, {
             animation: false,
             timeline: false,
@@ -272,6 +293,25 @@ export class TwinScene {
             const picked = scene.pick(e.position) as
                 | { id?: Entity | string }
                 | undefined;
+            // A zone's translucent fill can lie over a feature; look through it.
+            const feature =
+                this.featureOf(picked) ??
+                (this.bound.size > 0 || this.onFeaturePick
+                    ? (scene
+                          .drillPick(e.position, 4)
+                          .map((p) => this.featureOf(p))
+                          .find((f) => f !== null) ?? null)
+                    : null);
+            if (this.onFeaturePick) {
+                if (feature) this.onFeaturePick(feature);
+                return;
+            }
+            const boundTo =
+                feature && this.bound.get(feature.layer)?.get(feature.id);
+            if (boundTo) {
+                this.onPick?.(boundTo);
+                return;
+            }
             const hit = picked?.id;
             const id =
                 typeof hit === 'string'
@@ -487,7 +527,9 @@ export class TwinScene {
             this.pendingBodies.push({ id, footprint, base: from, top: to });
         };
 
-        if (type && a.position && !a.footprint) {
+        if (a.feature) {
+            // The layer's feature is its body.
+        } else if (type && a.position && !a.footprint) {
             addBody(
                 type.visual.shape === 'cylinder'
                     ? circleAround(a.position, 1.6)
@@ -779,6 +821,8 @@ export class TwinScene {
                 if (t.placement)
                     tileset.modelMatrix = this.placementMatrix(t.placement);
                 tileset.show = this.contextShown;
+                if (this.bound.has(t.id))
+                    tileset.style = this.featureStyle(t.id, t.featureProperty);
                 this.viewer.scene.primitives.add(tileset);
                 this.layerPrimitives.set(t.id, tileset);
             } catch (error) {
@@ -794,12 +838,74 @@ export class TwinScene {
                     shadows: ShadowMode.ENABLED,
                 });
                 if (this.viewer.isDestroyed()) return;
+                if (this.bound.has(m.id))
+                    model.style = this.featureStyle(m.id, m.featureProperty);
                 this.viewer.scene.primitives.add(model);
                 this.layerPrimitives.set(m.id, model);
             } catch (error) {
                 console.warn(`Could not load model ${m.id}`, error);
             }
         }
+    }
+
+    /**
+     * Colours each feature bound to an asset as the asset's body would be, or
+     * as the selection when it's selected; other features keep their own colour.
+     */
+    private featureStyle(layerId: string, property = 'id'): Cesium3DTileStyle {
+        const style = new Cesium3DTileStyle();
+        const features = this.bound.get(layerId)!;
+        style.color = {
+            evaluateColor: (
+                feature: { getProperty(name: string): unknown },
+                result?: Color,
+            ) => {
+                const assetId = features.get(
+                    String(feature.getProperty(property)),
+                );
+                const css =
+                    assetId === undefined
+                        ? undefined
+                        : assetId === this.selectedId
+                          ? SELECTED_FEATURE
+                          : this.visuals.get(assetId)?.color;
+                return css
+                    ? Color.fromCssColorString(css, result)
+                    : Color.clone(Color.WHITE, result);
+            },
+        } as unknown as Cesium3DTileStyle['color'];
+        return style;
+    }
+
+    /** Re-evaluates a layer's feature colours after an asset's colour changed. */
+    private restyle(layerId: string): void {
+        const primitive = this.layerPrimitives.get(layerId);
+        if (primitive instanceof Cesium3DTileset) primitive.makeStyleDirty();
+        else if (primitive?.style) {
+            // A model re-applies its style when one is set.
+            const { style } = primitive;
+            primitive.style = style;
+        }
+    }
+
+    /** The layer feature a pick hit, by the layer's feature property. */
+    private featureOf(picked: unknown): FeatureRef | null {
+        const feature = picked as
+            | { primitive?: unknown; getProperty?: (name: string) => unknown }
+            | undefined;
+        if (typeof feature?.getProperty !== 'function') return null;
+        for (const [layer, primitive] of this.layerPrimitives) {
+            if (primitive !== feature.primitive) continue;
+            const def = [
+                ...(this.def.tilesets ?? []),
+                ...(this.def.models ?? []),
+            ].find((l) => l.id === layer);
+            const id = featureKey(
+                feature.getProperty(def?.featureProperty ?? 'id'),
+            );
+            return id === null ? null : { layer, id };
+        }
+        return null;
     }
 
     /** East/north/up from the origin, turned clockwise from north, then scaled. */
@@ -901,8 +1007,13 @@ export class TwinScene {
     private updateVisual(visual: AssetVisual, frame: Frame): void {
         const { def: a } = visual;
         const color = this.colorFor(a, frame);
-        // Until the primitive has built there is nothing to write to; retry next frame.
-        if (color !== visual.color && this.bodies?.ready) {
+        if (a.feature) {
+            if (color !== visual.color) {
+                visual.color = color;
+                this.restyle(a.feature.layer);
+            }
+        } else if (color !== visual.color && this.bodies?.ready) {
+            // Until the primitive has built there is nothing to write to; retry next frame.
             visual.color = color;
             const value = Color.fromCssColorString(color);
             for (const id of visual.bodies) {
@@ -1016,7 +1127,14 @@ export class TwinScene {
     }
 
     setSelected(id: string | null): void {
+        const before = this.selectedId;
         this.selectedId = id;
+        for (const was of [before, id]) {
+            const layer = was
+                ? this.def.assets.find((x) => x.id === was)?.feature?.layer
+                : undefined;
+            if (layer) this.restyle(layer);
+        }
         if (!this.selection) return;
         const a = id ? this.def.assets.find((x) => x.id === id) : undefined;
         const footprint =
@@ -1125,6 +1243,20 @@ export class TwinScene {
         const [r, g, b] = this.bodies.getGeometryInstanceAttributes(instance)
             .color as Uint8Array;
         return `#${[r, g, b].map((c) => c!.toString(16).padStart(2, '0')).join('')}`;
+    }
+
+    /** The colour a layer's feature is drawn with, for tests; null when unstyled. */
+    featureColor(layer: string, id: string): string | null {
+        const color = this.layerPrimitives.get(layer)?.style?.color as
+            | {
+                  evaluateColor(feature: {
+                      getProperty(name: string): unknown;
+                  }): Color;
+              }
+            | undefined;
+        return color
+            ? color.evaluateColor({ getProperty: () => id }).toCssHexString()
+            : null;
     }
 
     /** Screen position of an asset, for tests that click the real canvas. */

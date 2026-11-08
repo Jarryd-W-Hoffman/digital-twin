@@ -472,9 +472,85 @@ test('a zone is drawn on the ground, a corner dragged, an asset placed, and save
   expect(Math.abs(Number(await asset.getByLabel('North (m)').inputValue()) - 15)).toBeLessThan(1.5);
 
   await editor.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+  // PHP's single-process server may still be serving the scene's tiles.
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`, { timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => {
     const def = (window as unknown as { __twin: { getState(): { def?: { zones: { id: string; footprint: number[][] }[] } } } }).__twin.getState().def;
     return def?.zones.find((z) => z.id === 'zone')?.footprint.length;
   }), { timeout: 90_000 }).toBe(3);
+});
+
+test('an asset is bound to an element of an uploaded model: picked in the scene, coloured, and selected by clicking it', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  type Scene = {
+    __scene: { screenAt(p: [number, number]): { x: number; y: number } | null; featureColor(layer: string, id: string): string | null; appliedColor(id: string): string | null };
+    __twin: { getState(): { selectedId: string | null; def?: { models?: { id: string }[]; assets: { id: string; feature?: { layer: string; id: string } }[] } } };
+  };
+  // scripts/generate-ifc.py's shed, converted by meridian-ifc: six elements, each a feature.
+  // The camera looks in from the south, so its centre is behind the south wall.
+  const southWall = '3SjGXv8sb2K9dxnB7Icxi7';
+  const clickAt = async (p: [number, number]) => {
+    // A new version rebuilds the scene, and its camera flies in: wait until the point stays put.
+    let last = '';
+    await expect.poll(async () => {
+      const now = JSON.stringify(await page.evaluate((point) => (window as unknown as Scene).__scene.screenAt(point), p));
+      const settled = now === last;
+      last = now;
+      return settled;
+    }, { timeout: 30_000, intervals: [500] }).toBe(true);
+    const at = await page.evaluate((point) => (window as unknown as Scene).__scene.screenAt(point), p);
+    if (!at) throw new Error(`${p.join(', ')} is off screen`);
+    const box = (await page.locator('canvas').first().boundingBox())!;
+    await page.mouse.click(box.x + at.x, box.y + at.y);
+  };
+
+  await logIn(page, 'test@example.com');
+  await page.getByRole('link', { name: 'New twin' }).click();
+  await expect(page.getByLabel('Project')).toHaveValue(/.+/);
+  await page.getByLabel('Name', { exact: true }).fill('Shed site');
+  await page.getByLabel('Latitude').fill('-36.85');
+  await page.getByLabel('Longitude').fill('174.76');
+  await page.getByRole('button', { name: 'Create twin' }).click();
+  await expect(page.locator('.twin-name')).toHaveText('Shed site');
+  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
+  await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Scene).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
+
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const layout = page.getByRole('complementary', { name: 'Layout' });
+  await layout.getByLabel('Upload file').setInputFiles(resolve('tests/fixtures/shed.glb'));
+  await layout.getByLabel('Upload name').fill('Depot shed');
+  await layout.getByRole('button', { name: 'Upload', exact: true }).click();
+  await expect(page.locator('.version-chip')).toHaveText('v2');
+  await expect.poll(() => layers(page), { timeout: 45_000 }).toContainEqual(expect.stringMatching(/^upload-/));
+  const layer = (await layers(page)).find((l) => l.startsWith('upload-'))!;
+  await page.getByRole('button', { name: 'Close layout' }).click();
+
+  await page.getByRole('button', { name: 'Definition' }).click();
+  const editor = page.getByRole('complementary', { name: 'Definition' });
+  await editor.getByRole('tab', { name: 'Assets' }).click();
+  await editor.getByRole('list', { name: 'Assets' }).getByRole('button', { name: /^Main board/ }).click();
+  const board = editor.getByRole('form', { name: 'Edit board' });
+  const feature = board.getByRole('group', { name: 'Model feature' });
+  await feature.getByRole('button', { name: 'Pick in scene' }).click();
+  await expect(feature.getByText('Click an element of a model or tileset.')).toBeVisible();
+  await clickAt([10, 6]);
+  await expect(feature.getByRole('button', { name: 'Pick in scene' })).toBeVisible();
+  await expect(feature.getByLabel('Layer')).toHaveValue(layer);
+  await expect(feature.getByLabel('Feature')).toHaveValue(southWall);
+  await expect(editor.getByText('No problems.')).toBeVisible();
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.version-chip')).toHaveText('v3');
+
+  // The board is drawn as the south wall now, in its status colour, not as its own box.
+  await expect.poll(() => layers(page), { timeout: 45_000 }).toContain(layer);
+  await expect.poll(() => page.evaluate(([l, id]) => (window as unknown as Scene).__scene.featureColor(l, id), [layer, southWall]), { timeout: 30_000 })
+    .toMatch(/^#(?!ffffff)[0-9a-f]{6}$/);
+  expect(await page.evaluate(() => (window as unknown as Scene).__scene.appliedColor('board'))).toBeNull();
+  expect(await page.evaluate(([l]) => (window as unknown as Scene).__scene.featureColor(l, 'not-bound'), [layer])).toBe('#ffffff');
+
+  await clickAt([10, 6]);
+  await expect.poll(() => page.evaluate(() => (window as unknown as Scene).__twin.getState().selectedId)).toBe('board');
+  expect(await page.evaluate(([l, id]) => (window as unknown as Scene).__scene.featureColor(l, id), [layer, southWall])).toBe('#ffd166');
+  expect(problems).toEqual([]);
 });

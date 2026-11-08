@@ -6,7 +6,11 @@ element is so it can later be bound to a twin's assets:
     triangulate every element with geometry (IfcOpenShell, world coordinates, metres)
     write model.glb: one node per element, named by its GlobalId, with its
         name, IFC class and storey in the node's extras; IFC is Z-up and
-        glTF Y-up, so (x, y, z) is written as (x, z, -y)
+        glTF Y-up, and Cesium turns a glTF's +Z (its forward) to east, so
+        (x, y, z) is written as (y, z, x): east, north and up in the twin
+        each element is also a feature (EXT_mesh_features), its properties in a
+        property table (EXT_structural_metadata), so a viewer can pick and
+        colour elements one by one
     write elements.json: the same, as a list
     georeference the model's origin, when the file says where it is:
         IfcMapConversion: eastings and northings in its target CRS, reprojected
@@ -39,6 +43,8 @@ osr.UseExceptions()
 # float32 vertices stay precise.
 RECENTRE_M = 1000.0
 EARTH_RADIUS_M = 6378137.0
+# What each element carries, in the node's extras and the property table.
+PROPERTIES = ("id", "name", "ifcClass", "storey")
 
 
 def fail(message: str) -> None:
@@ -90,6 +96,7 @@ class Glb:
         self.buffer = bytearray()
         self.views, self.accessors, self.meshes, self.nodes = [], [], [], []
         self.materials, self.material_index = [], {}
+        self.elements = []
 
     def material(self, colour) -> int:
         if colour not in self.material_index:
@@ -102,13 +109,19 @@ class Glb:
             })
         return self.material_index[colour]
 
-    def accessor(self, data: np.ndarray, kind: str, component: int, target: int, bounds: bool = False) -> int:
-        while len(self.buffer) % 4:
+    def view(self, raw: bytes, target: int | None = None) -> int:
+        # Property table views must start on 8 bytes; vertex data needs 4.
+        while len(self.buffer) % 8:
             self.buffer.append(0)
-        raw = data.tobytes()
-        self.views.append({"buffer": 0, "byteOffset": len(self.buffer), "byteLength": len(raw), "target": target})
+        view = {"buffer": 0, "byteOffset": len(self.buffer), "byteLength": len(raw)}
+        if target is not None:
+            view["target"] = target
+        self.views.append(view)
         self.buffer.extend(raw)
-        accessor = {"bufferView": len(self.views) - 1, "componentType": component, "count": len(data), "type": kind}
+        return len(self.views) - 1
+
+    def accessor(self, data: np.ndarray, kind: str, component: int, target: int, bounds: bool = False) -> int:
+        accessor = {"bufferView": self.view(data.tobytes(), target), "componentType": component, "count": len(data), "type": kind}
         if bounds:
             accessor["min"] = data.min(axis=0).tolist()
             accessor["max"] = data.max(axis=0).tolist()
@@ -132,16 +145,34 @@ class Glb:
                 "attributes": {
                     "POSITION": self.accessor(corners.astype(np.float32), "VEC3", 5126, 34962, bounds=True),
                     "NORMAL": self.accessor(normals.astype(np.float32), "VEC3", 5126, 34962),
+                    "_FEATURE_ID_0": self.accessor(np.full(len(corners), len(self.elements), dtype=np.float32), "SCALAR", 5126, 34962),
                 },
                 "indices": self.accessor(np.arange(len(corners), dtype=np.uint32), "SCALAR", 5125, 34963),
                 "material": self.material(colour),
+                "extensions": {"EXT_mesh_features": {"featureIds": [{"featureCount": 1, "attribute": 0, "propertyTable": 0}]}},
             })
         self.meshes.append({"name": info["id"], "primitives": primitives})
         self.nodes.append({"name": info["id"], "mesh": len(self.meshes) - 1, "extras": info})
+        self.elements.append(info)
+
+    def property_table(self) -> dict:
+        """Every element's properties, as strings, in feature id order."""
+        properties = {}
+        for key in PROPERTIES:
+            encoded = [element[key].encode() for element in self.elements]
+            offsets = np.cumsum([0] + [len(e) for e in encoded], dtype=np.uint32)
+            properties[key] = {"values": self.view(b"".join(encoded)), "stringOffsets": self.view(offsets.tobytes())}
+        return {"class": "element", "count": len(self.elements), "properties": properties}
 
     def write(self, path: str) -> None:
+        table = self.property_table()
         document = {
             "asset": {"version": "2.0", "generator": "meridian-ifc"},
+            "extensionsUsed": ["EXT_mesh_features", "EXT_structural_metadata"],
+            "extensions": {"EXT_structural_metadata": {
+                "schema": {"id": "meridian", "classes": {"element": {"properties": {key: {"type": "STRING"} for key in PROPERTIES}}}},
+                "propertyTables": [table],
+            }},
             "scene": 0,
             "scenes": [{"nodes": list(range(len(self.nodes)))}],
             "nodes": self.nodes,
@@ -249,7 +280,7 @@ def main() -> None:
     for element, vertices, faces, ids, materials in shapes:
         info = describe(element)
         local = vertices - np.array([shift[0], shift[1], 0.0])
-        glb.add(info, np.column_stack([local[:, 0], local[:, 2], -local[:, 1]]), faces, ids, materials)
+        glb.add(info, np.column_stack([local[:, 1], local[:, 2], local[:, 0]]), faces, ids, materials)
         elements.append(info)
         triangles += len(faces)
     glb.write(os.path.join(args.out, "model.glb"))

@@ -306,6 +306,11 @@ export function validateDefinition(input: unknown): string[] {
             layers.add(l.id);
         }
     }
+    for (const a of objects(def.assets)) {
+        const feature = a.feature as Record<string, unknown> | undefined;
+        if (isText(feature?.layer) && !layers.has(feature.layer))
+            errors.push(`${label(a.id)}: unknown layer ${feature.layer}`);
+    }
 
     // Telemetry: which MQTT topics feed which metrics. Only the gateway knows
     // every kind's metrics, so it checks the metric when it applies one.

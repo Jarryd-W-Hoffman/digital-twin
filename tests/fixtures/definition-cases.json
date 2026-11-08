@@ -136,6 +136,16 @@
         },
         { "name": "terrain with a url", "ops": [{ "set": "terrain", "value": { "name": "Ground", "url": "/assets/x/files/layer.json" } }], "errors": [] },
         { "name": "terrain without a url", "ops": [{ "set": "terrain", "value": { "name": "Ground" } }, { "set": "telemetry", "value": [{}] }], "errors": ["A telemetry mapping has no topic", "Terrain needs a url"] },
-        { "name": "terrain not an object", "ops": [{ "set": "terrain", "value": "hills" }], "errors": ["Terrain needs a url"] }
+        { "name": "terrain not an object", "ops": [{ "set": "terrain", "value": "hills" }], "errors": ["Terrain needs a url"] },
+        {
+            "name": "an asset bound to a tileset feature",
+            "ops": [{ "set": "tilesets", "value": [{ "id": "context", "name": "Neighbours", "url": "/tilesets/context/tileset.json" }] }, { "set": "assets.4.feature", "value": { "layer": "context", "id": "plant-01" } }, { "set": "tilesets.0.featureProperty", "value": "GlobalId" }],
+            "errors": []
+        },
+        {
+            "name": "feature bindings that are incomplete or point nowhere",
+            "ops": [{ "set": "tilesets", "value": [{ "id": "context", "name": "Neighbours", "url": "/tilesets/context/tileset.json" }] }, { "set": "assets.3.feature", "value": { "layer": "ghost", "id": "x" } }, { "set": "assets.4.feature", "value": { "layer": "context" } }, { "set": "assets.5.feature", "value": "wall" }, { "set": "tilesets.0.featureProperty", "value": 3 }],
+            "errors": ["plant: feature needs a layer and an id", "store: feature needs a layer and an id", "Tileset context: featureProperty must be text", "board: unknown layer ghost"]
+        }
     ]
 }

@@ -20,7 +20,7 @@ import {
     type Item,
     type ListName,
 } from '@/twin/core/editing';
-import type { Point, TwinDefinition } from '@/twin/core/types';
+import type { FeatureRef, Point, TwinDefinition } from '@/twin/core/types';
 import { validateDefinition } from '@/twin/core/validate';
 import { useTwin } from '@/twin/state/store';
 
@@ -364,6 +364,15 @@ function FieldInput({
             return (
                 <PolygonInput field={field} value={value} onChange={onChange} />
             );
+        case 'feature':
+            return (
+                <FeatureInput
+                    field={field}
+                    value={value}
+                    draft={draft}
+                    onChange={onChange}
+                />
+            );
         case 'params':
             return (
                 <ParamsInput field={field} value={value} onChange={onChange} />
@@ -565,6 +574,173 @@ function PointInput({
             </button>
         </fieldset>
     );
+}
+
+/** An element a converted IFC model lists in its elements.json. */
+interface Element {
+    id: string;
+    name: string;
+    ifcClass: string;
+}
+
+/**
+ * Where a model's element list is: beside a GLB that meridian-ifc wrote,
+ * which a library upload serves as `…/files/model.glb`.
+ */
+const elementsUrl = (url: string | undefined) =>
+    url?.endsWith('/files/model.glb')
+        ? url.replace(/model\.glb$/, 'elements.json')
+        : null;
+
+/**
+ * The element of a model or tileset an asset is: a layer, then the feature's
+ * id, chosen from a converted IFC model's elements, typed, or picked by
+ * clicking it in the scene.
+ */
+function FeatureInput({
+    field,
+    value,
+    draft,
+    onChange,
+}: {
+    field: Field;
+    value: unknown;
+    draft: TwinDefinition;
+    onChange: (value: unknown) => void;
+}) {
+    const feature = asItem(value) as Partial<FeatureRef>;
+    const layers = [...(draft.tilesets ?? []), ...(draft.models ?? [])];
+    const url = elementsUrl(layers.find((l) => l.id === feature.layer)?.url);
+    const [loaded, setLoaded] = useState<{
+        url: string;
+        elements: Element[];
+    } | null>(null);
+    useEffect(() => {
+        if (!url) return;
+        let current = true;
+        fetch(url)
+            .then((res) => (res.ok ? (res.json() as Promise<Element[]>) : null))
+            .then((elements) => {
+                if (current && Array.isArray(elements))
+                    setLoaded({ url, elements });
+            })
+            .catch(() => undefined);
+        return () => {
+            current = false;
+        };
+    }, [url]);
+    const elements = loaded && loaded.url === url ? loaded.elements : null;
+    const set = (next: Partial<FeatureRef>) => {
+        const merged = { ...feature, ...next };
+        onChange(
+            merged.layer || merged.id
+                ? { layer: merged.layer ?? '', id: merged.id ?? '' }
+                : undefined,
+        );
+    };
+    const { picking, pick, stop } = useFeaturePick((picked) =>
+        onChange(picked),
+    );
+    const id = feature.id ?? '';
+    return (
+        <fieldset className="def-editor-field">
+            <legend>{field.title}</legend>
+            <div className="def-editor-pair">
+                <label>
+                    <span>Layer</span>
+                    <select
+                        value={feature.layer ?? ''}
+                        onChange={(e) =>
+                            set({ layer: e.target.value || undefined })
+                        }
+                    >
+                        <option value="">None</option>
+                        {layers.map((l) => (
+                            <option key={l.id} value={l.id}>
+                                {l.name || l.id}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+                <label>
+                    <span>Feature</span>
+                    {elements ? (
+                        <select
+                            value={id}
+                            onChange={(e) =>
+                                set({ id: e.target.value || undefined })
+                            }
+                        >
+                            <option value="">None</option>
+                            {id !== '' &&
+                                !elements.some((e) => e.id === id) && (
+                                    <option value={id}>{id}</option>
+                                )}
+                            {elements.map((e) => (
+                                <option key={e.id} value={e.id}>
+                                    {e.name || e.id} · {e.ifcClass}
+                                </option>
+                            ))}
+                        </select>
+                    ) : (
+                        <input
+                            value={id}
+                            onChange={(e) =>
+                                set({ id: e.target.value || undefined })
+                            }
+                        />
+                    )}
+                </label>
+            </div>
+            {picking ? (
+                <small className="muted">
+                    Click an element of a model or tileset.
+                </small>
+            ) : (
+                <Description field={field} />
+            )}
+            <button
+                type="button"
+                className="link"
+                onClick={() => (picking ? stop() : pick())}
+            >
+                {picking ? 'Stop picking' : 'Pick in scene'}
+            </button>
+        </fieldset>
+    );
+}
+
+/**
+ * Lets one field take the next feature clicked in the scene; leaving the
+ * field ends the wait.
+ */
+function useFeaturePick(onPicked: (feature: FeatureRef) => void) {
+    const owner = useId();
+    const picking = useTwin(
+        (s) => s.featurePick?.owner === owner && !s.featurePick.picked,
+    );
+    const report = useRef(onPicked);
+    useEffect(() => {
+        report.current = onPicked;
+    });
+    useEffect(() => {
+        const unsubscribe = useTwin.subscribe((s) => {
+            const picked = s.featurePick?.picked;
+            if (s.featurePick?.owner !== owner || !picked) return;
+            s.setFeaturePick(null);
+            report.current(picked);
+        });
+        return () => {
+            unsubscribe();
+            if (useTwin.getState().featurePick?.owner === owner)
+                useTwin.getState().setFeaturePick(null);
+        };
+    }, [owner]);
+    return {
+        picking,
+        pick: () => useTwin.getState().setFeaturePick({ owner }),
+        stop: () => useTwin.getState().setFeaturePick(null),
+    };
 }
 
 /**

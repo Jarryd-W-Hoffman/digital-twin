@@ -14,8 +14,8 @@ final readonly class RemoveAssetFromTwin
     public function __construct(private SaveTwinVersion $versions) {}
 
     /**
-     * Takes an upload's layers out of the twin as a new version; the files stay
-     * in the project's library. Null when the latest version doesn't show it.
+     * Takes an upload's layers out of the twin as a new version, unbinding any
+     * assets from their features; the files stay in the project's library. Null when the latest version doesn't show it.
      * Older versions keep their reference.
      */
     public function handle(Twin $twin, ?User $user, ProjectAsset $asset): ?TwinVersion
@@ -28,11 +28,33 @@ final readonly class RemoveAssetFromTwin
             unset($definition['terrain']);
         }
 
+        $removed = [];
+
         foreach (['tilesets', 'models'] as $field) {
             $layers = is_array($definition[$field] ?? null) ? array_values($definition[$field]) : [];
-            $kept = array_values(array_filter($layers, fn (mixed $layer): bool => ! is_array($layer) || ($layer['assetId'] ?? null) !== $asset->id));
-            $changed = $changed || count($kept) !== count($layers);
+            $kept = [];
+
+            foreach ($layers as $layer) {
+                if (is_array($layer) && ($layer['assetId'] ?? null) === $asset->id) {
+                    $removed[] = $layer['id'] ?? null;
+                } else {
+                    $kept[] = $layer;
+                }
+            }
+
+            $changed = $changed || $removed !== [];
             $definition[$field] = $kept;
+        }
+
+        // Assets that were features of a removed layer go back to their own bodies.
+        if ($removed !== [] && is_array($definition['assets'] ?? null)) {
+            $definition['assets'] = array_map(function (mixed $item) use ($removed): mixed {
+                if (is_array($item) && is_array($item['feature'] ?? null) && in_array($item['feature']['layer'] ?? null, $removed, true)) {
+                    unset($item['feature']);
+                }
+
+                return $item;
+            }, $definition['assets']);
         }
 
         return $changed
