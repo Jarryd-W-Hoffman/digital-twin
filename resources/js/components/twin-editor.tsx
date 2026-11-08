@@ -1,6 +1,7 @@
 import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { GatewayPanel, type GatewayStatus } from '@/components/gateway-panel';
+import { OpcUaPanel } from '@/components/opcua-panel';
 import { TelemetryPanel } from '@/components/telemetry-panel';
 import { index as typeLibrary } from '@/routes/organisation/types';
 import { store as storeAsset } from '@/routes/twins/assets';
@@ -71,11 +72,13 @@ export function TwinEditor({
     canManageTypes,
     gateway,
     topicPrefix,
+    opcuaServers,
     onClose,
 }: {
     twinId: string;
     gateway: GatewayStatus;
     topicPrefix: string;
+    opcuaServers: string[];
     definition: TwinDefinition;
     versions: TwinVersionSummary[];
     assets: TwinAssetSummary[];
@@ -597,6 +600,13 @@ export function TwinEditor({
                 twinId={twinId}
                 definition={definition}
                 topicPrefix={topicPrefix}
+            />
+
+            <OpcUaPanel
+                key={`opcua-${versions[0]?.id}`}
+                twinId={twinId}
+                definition={definition}
+                servers={opcuaServers}
             />
 
             <section>

@@ -13,7 +13,7 @@ A **twin** is one site: its buildings and equipment, where they are, how power a
 3. Under **Start from**, choose one:
     - **An empty site at a location**: enter the **Latitude**, **Longitude** and **UTC offset (hours)** of the site. The twin starts with weather, a grid connection and a main board, ready for you to add models, scans and equipment.
     - **A sample site**: a copy of **Northshore Cold Chain Hub** or **Harbour Depot**, to explore or adapt.
-    - **A definition file**: a twin definition saved as JSON, such as one downloaded from another twin. See [Twin definitions](11-twin-definitions.md).
+    - **A definition file**: a twin definition saved as JSON, such as one downloaded from another twin. See [Twin definitions](12-twin-definitions.md).
 4. Choose **Create twin**. Meridian checks the definition, saves it as version 1 and opens the twin.
 
 Only editors can create twins. Renaming or deleting a twin isn't in the app yet.
@@ -30,7 +30,7 @@ From left to right:
 - **The version chip** (`v4`): the version you're looking at. Every saved change adds one; see [Layout and versions](08-layout-and-versions.md).
 - **Simulator / Live**: shown while a [gateway](09-gateways-and-live-data.md) is running the twin. **Live** follows the gateway; **Simulator** runs the model in your browser instead.
 - **Layout** (editors only): opens the [Layout panel](08-layout-and-versions.md).
-- **The headline figures**: **Site load**, **Solar**, **Grid import** (or **Export**, or **Lost** during an outage), **Battery** charge, and **Tightest store**, how close the warmest cold store is to its limit. A twin can declare its own figures instead, like Harbour Depot's **Margin to limit** and **Run cost**; see [KPIs and panels](11-twin-definitions.md#kpis-and-panels).
+- **The headline figures**: **Site load**, **Solar**, **Grid import** (or **Export**, or **Lost** during an outage), **Battery** charge, and **Tightest store**, how close the warmest cold store is to its limit. A twin can declare its own figures instead, like Harbour Depot's **Margin to limit** and **Run cost**; see [KPIs and panels](12-twin-definitions.md#kpis-and-panels).
 - **The alerts button**: **No alerts**, or how many are active. Choose it to open the **Alerts** tab.
 - **The source**: **Simulator**, or the gateway's address, with how many metrics come from real sensors.
 - **The clock**: the time at the site. It reads **Replay** while you're looking back in time.
@@ -60,7 +60,7 @@ Below the list:
 
 ### The inspector (right)
 
-With nothing selected, **Inspect** summarises the site: its description, site load over the last hours, every cold store against its limit, and energy and cost so far. A twin can add its own panels here, like Northshore's **Fire protection**; see [KPIs and panels](11-twin-definitions.md#kpis-and-panels).
+With nothing selected, **Inspect** summarises the site: its description, site load over the last hours, every cold store against its limit, and energy and cost so far. A twin can add its own panels here, like Northshore's **Fire protection**; see [KPIs and panels](12-twin-definitions.md#kpis-and-panels).
 
 ![The inspector on Chiller 2: its status, readings with six hours of history, and what it's connected to.](../images/inspector.png)
 
@@ -78,7 +78,7 @@ Choose **← Site** to go back to the summary. The **Alerts** and **What-if** ta
 
 ![Fire water tank, a custom asset type, in the inspector.](../images/custom-type.png)
 
-Equipment the model has no physics for, like this fire water tank, can still be described as a [custom type](11-twin-definitions.md#custom-asset-types). It shows its own metrics, takes readings from sensors and raises alerts like anything else. A type can also behave on its own: the jockey pump starts and stops on the tank's pressure, and draws power from its board.
+Equipment the model has no physics for, like this fire water tank, can still be described as a [custom type](12-twin-definitions.md#custom-asset-types). It shows its own metrics, takes readings from sensors and raises alerts like anything else. A type can also behave on its own: the jockey pump starts and stops on the tank's pressure, and draws power from its board.
 
 ### The timeline (bottom)
 

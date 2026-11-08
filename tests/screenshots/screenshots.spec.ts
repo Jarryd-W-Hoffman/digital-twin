@@ -8,7 +8,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
  * walking through what the manual describes. Besides the app and gateway
  * Playwright starts, it uses Docker for two real services: the MQTT broker
  * (mosquitto-go-auth, asking this app) and the point cloud converter image
- * (`docker compose build converter`, tagged meridian-converter:dev).
+ * (`docker compose build converter`, tagged meridian-converter:dev). It also
+ * runs the OPC UA simulator, which the gateway reads the store's door from.
  *
  *     npm run build && npm run screenshots
  */
@@ -19,6 +20,7 @@ const BROKER = 'meridian-screenshots-mqtt';
 const CONVERTER =
     process.env.MERIDIAN_CONVERTER_IMAGE ?? 'meridian-converter:dev';
 const GATEWAY_PORT = 8796;
+const OPCUA_PORT = 4841;
 
 const image = (name: string) => resolve(ROOT, 'docs/images', `${name}.png`);
 
@@ -108,6 +110,24 @@ test.beforeAll(() => {
         'scripts/generate-terrain.py',
         'test-results/depot-ground.tif',
     ]);
+});
+
+test.beforeAll(() => {
+    const log = openSync(
+        resolve(ROOT, 'test-results/screenshots-opcua.log'),
+        'w',
+    );
+    processes.push(
+        spawn(
+            process.execPath,
+            ['--import', 'tsx', 'gateway/opcua-simulator.ts'],
+            {
+                cwd: ROOT,
+                env: { ...process.env, OPCUA_PORT: String(OPCUA_PORT) },
+                stdio: ['ignore', log, log],
+            },
+        ),
+    );
 });
 
 test.afterAll(() => {
@@ -225,6 +245,22 @@ test('screenshots', async ({ page, context }) => {
             password: await login.getByLabel('Device password').inputValue(),
         };
         await shot(devices, 'devices');
+
+        const opcua = page.getByRole('region', { name: 'OPC UA servers' });
+        await opcua.getByLabel('Server name').fill('Depot PLC');
+        await opcua
+            .getByLabel('Endpoint')
+            .fill(`opc.tcp://127.0.0.1:${OPCUA_PORT}/meridian`);
+        await opcua.getByRole('button', { name: 'Add server' }).click();
+        await expect(
+            opcua
+                .getByRole('list', { name: 'OPC UA servers' })
+                .getByText('Depot PLC'),
+        ).toBeVisible();
+        await expect(page.getByText('Depot PLC added.')).toBeHidden({
+            timeout: 15_000,
+        });
+        await shot(opcua, 'opcua-servers');
         await page.reload();
         await expect(
             page.getByRole('heading', { name: 'Pilot sites' }),
@@ -425,6 +461,26 @@ test('screenshots', async ({ page, context }) => {
         await expect(versionChip).toHaveText('v5', { timeout: 60_000 });
         await shot(telemetry, 'telemetry');
 
+        // The store's door switch, from the PLC: open is 1, so 100 %.
+        const opcuaMappings = editor.getByRole('region', { name: 'OPC UA' });
+        await opcuaMappings
+            .getByRole('button', { name: 'Add OPC UA mapping' })
+            .click();
+        await opcuaMappings.getByLabel('Node').fill('ns=1;s=Store.DoorOpen');
+        await opcuaMappings
+            .getByLabel('Asset')
+            .selectOption({ label: 'Seafood store' });
+        await opcuaMappings
+            .getByLabel('Metric')
+            .selectOption({ label: 'Door open' });
+        await opcuaMappings.getByLabel('Scale').fill('100');
+        await opcuaMappings.getByLabel('Sampling, ms').fill('500');
+        await opcuaMappings
+            .getByRole('button', { name: 'Save OPC UA mappings' })
+            .click();
+        await expect(versionChip).toHaveText('v6', { timeout: 60_000 });
+        await shot(opcuaMappings, 'opcua-mappings');
+
         const gatewayPanel = editor.locator('section', {
             has: page.getByRole('heading', { name: 'Gateway' }),
         });
@@ -450,6 +506,7 @@ test('screenshots', async ({ page, context }) => {
                     GATEWAY_PORT: String(GATEWAY_PORT),
                     GATEWAY_PUBLIC_URL: `ws://127.0.0.1:${GATEWAY_PORT}/ws`,
                     GATEWAY_POLL_MS: '2000',
+                    OPCUA_PKI_DIR: resolve(ROOT, 'test-results/opcua-pki'),
                 },
                 stdio: ['ignore', log, log],
             }),
@@ -463,7 +520,10 @@ test('screenshots', async ({ page, context }) => {
                     ),
                 { timeout: 60_000 },
             )
-            .toMatchObject({ mqtt: { connected: true } });
+            .toMatchObject({
+                mqtt: { connected: true },
+                opcua: { servers: { 'Depot PLC': { status: 'connected' } } },
+            });
 
         // The store holds about 1 °C, with a door left open for an hour and a half ten hours ago.
         backfill(
@@ -501,12 +561,16 @@ test('screenshots', async ({ page, context }) => {
         await expect
             .poll(
                 () =>
-                    fetch(`http://127.0.0.1:${GATEWAY_PORT}/health`).then((r) =>
-                        r.json(),
-                    ),
+                    fetch(`http://127.0.0.1:${GATEWAY_PORT}/health`)
+                        .then((r) => r.json())
+                        .then(
+                            (health: { history: { sent: number } }) =>
+                                health.history.sent,
+                        ),
                 { timeout: 30_000 },
             )
-            .toMatchObject({ history: { sent: 3 } });
+            // The three MQTT messages, and the door from OPC UA.
+            .toBeGreaterThanOrEqual(4);
 
         await expect(async () => {
             await page.reload();

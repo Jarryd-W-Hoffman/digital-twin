@@ -114,6 +114,14 @@ final class Project extends Model
     }
 
     /**
+     * @return HasMany<OpcUaServer, $this>
+     */
+    public function opcUaServers(): HasMany
+    {
+        return $this->hasMany(OpcUaServer::class);
+    }
+
+    /**
      * Every MQTT topic in this project starts with this. Devices publish
      * below it, gateways subscribe below it, and telemetry mappings are
      * written relative to it.

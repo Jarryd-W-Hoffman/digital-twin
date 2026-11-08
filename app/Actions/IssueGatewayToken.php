@@ -22,6 +22,7 @@ final readonly class IssueGatewayToken
             'gateway_url' => null,
             'gateway_seen_at' => null,
             'gateway_mqtt' => null,
+            'gateway_opcua' => null,
         ]);
 
         return $token;

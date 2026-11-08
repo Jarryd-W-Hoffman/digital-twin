@@ -146,6 +146,21 @@
             "name": "feature bindings that are incomplete or point nowhere",
             "ops": [{ "set": "tilesets", "value": [{ "id": "context", "name": "Neighbours", "url": "/tilesets/context/tileset.json" }] }, { "set": "assets.3.feature", "value": { "layer": "ghost", "id": "x" } }, { "set": "assets.4.feature", "value": { "layer": "context" } }, { "set": "assets.5.feature", "value": "wall" }, { "set": "tilesets.0.featureProperty", "value": 3 }],
             "errors": ["plant: feature needs a layer and an id", "store: feature needs a layer and an id", "Tileset context: featureProperty must be text", "board: unknown layer ghost"]
+        },
+        {
+            "name": "an OPC UA mapping",
+            "ops": [{ "set": "opcua", "value": [{ "server": "Plant PLC", "node": "ns=2;s=Store.TempC", "asset": "store", "metric": "tempC", "scale": 0.1, "samplingMs": 500 }] }],
+            "errors": []
+        },
+        {
+            "name": "OPC UA mappings that are malformed or point nowhere",
+            "ops": [{ "set": "opcua", "value": [{ "server": "Plant PLC", "node": "Store.TempC", "asset": "store", "metric": "tempC" }, { "node": "i=2258", "asset": "ghost", "metric": "TempC", "samplingMs": 10 }, { "server": "", "node": "ns=1;i=7", "asset": "store", "metric": "tempC", "scale": "x", "ttlS": 0 }, { "server": "Plant PLC", "asset": "store", "metric": "tempC" }, "x"] }],
+            "errors": ["OPC UA Store.TempC: node must be a node id, such as ns=2;s=Pump1.Flow", "OPC UA i=2258: metric must be a camelCase identifier", "OPC UA i=2258: samplingMs must be at least 50", "OPC UA i=2258: needs a server", "OPC UA ns=1;i=7: scale must be a number", "OPC UA ns=1;i=7: needs a server", "OPC UA ns=1;i=7: ttlS must be positive", "An OPC UA mapping has no node", "OPC UA i=2258: unknown asset ghost"]
+        },
+        {
+            "name": "opcua not a list",
+            "ops": [{ "set": "opcua", "value": { "node": "i=1" } }],
+            "errors": ["opcua must be an array"]
         }
     ]
 }

@@ -254,6 +254,25 @@ export interface TelemetryMapping {
     ttlS?: number;
 }
 
+/**
+ * A node on one of the project's OPC UA servers that feeds an asset's
+ * metric: its value, times `scale`, plus `offset`. The gateway subscribes
+ * to it, sampled every `samplingMs`.
+ */
+export interface OpcUaMapping {
+    /** The name of an OPC UA server registered in the twin's project. */
+    server: string;
+    /** A node id, such as `ns=2;s=Pump1.Flow`. */
+    node: string;
+    asset: string;
+    metric: string;
+    scale?: number;
+    offset?: number;
+    /** How long each reading holds, in simulated seconds. */
+    ttlS?: number;
+    samplingMs?: number;
+}
+
 /** A quantized-mesh terrain tileset: the URL of its layer.json. */
 export interface TerrainDef {
     name?: string;
@@ -302,6 +321,7 @@ export interface TwinDefinition {
     terrain?: TerrainDef;
     types?: AssetTypeDef[];
     telemetry?: TelemetryMapping[];
+    opcua?: OpcUaMapping[];
     /** Replaces the built-in figures in the top bar. */
     kpis?: ReadoutDef[];
     /** Added to the site summary in the inspector. */

@@ -7,6 +7,8 @@ import LibraryItem from '@/components/library-item';
 import type { LibraryAsset } from '@/components/library-item';
 import ProjectDevices from '@/components/project-devices';
 import type { ProjectDevice, ProjectMqtt } from '@/components/project-devices';
+import ProjectOpcUaServers from '@/components/project-opcua-servers';
+import type { ProjectOpcUaServer } from '@/components/project-opcua-servers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,6 +43,7 @@ export default function ShowProject({
     twins,
     assets,
     devices,
+    opcuaServers,
     mqtt,
     directUploads,
     can,
@@ -49,6 +52,7 @@ export default function ShowProject({
     twins: TwinSummary[];
     assets: LibraryAsset[];
     devices: ProjectDevice[];
+    opcuaServers: ProjectOpcUaServer[];
     mqtt: ProjectMqtt;
     directUploads: boolean;
     can: { update: boolean };
@@ -373,6 +377,12 @@ export default function ShowProject({
                     projectId={project.id}
                     devices={devices}
                     mqtt={mqtt}
+                    canUpdate={can.update}
+                />
+
+                <ProjectOpcUaServers
+                    projectId={project.id}
+                    servers={opcuaServers}
                     canUpdate={can.update}
                 />
             </div>

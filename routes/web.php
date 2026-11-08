@@ -11,6 +11,7 @@ use App\Http\Controllers\ProjectAssetFileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDeviceController;
 use App\Http\Controllers\ProjectDevicePasswordController;
+use App\Http\Controllers\ProjectOpcUaServerController;
 use App\Http\Controllers\ProjectUploadCompletionController;
 use App\Http\Controllers\ProjectUploadController;
 use App\Http\Controllers\ProjectUploadPartController;
@@ -51,6 +52,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('projects/{project}/devices', [ProjectDeviceController::class, 'store'])->name('projects.devices.store');
     Route::delete('projects/{project}/devices/{device}', [ProjectDeviceController::class, 'destroy'])->scopeBindings()->name('projects.devices.destroy');
     Route::post('projects/{project}/devices/{device}/password', [ProjectDevicePasswordController::class, 'store'])->scopeBindings()->name('projects.devices.password.store');
+    Route::post('projects/{project}/opcua-servers', [ProjectOpcUaServerController::class, 'store'])->name('projects.opcua-servers.store');
+    Route::delete('projects/{project}/opcua-servers/{opcUaServer}', [ProjectOpcUaServerController::class, 'destroy'])->scopeBindings()->name('projects.opcua-servers.destroy');
     Route::post('projects/{project}/uploads', [ProjectUploadController::class, 'store'])->name('projects.uploads.store');
     Route::post('projects/{project}/uploads/{asset}/parts', [ProjectUploadPartController::class, 'store'])->scopeBindings()->name('projects.uploads.parts');
     Route::post('projects/{project}/uploads/{asset}/complete', [ProjectUploadCompletionController::class, 'store'])->scopeBindings()->name('projects.uploads.complete');

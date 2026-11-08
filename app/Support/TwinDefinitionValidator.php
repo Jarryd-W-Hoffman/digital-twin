@@ -264,6 +264,21 @@ final readonly class TwinDefinitionValidator
             }
         }
 
+        // OPC UA: which servers' nodes feed which metrics. The servers belong to
+        // the project, so only the gateway knows whether one exists.
+        foreach ($this->objects($definition['opcua'] ?? null) as $mapping) {
+            $node = $mapping['node'] ?? null;
+
+            if (! $this->isText($node)) {
+                continue;
+            }
+
+            /** @var string $node */
+            if (! array_key_exists($this->describe($mapping, 'asset'), $byId)) {
+                $errors[] = sprintf('OPC UA %s: unknown asset %s', $node, $this->describe($mapping, 'asset'));
+            }
+        }
+
         return $this->unique($errors);
     }
 

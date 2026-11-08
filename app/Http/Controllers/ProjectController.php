@@ -8,6 +8,7 @@ use App\Actions\CreateProject;
 use App\Actions\DeleteProject;
 use App\Http\Requests\StoreProjectRequest;
 use App\Models\Device;
+use App\Models\OpcUaServer;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use App\Models\Twin;
@@ -104,6 +105,14 @@ final readonly class ProjectController
                 'name' => $device->name,
                 'username' => $device->mqttUsername(),
                 'lastSeenAt' => $device->last_seen_at?->toIso8601String(),
+            ]),
+            'opcuaServers' => $project->opcUaServers()->orderBy('name')->get()->map(fn (OpcUaServer $server): array => [
+                'id' => $server->id,
+                'name' => $server->name,
+                'endpoint' => $server->endpoint,
+                'securityMode' => $server->security_mode->value,
+                'securityPolicy' => $server->security_policy->value,
+                'username' => $server->username,
             ]),
             'mqtt' => [
                 'brokerUrl' => config()->string('meridian.mqtt.broker_url'),

@@ -321,6 +321,13 @@ export function validateDefinition(input: unknown): string[] {
         if (!ids.has(show(t.asset)))
             errors.push(`${owner}: unknown asset ${show(t.asset)}`);
     }
+    // OPC UA: which servers' nodes feed which metrics. The servers belong to
+    // the project, so only the gateway knows whether one exists.
+    for (const m of objects(def.opcua)) {
+        if (!isText(m.node)) continue;
+        if (!ids.has(show(m.asset)))
+            errors.push(`OPC UA ${m.node}: unknown asset ${show(m.asset)}`);
+    }
     return unique(errors);
 }
 

@@ -22,7 +22,12 @@ import { Viewer } from '@/twin/ui/Viewer';
 
 type Props = {
     twin: { id: string; name: string; description: string | null };
-    project: { id: string; name: string; topicPrefix: string };
+    project: {
+        id: string;
+        name: string;
+        topicPrefix: string;
+        opcuaServers: string[];
+    };
     definition: TwinDefinition;
     version: number;
     versions: TwinVersionSummary[];
@@ -171,6 +176,7 @@ export default function ShowTwin({
                         canManageTypes={can.manageTypes}
                         gateway={gateway}
                         topicPrefix={project.topicPrefix}
+                        opcuaServers={project.opcuaServers}
                         onClose={() => setEditing(null)}
                     />
                 )}

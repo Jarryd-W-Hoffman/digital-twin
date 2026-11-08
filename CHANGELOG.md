@@ -19,6 +19,7 @@ Dates are when the change was merged into `main` (UTC).
 - **Drawing in the scene** ([#19]): footprints and paths drawn by clicking the ground, with points that can be dragged, and asset positions placed with a click, from the definition editor.
 - **IFC import** ([#20]): `.ifc` uploads are converted on the conversions queue to one GLB (IfcOpenShell, in the converter image), each element a node named by its GlobalId with its name, IFC class and storey. A model georeferenced by IfcMapConversion or its site's latitude and longitude is added to a twin where it belongs.
 - **Assets bound to model and tileset features** ([#21]): an asset can be one element of a layer, such as a wall of an IFC model. The element takes the asset's colour and selects it when clicked, and the definition editor picks it from the model's element list or by clicking it in the scene.
+- **OPC UA reading** ([#22]): OPC UA servers registered per project (endpoint, security mode and policy, an optional login with the password stored encrypted), and `opcua` mappings in a twin from a server's node to an asset's metric, edited in the **Layout** panel. The gateway subscribes to the mapped nodes with node-opcua, records each new value as a reading, follows changes to the mappings and servers, and reports each server's connection. `npm run opcua-simulator` starts a test server. A new user manual chapter, **OPC UA**, covers it with screenshots; the chapters after it are renumbered.
 - **One JSON Schema for a definition's shape** ([#16]), read by ajv in the browser and gateway and by opis/json-schema on the server, each check carrying its message. The hand-kept validators now keep only the checks that need the whole definition.
 - Zones are validated: each needs an id and a footprint of 3 or more points ([#16]).
 - User manual chapter on terrain, and manual and README coverage of custom behaviour, KPIs, panels and the type library, with new screenshots ([#15]).
@@ -195,3 +196,4 @@ Dates are when the change was merged into `main` (UTC).
 [#19]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/19
 [#20]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/20
 [#21]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/21
+[#22]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/22
