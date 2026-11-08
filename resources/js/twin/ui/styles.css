@@ -1307,12 +1307,17 @@
 /* The definition editor: a tab per list, its items beside a form drawn from the schema. */
 .twin-root .def-editor {
     width: min(560px, calc(100vw - 2 * var(--gap)));
+    /* The tabs and the save bar stay put; the lists and the form scroll between them. */
+    overflow-y: hidden;
 }
 .twin-root .def-editor-body {
     display: grid;
     grid-template-columns: 170px 1fr;
+    align-items: start;
     gap: 12px;
+    flex: 1;
     min-height: 0;
+    overflow-y: auto;
 }
 .twin-root .def-editor-lists {
     display: flex;

@@ -347,6 +347,8 @@ a model drawn more than a kilometre from its origin is moved back to it
 print the schema, element and triangle counts, size and georeference
 ```
 
+![An IFC shed in the library, converted to six elements](docs/images/library-ifc.png)
+
 Adding a georeferenced model to a twin gives it a placement at that spot, in metres east and north of the twin's origin with the file's heading. One more than 50 km away is probably meant for another site, so it starts at the origin, as an unreferenced one does; either way it's placed like any model. The real-tool tests build a 20 m by 12 m shed in millimetres with `scripts/generate-ifc.py`, once with a map conversion in NZTM and once by its site and true north drawn 5 km off, and check its size, its elements, and where it lands. The heading is from grid north, which differs from true north by the projection's convergence (about a degree across New Zealand in NZTM).
 
 #### The library
@@ -815,7 +817,9 @@ An asset can be one element of a model or tileset, such as the pump in a plant r
 "tilesets": [{ "id": "campus", "url": "...", "featureProperty": "GlobalId" }]
 ```
 
-The feature takes the asset's colour (status, temperature or power, as its body would), or the selection's while it's selected, and clicking it selects the asset, even through a zone's fill. The asset's own body isn't drawn; its label and position stay. Features are matched by the layer's `featureProperty`, `id` by default, which is what `meridian-ifc` writes, so a converted IFC model binds by GlobalId. A tileset's features need that property in its batch table or metadata. In the definition editor, **Model feature** picks the layer and then the element: from a converted IFC model's element list, typed, or with **Pick in scene**, which takes the next element clicked. Removing a layer from a twin unbinds its assets.
+The feature takes the asset's colour (status, temperature or power, as its body would), or the selection's while it's selected, and clicking it selects the asset, even through a zone's fill. The asset's own body isn't drawn; its label and position stay. Features are matched by the layer's `featureProperty`, `id` by default, which is what `meridian-ifc` writes, so a converted IFC model binds by GlobalId. A tileset's features need that property in its batch table or metadata. ![The board's wall, selected by clicking it](docs/images/feature-bound.png)
+
+In the definition editor, **Model feature** picks the layer and then the element: from a converted IFC model's element list, typed, or with **Pick in scene**, which takes the next element clicked. Removing a layer from a twin unbinds its assets.
 
 Everything a twin lists can also be edited in the app. **Definition** on the twin page has a tab for each list (zones, assets, routes, types, rules, scenarios, KPIs and panels). Choosing an item opens a form built from the schema:
 
@@ -823,6 +827,8 @@ Everything a twin lists can also be edited in the app. **Definition** on the twi
 - Nested lists, such as a route's stops, a type's metrics, states and transitions, a scenario's faults and a panel's figures, are edited in place.
 - Pickers offer what the definition has: zones, routes, chargers, a rule's metrics for its asset, and a type's own metrics and states.
 - Footprints and paths are typed one point per line, as `east, north`, or drawn: **Draw in scene** turns clicks on the ground into points (a tenth of a metre apart at finest), and a point can be dragged to move it. **Undo point** and **Start again** help while drawing. A position has **Place in scene**, where a click moves it.
+
+![The definition editor, with the main board bound to the shed's west wall](docs/images/definition-editor.png)
 
 Every change is checked as you type, with the same messages the server gives, and **Save** stays disabled until there are none. Saving writes one version, with a note naming the lists that changed ("Edited types and rules"). **Discard** drops the draft. Strings in a saved definition are kept exactly as sent: Laravel's trimming and empty-to-null middleware skip requests that carry one, so an empty unit stays empty.
 

@@ -30,6 +30,7 @@ From left to right:
 - **The version chip** (`v4`): the version you're looking at. Every saved change adds one; see [Layout and versions](08-layout-and-versions.md).
 - **Simulator / Live**: shown while a [gateway](09-gateways-and-live-data.md) is running the twin. **Live** follows the gateway; **Simulator** runs the model in your browser instead.
 - **Layout** (editors only): opens the [Layout panel](08-layout-and-versions.md).
+- **Definition** (editors only): opens the [definition editor](12-twin-definitions.md#edit-a-definition), for zones, assets and everything else in the twin.
 - **The headline figures**: **Site load**, **Solar**, **Grid import** (or **Export**, or **Lost** during an outage), **Battery** charge, and **Tightest store**, how close the warmest cold store is to its limit. A twin can declare its own figures instead, like Harbour Depot's **Margin to limit** and **Run cost**; see [KPIs and panels](12-twin-definitions.md#kpis-and-panels).
 - **The alerts button**: **No alerts**, or how many are active. Choose it to open the **Alerts** tab.
 - **The source**: **Simulator**, or the gateway's address, with how many metrics come from real sensors.
@@ -53,7 +54,7 @@ Below the list:
 ### The scene (middle)
 
 - Drag to move around, scroll or right-drag to zoom, and Ctrl-drag or middle-drag to tilt and turn.
-- Click a building to select it.
+- Click a building to select it. An asset that stands for part of a model, such as one wall of a BIM model, is selected by clicking that part.
 - **Whole site** flies back to the standard view; **Globe** pulls back until you can see the whole Earth, lit for the time at the site.
 
 ![Pulled back to the whole Earth with Globe.](../images/globe.png)

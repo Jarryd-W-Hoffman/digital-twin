@@ -22,10 +22,12 @@ Dates are when the change was merged into `main` (UTC).
 - **OPC UA reading** ([#22]): OPC UA servers registered per project (endpoint, security mode and policy, an optional login with the password stored encrypted), and `opcua` mappings in a twin from a server's node to an asset's metric, edited in the **Layout** panel. The gateway subscribes to the mapped nodes with node-opcua, records each new value as a reading, follows changes to the mappings and servers, and reports each server's connection. `npm run opcua-simulator` starts a test server. A new user manual chapter, **OPC UA**, covers it with screenshots; the chapters after it are renumbered.
 - **One JSON Schema for a definition's shape** ([#16]), read by ajv in the browser and gateway and by opis/json-schema on the server, each check carrying its message. The hand-kept validators now keep only the checks that need the whole definition.
 - Zones are validated: each needs an id and a footprint of 3 or more points ([#16]).
+- User manual coverage of the definition editor, drawing in the scene, IFC models and assets bound to model elements, with five new screenshots ([#23]).
 - User manual chapter on terrain, and manual and README coverage of custom behaviour, KPIs, panels and the type library, with new screenshots ([#15]).
 
 ### Fixed
 
+- The **Definition** panel keeps its tabs and **Save** in view: only the lists and the form scroll, so a long form no longer runs under the save bar ([#23]).
 - IFC models converted by `meridian-ifc` no longer land turned 90° in the viewer ([#21]).
 - Empty and padded strings in a saved definition are kept as sent, instead of being trimmed or turned into null before validation ([#18]).
 
@@ -197,3 +199,4 @@ Dates are when the change was merged into `main` (UTC).
 [#20]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/20
 [#21]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/21
 [#22]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/22
+[#23]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/23
