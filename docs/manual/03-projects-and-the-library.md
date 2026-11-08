@@ -15,6 +15,7 @@ Only editors (owners and admins) can create projects. The project page shows:
 - **Twins**: each with its latest version and when it was last changed. **New twin** starts one in this project; see [Creating a twin](06-twins-and-the-viewer.md#create-a-twin).
 - **Library**: uploads any of the project's twins can show.
 - **Devices**: sensors and controllers allowed to publish readings; see [Devices and MQTT](10-devices-and-mqtt.md).
+- **OPC UA servers**: PLCs and SCADA systems the twins' gateways read from; see [OPC UA](11-opc-ua.md).
 
 ## What you can upload
 
@@ -55,7 +56,7 @@ If your Meridian stores files in object storage (S3, or RustFS in the Docker sta
 - **Cancel** stops the upload and discards what was sent.
 - When the last part arrives, the item shows **Processing** while the server checks it.
 
-Your administrator sets this up; see [Running Meridian](13-running-meridian.md#uploads-and-storage).
+Your administrator sets this up; see [Running Meridian](14-running-meridian.md#uploads-and-storage).
 
 ## Delete an upload
 

@@ -6,7 +6,7 @@ A twin is a JSON definition. Meridian turns it into a running physical model, a 
 
 ![Overview of the Northshore twin](docs/images/overview.png)
 
-**New to Meridian?** The [user manual](docs/manual/README.md) walks through every part of it, step by step, with screenshots: projects and uploads, point clouds, the viewer, alerts and what-if, layout and versions, gateways, devices and MQTT, and running it yourself.
+**New to Meridian?** The [user manual](docs/manual/README.md) walks through every part of it, step by step, with screenshots: projects and uploads, point clouds, the viewer, alerts and what-if, layout and versions, gateways, devices and MQTT, OPC UA, and running it yourself.
 
 What changed in each version is in the [changelog](CHANGELOG.md).
 
@@ -432,14 +432,17 @@ The gateway fetches the twin's latest version from `GET /api/gateway/definition`
 
 Browsers get in with a ticket the control plane signs for each page view. The HMAC key is the token's SHA-256, which both sides can compute without the control plane holding the token. The ticket names the twin, the user and whether they may operate, so a viewer's socket can watch but not send commands. The same token authorises `POST /ingest`. Rotating or revoking the token cuts the gateway off.
 
-| Variable                         |                                                                     |
-| -------------------------------- | ------------------------------------------------------------------- |
-| `MERIDIAN_URL`                   | The control plane, e.g. `http://localhost:8000`                     |
-| `MERIDIAN_GATEWAY_TOKEN`         | The twin's gateway token                                            |
-| `GATEWAY_PUBLIC_URL`             | Where browsers reach the socket, default `ws://127.0.0.1:<port>/ws` |
-| `GATEWAY_POLL_MS`                | How often to poll for new versions, default `5000`                  |
-| `MQTT_URL`                       | A broker to take readings from, e.g. `mqtt://localhost:1883`        |
-| `MQTT_USERNAME`, `MQTT_PASSWORD` | Another broker login; by default `twin-<id>` with the gateway token |
+| Variable                            |                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| `MERIDIAN_URL`                      | The control plane, e.g. `http://localhost:8000`                     |
+| `MERIDIAN_GATEWAY_TOKEN`            | The twin's gateway token                                            |
+| `GATEWAY_PUBLIC_URL`                | Where browsers reach the socket, default `ws://127.0.0.1:<port>/ws` |
+| `GATEWAY_POLL_MS`                   | How often to poll for new versions, default `5000`                  |
+| `MQTT_URL`                          | A broker to take readings from, e.g. `mqtt://localhost:1883`        |
+| `MQTT_USERNAME`, `MQTT_PASSWORD`    | Another broker login; by default `twin-<id>` with the gateway token |
+| `OPCUA_PKI_DIR`                     | Where the gateway keeps its OPC UA certificate and trusted servers  |
+| `OPCUA_ACCEPT_UNKNOWN_CERTIFICATES` | `1` trusts a server's certificate the first time it's seen          |
+| `OPCUA_SERVERS`                     | Without a control plane: servers as JSON, see [OPC UA](#opc-ua)     |
 
 ### MQTT and history
 
@@ -548,6 +551,44 @@ mosquitto_pub -h localhost -p 1883 -u device-<id> -P mdv_… -t 'p/pilot-sites-a
 ![The twin's gateway, online and connected to the broker](docs/images/gateway-online.png)
 
 The broker speaks plain MQTT. Put it behind TLS (port 8883) before devices connect over networks you don't control.
+
+### OPC UA
+
+![A project's OPC UA servers](docs/images/opcua-servers.png)
+
+Add the project's PLCs and SCADA systems under **OPC UA servers** on the project page: a name, an `opc.tcp://` endpoint, the security mode and policy, and a login if the server wants one. The password is stored encrypted and is only ever sent to the project's gateways. A twin's `opcua` mappings name a server and a node, and feed an asset's metric; edit them in the **OPC UA** section of the **Layout** panel.
+
+```json
+"opcua": [
+  { "server": "Plant PLC", "node": "ns=2;s=Store.TempC", "asset": "store", "metric": "tempC", "samplingMs": 500, "ttlS": 600 },
+  { "server": "Plant PLC", "node": "ns=2;i=1042", "asset": "plant", "metric": "powerKw", "scale": 0.001 }
+]
+```
+
+The gateway gets the project's servers with each definition (a changed server changes the ETag) and, for each server its twin maps, opens one session with a subscription monitoring every mapped node:
+
+```text
+for each server with mapped nodes:
+    connect (retrying, backing off to 10 s), log in, subscribe
+    monitor each node at the fastest samplingMs asked for it (default 1000)
+on a new value with a good status:
+    number ← a number, a boolean as 1 or 0, a 64-bit integer, or a numeric string; else skip it
+    for each mapping of that node: pin asset.metric at number × scale + offset for ttlS
+    add the readings to the outbox, like MQTT's
+when the twin or the servers change:
+    monitor new nodes, drop old ones, reconnect a server whose settings changed,
+    and disconnect from servers no longer mapped or registered
+```
+
+![The store's door switch on the Depot PLC, mapped onto Door open](docs/images/opcua-mappings.png)
+
+Mappings to a server the project doesn't have, or a metric the asset doesn't have, are skipped with a warning. Each check-in reports every server's connection (connecting, connected, reconnecting or failed), shown in the twin's Gateway panel; the gateway's `/health` also has the last error and any nodes the server refused.
+
+For **Sign** and **Sign and encrypt**, the gateway makes its own certificate in `OPCUA_PKI_DIR` on first start. The server has to trust it, and the gateway has to trust the server's: move the server's certificate from `rejected/` to `trusted/certs/` there, or set `OPCUA_ACCEPT_UNKNOWN_CERTIFICATES=1` to trust whatever a server presents first.
+
+`npm run opcua-simulator` starts a test server at `opc.tcp://127.0.0.1:4840/meridian`, with `ns=1;s=Store.TempC` (a slowly swinging freezer temperature), `ns=1;s=Store.DoorOpen` and `ns=1;s=Meter.EnergyWh`. Without a control plane, point a gateway at it with `OPCUA_SERVERS='[{"name": "Plant PLC", "endpoint": "opc.tcp://127.0.0.1:4840/meridian"}]'`; a server there is anonymous and unsecured unless it gives `securityMode`, `securityPolicy`, `username` and `password`.
+
+Reading is all the gateway does for now. Writing setpoints back is the next part of the milestone.
 
 ## Writing a twin
 
@@ -832,9 +873,9 @@ The default basemap is Natural Earth imagery bundled with Cesium. It makes no th
 
 ## Tests
 
-- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. Point clouds with PDAL and py3dtiles faked: the commands each step runs, the EPSG and thinning options, signatures, missing and empty files, the tail of a failing tool, the original kept for a retry, and clouds in local metres placed at the origin. DEMs with the tiler faked: TIFF, BigTIFF and ASCII grid signatures, the EPSG option passed on, the tiler's reason kept, a run that writes no `layer.json`, and terrain set, replaced and removed as a twin's ground. IFC models with the converter faked: the signature, the summary in the log, the georeference kept, a run that writes no model, and a model placed by its georeference near the twin, or at the origin when it's far away or says nothing; removing a layer unbinds the assets that were its features. With the real tools, inside the converter image, LAS and E57 scans of Auckland land within 0.01° of where they should, and a DEM of Auckland tiles to zoom 16 with its summit at 100 m, north of centre where it belongs, or asks for an EPSG code when it has no coordinate system, and a shed drawn in millimetres converts to a 20 m GLB of its six elements, each a pickable feature, landing where its map conversion or its site says (`docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 meridian-converter php vendor/bin/pest tests/Feature/Conversions`). Readings: gateway batches checked against the twin's assets and a recent time window, bucketed history with lows and highs, other organisations kept out, and pruning by retention. Devices: passwords shown once and reset, names unique per project, and only editors manage them. The broker's checks: device and gateway logins, publishing and subscribing only below the project's prefix (not `#`, `p/+/#`, `$SYS` or other projects), revoked tokens and deleted devices shut out, the shared secret, and the per-username login limit. The suite also runs in CI on TimescaleDB Postgres, where readings are a hypertable. The shared definition fixtures, and the shared expression fixtures: the PHP parser refuses exactly what the viewer's does, with the same message. Browser tests for the kit's account pages.
-- **Vitest:** power is conserved every step, including while islanded. Stores hold setpoint for a full day. Outages bridge on battery, start the generator and return to grid. Load sheds by priority. Runs are deterministic, and survive cloning and a JSON round trip. The forecast's baseline matches a straight run exactly. Rule hold times and hysteresis. The gateway's socket, commands, ingest, tokens, body limits and origins. MQTT topic matching and payload mapping, topics placed below the project's prefix, the gateway logging in as its twin and reporting the broker connection, the bridge following new mappings, and the readings outbox holding what the control plane refused. The shared definition fixtures. Expressions: precedence, short-circuiting, missing values and every parse error, against the same fixtures as PHP. Custom types with behaviour: derived metrics that integrate, transitions, power drawn from a bus and lost with it, setpoints clamped to range, and the jockey pump holding the fire main between its setpoints for six hours. Expression and change rules, including a window that restarts when time goes backwards.
-- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A point cloud waits for the converter, shows why its conversion failed, and is retried with an EPSG code. A DEM shows only the EPSG option, converts on the queue, and shows why it failed. In an empty twin, a converted IFC shed is uploaded, the main board is bound to its south wall with **Pick in scene**, the wall takes the board's colour while the board's own box goes, and clicking the wall selects the board. A bad archive is refused with its reason. A type imported into the library is added to Northshore, and the jockey pump is refused by Harbour Depot, which has no fire tank. An owner adds a device, is shown its password and an example command once, resets it, is refused a duplicate name and deletes it. An owner maps an MQTT topic below the project's prefix (a bad filter is refused first) and sees recorded readings charted. A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin standing on its terrain's 12 m pad, bad files, the gateway path including a real `POST /ingest`, and phone width.
+- **Pest (100% code and type coverage):** every action, policy, model, rule and controller. Roles at each level, outsiders kept out, the last owner kept. Versions number up and restore as new versions. Projects and their libraries: twins created only in the organisation's own projects, uploads added to and removed from twins as versions, and deletions reaching every twin that shows them. Uploads: GLB header checks, tileset extraction, zip slip, symlinks, foreign file types, file count and size limits (including a zip that lies about its sizes), cleanup when anything fails, and file serving headers. Direct uploads against the AWS SDK's mock handler: part URLs signed for the public endpoint, the start, sign, complete and abort lifecycle, uploads no longer open answered with 409, processing in the queue (ready, failed with the reason, retried when the store fails), and only ready uploads reaching twins. Point clouds with PDAL and py3dtiles faked: the commands each step runs, the EPSG and thinning options, signatures, missing and empty files, the tail of a failing tool, the original kept for a retry, and clouds in local metres placed at the origin. DEMs with the tiler faked: TIFF, BigTIFF and ASCII grid signatures, the EPSG option passed on, the tiler's reason kept, a run that writes no `layer.json`, and terrain set, replaced and removed as a twin's ground. IFC models with the converter faked: the signature, the summary in the log, the georeference kept, a run that writes no model, and a model placed by its georeference near the twin, or at the origin when it's far away or says nothing; removing a layer unbinds the assets that were its features. With the real tools, inside the converter image, LAS and E57 scans of Auckland land within 0.01° of where they should, and a DEM of Auckland tiles to zoom 16 with its summit at 100 m, north of centre where it belongs, or asks for an EPSG code when it has no coordinate system, and a shed drawn in millimetres converts to a 20 m GLB of its six elements, each a pickable feature, landing where its map conversion or its site says (`docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 meridian-converter php vendor/bin/pest tests/Feature/Conversions`). Readings: gateway batches checked against the twin's assets and a recent time window, bucketed history with lows and highs, other organisations kept out, and pruning by retention. Devices: passwords shown once and reset, names unique per project, and only editors manage them. OPC UA servers: endpoints, security modes and policies that must agree, logins with passwords stored encrypted, names unique per project, only editors manage them, gateways sent their project's servers with a new ETag when one changes, and the statuses a gateway reports kept only when they make sense. The broker's checks: device and gateway logins, publishing and subscribing only below the project's prefix (not `#`, `p/+/#`, `$SYS` or other projects), revoked tokens and deleted devices shut out, the shared secret, and the per-username login limit. The suite also runs in CI on TimescaleDB Postgres, where readings are a hypertable. The shared definition fixtures, and the shared expression fixtures: the PHP parser refuses exactly what the viewer's does, with the same message. Browser tests for the kit's account pages.
+- **Vitest:** power is conserved every step, including while islanded. Stores hold setpoint for a full day. Outages bridge on battery, start the generator and return to grid. Load sheds by priority. Runs are deterministic, and survive cloning and a JSON round trip. The forecast's baseline matches a straight run exactly. Rule hold times and hysteresis. The gateway's socket, commands, ingest, tokens, body limits and origins. MQTT topic matching and payload mapping, topics placed below the project's prefix, the gateway logging in as its twin and reporting the broker connection, the bridge following new mappings, and the readings outbox holding what the control plane refused. OPC UA against a real in-process server: values of every kind turned into readings, nodes deduplicated at the fastest sampling, monitored nodes following new mappings, refused nodes reported, username logins, a server that isn't there yet retried, servers dropped when they're removed, and each server's status reported at check-in. The shared definition fixtures. Expressions: precedence, short-circuiting, missing values and every parse error, against the same fixtures as PHP. Custom types with behaviour: derived metrics that integrate, transitions, power drawn from a bus and lost with it, setpoints clamped to range, and the jockey pump holding the fire main between its setpoints for six hours. Expression and change rules, including a window that restarts when time goes backwards.
+- **Playwright (real Chrome and WebGL):** an owner logs in, uploads a model, places it, saves, uploads a tileset, reloads and finds both still there. An upload made on the project page is added to a twin and taken out again, staying in the library. A point cloud waits for the converter, shows why its conversion failed, and is retried with an EPSG code. A DEM shows only the EPSG option, converts on the queue, and shows why it failed. In an empty twin, a converted IFC shed is uploaded, the main board is bound to its south wall with **Pick in scene**, the wall takes the board's colour while the board's own box goes, and clicking the wall selects the board. A bad archive is refused with its reason. A type imported into the library is added to Northshore, and the jockey pump is refused by Harbour Depot, which has no fire tank. An owner adds a device, is shown its password and an example command once, resets it, is refused a duplicate name and deletes it. An owner maps an MQTT topic below the project's prefix (a bad filter is refused first) and sees recorded readings charted. An owner registers an OPC UA server (an `http://` endpoint is refused first), then maps one of its nodes to a twin's metric (a bad node id is refused first). A viewer can watch but not edit or operate. On `/demo`: no errors and no third-party requests, canvas picking, commands, forecasts and their cascade, time travel, the globe view, the second twin standing on its terrain's 12 m pad, bad files, the gateway path including a real `POST /ingest`, and phone width.
 
 ## Project layout
 
@@ -866,4 +907,4 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 6. **Terrain** (done): DEMs uploaded to the library and converted to quantized-mesh terrain by the conversions worker, which a twin can stand on.
 7. **Definition editor** (done): every list in a twin (zones, assets, routes, types, rules, scenarios, KPIs and panels) is edited in the app, with forms generated from one JSON Schema that also replaced the two hand-kept validators.
 8. **Scene editing and BIM** (done): drawing footprints and routes in the scene, IFC import, binding model and tileset features to assets.
-9. **OPC UA and actuation:** read from OPC UA servers, and write back through the custom setpoints, off by default and audited.
+9. **OPC UA and actuation** (in progress): reading from OPC UA servers registered per project (done), and write back through the custom setpoints, off by default and audited.

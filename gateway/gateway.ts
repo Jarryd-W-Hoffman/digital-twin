@@ -8,6 +8,8 @@ import { History } from '../resources/js/twin/core/history.ts';
 import { parseReadings } from '../resources/js/twin/core/ingest.ts';
 import { siteTime, SimRunner } from '../resources/js/twin/core/runner.ts';
 import type { ClientMessage, Reading, ServerMessage } from '../resources/js/twin/core/protocol.ts';
+import { compileOpcua, type OpcUa } from '../resources/js/twin/core/opcua.ts';
+import { OpcUaBridge, type OpcUaOptions, type OpcUaServerConfig, type OpcUaStatus } from './opcua.ts';
 import { compileTelemetry, type Telemetry } from '../resources/js/twin/core/telemetry.ts';
 import { parseDefinition } from '../resources/js/twin/core/validate.ts';
 import { ReadingLog } from './readings.ts';
@@ -28,6 +30,10 @@ import { ticketKey, verifyTicket, type TicketAccess } from './tickets.ts';
  * With the control plane, those topics sit below the project's prefix
  * (`p/<key>/`), and it logs in as the twin with its gateway token unless
  * MQTT_USERNAME is set.
+ *
+ * With OPC UA servers (registered in the twin's project, or OPCUA_SERVERS
+ * without a control plane), it monitors the nodes in the twin's `opcua`
+ * mappings and takes each new value as a reading.
  *
  * Binds to localhost by default. To expose it, set GATEWAY_HOST, GATEWAY_TOKEN
  * (or use a control plane token) and GATEWAY_ORIGINS.
@@ -75,6 +81,8 @@ export interface GatewayOptions {
   definitionPath?: string;
   controlPlane?: ControlPlaneOptions;
   mqtt?: MqttOptions;
+  /** OPC UA certificates and trust; `servers` stand in for the control plane's. */
+  opcua?: OpcUaOptions & { servers?: OpcUaServerConfig[] };
   port?: number;
   host?: string;
   token?: string;
@@ -101,6 +109,8 @@ interface Fetched {
   definition: TwinDefinition;
   /** The broker login, and the prefix the project's topics sit below. */
   mqtt: { username: string; topicPrefix: string } | null;
+  /** The project's OPC UA servers. */
+  opcua: OpcUaServerConfig[];
   etag: string | null;
 }
 
@@ -113,10 +123,12 @@ export async function fetchDefinition(
   cp: ControlPlaneOptions,
   etag: string | null = null,
   mqtt?: 'connected' | 'disconnected',
+  opcua?: Record<string, OpcUaStatus>,
 ): Promise<Fetched | null> {
   const headers: Record<string, string> = { authorization: `Bearer ${cp.token}`, accept: 'application/json' };
   if (cp.publicUrl) headers['x-gateway-url'] = cp.publicUrl;
   if (mqtt) headers['x-gateway-mqtt'] = mqtt;
+  if (opcua) headers['x-gateway-opcua'] = JSON.stringify(opcua);
   if (etag) headers['if-none-match'] = etag;
   // A hung request would otherwise stall every later poll, and the check-ins with them.
   const res = await fetch(`${cp.url.replace(/\/+$/, '')}/api/gateway/definition`, {
@@ -130,12 +142,14 @@ export async function fetchDefinition(
     version: number;
     definition: unknown;
     mqtt?: Fetched['mqtt'];
+    opcua?: { servers: OpcUaServerConfig[] };
   };
   return {
     twinId: body.twin.id,
     version: body.version,
     definition: parseDefinition(body.definition),
     mqtt: body.mqtt ?? null,
+    opcua: body.opcua?.servers ?? [],
     etag: res.headers.get('etag'),
   };
 }
@@ -165,8 +179,36 @@ export async function startGateway(options: GatewayOptions = {}) {
   let history!: History;
   let telemetry: Telemetry = compileTelemetry({ ...definition, telemetry: [] });
   const topicPrefix = fetched?.mqtt?.topicPrefix ?? '';
+  let opcuaServers: OpcUaServerConfig[] = fetched?.opcua ?? options.opcua?.servers ?? [];
+  let opcua: OpcUa = compileOpcua({ ...definition, opcua: [] }, []);
+  let bridge: OpcUaBridge | null = null;
+  const opcuaStats = { received: 0, mapped: 0, unmapped: 0 };
+  /** Monitors what the twin maps on the project's servers, starting the bridge on first use. */
+  const followOpcua = (def: TwinDefinition) => {
+    opcua = compileOpcua(def, opcuaServers.map((s) => s.name));
+    for (const problem of opcua.skipped) console.warn(`Gateway: ${problem}`);
+    if (!bridge && opcua.servers.size === 0) return;
+    bridge ??= new OpcUaBridge((server, node, value) => {
+      opcuaStats.received++;
+      const { readings, problems } = opcua.read(server, node, value);
+      for (const problem of problems) console.warn(`Gateway: ${problem}`);
+      if (readings.length === 0) {
+        opcuaStats.unmapped++;
+        return;
+      }
+      opcuaStats.mapped++;
+      measure(readings);
+    }, options.opcua);
+    bridge.follow(opcuaServers, opcua.servers).catch((error: unknown) =>
+      console.warn(`Gateway: OPC UA ${error instanceof Error ? error.message : String(error)}`),
+    );
+  };
+  const opcuaStatuses = () =>
+    bridge ? Object.fromEntries(Object.entries(bridge.health()).map(([name, h]) => [name, h.status])) : undefined;
+
   const boot = (def: TwinDefinition, now: number) => {
     definition = def;
+    followOpcua(def);
     const compiled = compileTelemetry(def, topicPrefix);
     for (const problem of compiled.skipped) console.warn(`Gateway: ${problem}`);
     const before = telemetry.topics;
@@ -248,6 +290,7 @@ export async function startGateway(options: GatewayOptions = {}) {
         t: runner.state.t,
         clients: sockets.size,
         mqtt: client ? { connected: client.connected, topics: telemetry.topics, ...mqttStats } : null,
+        opcua: bridge ? { servers: bridge.health(), ...opcuaStats } : null,
         history: log ? { pending: log.pending, sent: log.sent, dropped: log.dropped } : null,
       });
       return;
@@ -336,9 +379,11 @@ export async function startGateway(options: GatewayOptions = {}) {
             cp,
             fetched?.etag ?? null,
             client ? (client.connected ? 'connected' : 'disconnected') : undefined,
+            opcuaStatuses(),
           );
           if (next) {
             fetched = next;
+            opcuaServers = next.opcua;
             boot(next.definition, Date.now());
             for (const s of sockets.keys()) hello(s);
           }
@@ -382,6 +427,7 @@ export async function startGateway(options: GatewayOptions = {}) {
             clearInterval(poll);
             clearInterval(flush);
             client?.end(true);
+            void bridge?.close();
             // What's left goes to the history on the way out, if it can.
             void log?.flush().catch(() => undefined);
             for (const s of sockets.keys()) s.terminate();
@@ -391,6 +437,23 @@ export async function startGateway(options: GatewayOptions = {}) {
       });
     });
   });
+}
+
+/**
+ * OPC UA servers for a gateway without a control plane, as JSON:
+ * `[{"name": "Plant PLC", "endpoint": "opc.tcp://plc:4840"}]`, anonymous and
+ * unsecured unless a server says otherwise.
+ */
+export function standaloneServers(json: string): OpcUaServerConfig[] {
+  const list = JSON.parse(json) as Partial<OpcUaServerConfig>[];
+  return list.map((s) => ({
+    name: String(s.name),
+    endpoint: String(s.endpoint),
+    securityMode: s.securityMode ?? 'none',
+    securityPolicy: s.securityPolicy ?? 'None',
+    username: s.username ?? null,
+    password: s.password ?? null,
+  }));
 }
 
 if (process.argv[1] === import.meta.filename) {
@@ -410,6 +473,11 @@ if (process.argv[1] === import.meta.filename) {
     mqtt: process.env.MQTT_URL
       ? { url: process.env.MQTT_URL, username: process.env.MQTT_USERNAME, password: process.env.MQTT_PASSWORD }
       : undefined,
+    opcua: {
+      pkiDir: process.env.OPCUA_PKI_DIR,
+      acceptUnknownCertificates: process.env.OPCUA_ACCEPT_UNKNOWN_CERTIFICATES === '1',
+      servers: process.env.OPCUA_SERVERS ? standaloneServers(process.env.OPCUA_SERVERS) : undefined,
+    },
     port,
     host: process.env.GATEWAY_HOST,
     token: process.env.GATEWAY_TOKEN,

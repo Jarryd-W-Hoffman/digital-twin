@@ -25,6 +25,7 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  * @property-read string|null $gateway_url
  * @property-read CarbonInterface|null $gateway_seen_at
  * @property-read string|null $gateway_mqtt
+ * @property-read array<string, string>|null $gateway_opcua
  * @property-read Organisation $organisation
  * @property-read Project $project
  * @property-read TwinVersion|null $latestVersion
@@ -60,6 +61,7 @@ final class Twin extends Model
             'gateway_url' => 'string',
             'gateway_seen_at' => 'datetime',
             'gateway_mqtt' => 'string',
+            'gateway_opcua' => 'array',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

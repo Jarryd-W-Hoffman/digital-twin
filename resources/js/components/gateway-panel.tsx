@@ -10,6 +10,8 @@ export type GatewayStatus = {
     url: string | null;
     seenAt: string | null;
     mqtt: 'connected' | 'disconnected' | null;
+    /** Each OPC UA server's connection, as the gateway last reported it. */
+    opcua?: Record<string, string> | null;
     ticket: string | null;
 } | null;
 
@@ -51,6 +53,15 @@ export function GatewayPanel({
                         ? `Offline, last seen ${new Date(gateway.seenAt).toLocaleString()}`
                         : 'Waiting for a gateway to connect with this token.'}
             </p>
+            {gateway?.online && gateway.opcua && (
+                <ul className="muted" aria-label="OPC UA connections">
+                    {Object.entries(gateway.opcua).map(([name, status]) => (
+                        <li key={name}>
+                            {name}: {status}
+                        </li>
+                    ))}
+                </ul>
+            )}
             {token && (
                 <div className="gateway-token">
                     <p className="muted">

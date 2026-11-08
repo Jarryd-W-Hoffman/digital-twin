@@ -252,6 +252,48 @@ test('an owner maps an MQTT topic to a metric, and sees what sensors recorded', 
   await expect(page.getByRole('region', { name: 'Telemetry' }).getByLabel('JSON path')).toHaveValue('reading.c');
 });
 
+test('an owner registers an OPC UA server, then maps one of its nodes to a metric', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  const opcua = page.getByRole('region', { name: 'OPC UA servers' });
+  const form = opcua.getByRole('form', { name: 'Add an OPC UA server' });
+  await form.getByLabel('Server name').fill('Cold store PLC');
+  await form.getByLabel('Endpoint').fill('http://plc.local:4840');
+  await form.getByRole('button', { name: 'Add server' }).click();
+  await expect(form.getByText('The endpoint must be an opc.tcp:// address')).toBeVisible();
+
+  await form.getByLabel('Endpoint').fill('opc.tcp://plc.local:4840');
+  await form.getByLabel('Security', { exact: true }).selectOption({ label: 'Sign and encrypt' });
+  await expect(form.getByLabel('Security policy')).toHaveValue('Basic256Sha256');
+  await form.getByLabel('Username (optional)').fill('meridian');
+  await form.getByLabel('Password', { exact: true }).fill('plc-secret');
+  await form.getByRole('button', { name: 'Add server' }).click();
+  const list = opcua.getByRole('list', { name: 'OPC UA servers' });
+  await expect(list.getByText('Cold store PLC')).toBeVisible();
+  await expect(list.getByText('opc.tcp://plc.local:4840 · sign and encrypt, Basic256Sha256 · as meridian')).toBeVisible();
+
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const mappings = page.getByRole('region', { name: 'OPC UA' });
+  await mappings.getByRole('button', { name: 'Add OPC UA mapping' }).click();
+  await expect(mappings.getByLabel('Server')).toHaveValue('Cold store PLC');
+  await mappings.getByLabel('Node').fill('Store.TempC');
+  await mappings.getByLabel('Asset').selectOption({ label: 'Freezer hall' });
+  await mappings.getByLabel('Metric').selectOption({ label: 'Temperature' });
+  await mappings.getByRole('button', { name: 'Save OPC UA mappings' }).click();
+  await expect(mappings.getByRole('alert')).toContainText('OPC UA Store.TempC: node must be a node id');
+
+  await mappings.getByLabel('Node').fill('ns=2;s=Store.TempC');
+  await mappings.getByLabel('Sampling, ms').fill('500');
+  await mappings.getByRole('button', { name: 'Save OPC UA mappings' }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Layout' }).click();
+  await expect(page.getByRole('region', { name: 'OPC UA' }).getByLabel('Node')).toHaveValue('ns=2;s=Store.TempC');
+  await expect(page.getByRole('region', { name: 'OPC UA' }).getByLabel('Sampling, ms')).toHaveValue('500');
+});
+
 test('the type library: imported, compared with a twin, added to it, and refused where it cannot run', async ({ page }) => {
   page.on('dialog', (dialog) => void dialog.accept());
   await logIn(page, 'test@example.com');

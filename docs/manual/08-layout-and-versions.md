@@ -60,7 +60,7 @@ Choose **Remove** beside the layer and confirm. It's taken out of this twin as a
 
 ## Types
 
-The **Types** section compares the twin's [custom types](11-twin-definitions.md#custom-asset-types) with the organisation's [type library](02-organisations-and-members.md#the-type-library).
+The **Types** section compares the twin's [custom types](12-twin-definitions.md#custom-asset-types) with the organisation's [type library](02-organisations-and-members.md#the-type-library).
 
 ![The Types section on Harbour Depot: the library's types with Add beside each, and the reasons the jockey pump can't be added.](../images/twin-types.png)
 
@@ -69,7 +69,7 @@ The **Types** section compares the twin's [custom types](11-twin-definitions.md#
 - **Take library's** replaces the twin's type with the library's version, as a new version of the twin.
 - Below them, the library's other types each have **Add**, which copies the type into the twin as a new version.
 
-A type has to fit the twin. The jockey pump reads `{fire-tank.pressureKpa}`, so adding it to a twin with no `fire-tank` is refused, and the reasons are listed under the types. Adding a type doesn't place any equipment: add assets of the type in the [definition](11-twin-definitions.md#custom-asset-types).
+A type has to fit the twin. The jockey pump reads `{fire-tank.pressureKpa}`, so adding it to a twin with no `fire-tank` is refused, and the reasons are listed under the types. Adding a type doesn't place any equipment: add assets of the type in the [definition](12-twin-definitions.md#custom-asset-types).
 
 ## Download or replace the definition
 
@@ -78,7 +78,7 @@ Under **Definition**:
 - **Download JSON** saves the latest version as a twin definition file. Use it as a backup, to edit by hand, or to start another twin from it.
 - **Replace…** loads a definition file as the next version. It's checked first; if it has problems, they're listed under the buttons and nothing changes.
 
-See [Twin definitions](11-twin-definitions.md) for what's in the file.
+See [Twin definitions](12-twin-definitions.md) for what's in the file.
 
 ## History and restoring
 

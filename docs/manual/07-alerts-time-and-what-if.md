@@ -6,7 +6,7 @@ A twin watches its own readings. **Alerts** tell you when something passes a lim
 
 ## Alerts
 
-Alerts come from the twin's **rules**, written in its [definition](11-twin-definitions.md#rules). A rule watches one metric, on one asset or on every asset of a kind, and raises an alert when it passes a threshold:
+Alerts come from the twin's **rules**, written in its [definition](12-twin-definitions.md#rules). A rule watches one metric, on one asset or on every asset of a kind, and raises an alert when it passes a threshold:
 
 ```text
 Fire water low (warning):
@@ -14,7 +14,7 @@ Fire water low (warning):
     clear when it's back above 65   → the gap stops it flickering on and off
 ```
 
-A rule can also wait for a while (`forS`) before raising, so a door opened for a moment doesn't set it off. Two other kinds of rule watch how fast a metric changes (the freezer warming 2 °C in ten minutes) or an expression (the jockey pump running for more than 20 minutes); see [Rules](11-twin-definitions.md#rules).
+A rule can also wait for a while (`forS`) before raising, so a door opened for a moment doesn't set it off. Two other kinds of rule watch how fast a metric changes (the freezer warming 2 °C in ten minutes) or an expression (the jockey pump running for more than 20 minutes); see [Rules](12-twin-definitions.md#rules).
 
 When an alert is raised:
 
@@ -81,5 +81,5 @@ The results show:
 
 ## See also
 
-- [Twin definitions](11-twin-definitions.md): writing rules and scenarios.
+- [Twin definitions](12-twin-definitions.md): writing rules and scenarios.
 - [Twins and the viewer](06-twins-and-the-viewer.md#the-timeline-bottom): the timeline controls.

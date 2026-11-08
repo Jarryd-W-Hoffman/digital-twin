@@ -18,9 +18,10 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 | 📐  | [Layout and versions](08-layout-and-versions.md)                 | Adding uploads to a twin, placing them, terrain, types, saving, downloading and restoring versions  |
 | 📡  | [Gateways and live data](09-gateways-and-live-data.md)           | Running a twin as a service, tokens, the Live switch, and sending readings over HTTP                |
 | 🔌  | [Devices and MQTT](10-devices-and-mqtt.md)                       | Registering devices, the broker, mapping topics onto metrics, and the recorded history              |
-| 🧾  | [Twin definitions](11-twin-definitions.md)                       | The JSON behind a twin: assets, custom types and their behaviour, rules, KPIs, panels and scenarios |
-| 🔐  | [Your account](12-your-account.md)                               | Profile, password, two-factor authentication, passkeys and appearance                               |
-| 🛠️  | [Running Meridian](13-running-meridian.md)                       | The Docker stack, workers, the broker, configuration and upgrading                                  |
+| 🏭  | [OPC UA](11-opc-ua.md)                                           | Registering PLCs and SCADA servers, mapping their nodes onto metrics, security and the simulator    |
+| 🧾  | [Twin definitions](12-twin-definitions.md)                       | The JSON behind a twin: assets, custom types and their behaviour, rules, KPIs, panels and scenarios |
+| 🔐  | [Your account](13-your-account.md)                               | Profile, password, two-factor authentication, passkeys and appearance                               |
+| 🛠️  | [Running Meridian](14-running-meridian.md)                       | The Docker stack, workers, the broker, configuration and upgrading                                  |
 
 ## Conventions
 
@@ -36,7 +37,7 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 
 ## About the screenshots
 
-The screenshots are taken by a Playwright walkthrough of a freshly seeded app, using the real MQTT broker and the converter (for a point cloud and a DEM), so they can be brought up to date whenever the app changes:
+The screenshots are taken by a Playwright walkthrough of a freshly seeded app, using the real MQTT broker, the OPC UA simulator and the converter (for a point cloud and a DEM), so they can be brought up to date whenever the app changes:
 
 ```bash
 npm run build

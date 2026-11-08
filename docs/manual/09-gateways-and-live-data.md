@@ -33,7 +33,7 @@ flowchart LR
     MERIDIAN_URL=https://meridian.example.com MERIDIAN_GATEWAY_TOKEN=mgw_… npm run gateway
     ```
 
-4. Run the command on the machine that will host the gateway (it needs Node and a copy of Meridian's code; see [Running Meridian](13-running-meridian.md#the-gateway)). The section changes to **Online at ws://…** within a few seconds.
+4. Run the command on the machine that will host the gateway (it needs Node and a copy of Meridian's code; see [Running Meridian](14-running-meridian.md#the-gateway)). The section changes to **Online at ws://…** within a few seconds.
 
 ## The gateway's state
 
@@ -46,6 +46,8 @@ The **Gateway** section always says how it's doing:
 | **Online at ws://…, connected to the broker**         | Checked in within the last 30 seconds, and receiving MQTT |
 | **Online at ws://…, but not connected to the broker** | Running, but it can't reach or log in to the MQTT broker  |
 | **Offline, last seen …**                              | It has stopped checking in                                |
+
+While it's online, it also lists each [OPC UA server](11-opc-ua.md#see-the-connections) it's reading from, and whether it's connected.
 
 ## Live or simulator
 
@@ -79,7 +81,7 @@ curl -X POST http://gateway-host:8787/ingest \
 - **`ttlS`** (optional) is how long the reading holds before the model takes over again.
 - The gateway answers **202** when it accepts the readings, or **422** with every problem it found, such as an asset that doesn't exist.
 
-For sensors that speak MQTT, use [devices](10-devices-and-mqtt.md) instead.
+For sensors that speak MQTT, use [devices](10-devices-and-mqtt.md) instead, and for PLCs and SCADA systems, [OPC UA](11-opc-ua.md).
 
 ## Tips
 
@@ -90,4 +92,5 @@ For sensors that speak MQTT, use [devices](10-devices-and-mqtt.md) instead.
 ## See also
 
 - [Devices and MQTT](10-devices-and-mqtt.md): sensors publishing over MQTT.
-- [Running Meridian](13-running-meridian.md#the-gateway): gateway settings.
+- [OPC UA](11-opc-ua.md): reading from PLCs and SCADA systems.
+- [Running Meridian](14-running-meridian.md#the-gateway): gateway settings.

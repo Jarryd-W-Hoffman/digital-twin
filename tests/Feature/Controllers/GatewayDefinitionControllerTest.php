@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\SaveTwinVersion;
+use App\Models\OpcUaServer;
 use App\Models\Twin;
 
 it("serves the latest version to the twin's gateway and records its check-in", function (): void {
@@ -52,3 +53,49 @@ it('refuses a missing, unknown or revoked token', function (): void {
 
     expect(Twin::query()->whereNotNull('gateway_seen_at')->count())->toBe(0);
 });
+
+it("sends the project's OPC UA servers, and a new ETag when they change", function (): void {
+    [$twin, $token] = gatewayTwin();
+    OpcUaServer::factory()->for($twin->project)->secured()->create(['name' => 'B PLC']);
+    OpcUaServer::factory()->for($twin->project)->create(['name' => 'A meter']);
+    OpcUaServer::factory()->create();
+
+    $response = $this->withToken($token)->getJson(route('gateway.definition.show'))
+        ->assertOk()
+        ->assertJsonPath('opcua.servers.0.name', 'A meter')
+        ->assertJsonPath('opcua.servers.1', [
+            'name' => 'B PLC',
+            'endpoint' => 'opc.tcp://plc.local:4840',
+            'securityMode' => 'signAndEncrypt',
+            'securityPolicy' => 'Basic256Sha256',
+            'username' => 'meridian',
+            'password' => 'plc-secret',
+        ])
+        ->assertJsonCount(2, 'opcua.servers');
+    $etag = (string) $response->headers->get('ETag');
+    expect($etag)->toMatch('/^"v1-[0-9a-f]{16}"$/');
+
+    $this->withToken($token)->withHeader('If-None-Match', $etag)->get(route('gateway.definition.show'))->assertStatus(304);
+
+    $twin->project->opcUaServers()->where('name', 'A meter')->update(['endpoint' => 'opc.tcp://meter:4840']);
+    $this->withToken($token)->withHeader('If-None-Match', $etag)->getJson(route('gateway.definition.show'))
+        ->assertOk()
+        ->assertJsonPath('opcua.servers.0.endpoint', 'opc.tcp://meter:4840');
+});
+
+it("records each OPC UA server's status, dropping what isn't one", function (?string $header, ?array $stored): void {
+    [$twin, $token] = gatewayTwin();
+
+    $this->withToken($token)->withHeaders(array_filter(['X-Gateway-Opcua' => $header]))
+        ->getJson(route('gateway.definition.show'))
+        ->assertOk();
+
+    expect($twin->refresh()->gateway_opcua)->toBe($stored);
+})->with([
+    'statuses' => ['{"Plant PLC":"connected","Meter":"failed"}', ['Plant PLC' => 'connected', 'Meter' => 'failed']],
+    'some nonsense' => ['{"Plant PLC":"connected","Meter":"on fire","0":"connected"}', ['Plant PLC' => 'connected']],
+    'nothing valid' => ['{"Meter":1}', null],
+    'not JSON' => ['connected', null],
+    'too long' => [json_encode(['x' => str_repeat('a', 9000)]), null],
+    'no header' => [null, null],
+]);

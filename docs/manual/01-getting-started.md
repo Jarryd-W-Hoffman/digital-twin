@@ -22,7 +22,7 @@ flowchart TD
 
 - An **organisation** is everyone who works together, and everything they share. You can belong to several and switch between them.
 - A **project** groups the twins of one site or job with the files and devices they share. Upload a scan once, and every twin in the project can show it.
-- A **twin** is a site: its assets (buildings, chillers, batteries, sensors…), their positions, how they connect, the rules that raise alerts, and the uploads it shows. It's stored as a [JSON definition](11-twin-definitions.md), and each change makes a new version.
+- A **twin** is a site: its assets (buildings, chillers, batteries, sensors…), their positions, how they connect, the rules that raise alerts, and the uploads it shows. It's stored as a [JSON definition](12-twin-definitions.md), and each change makes a new version.
 - A **gateway** runs a twin as a service and feeds it real readings, from HTTP or from **devices** publishing over MQTT. Without one, the twin runs on its built-in simulator in your browser.
 
 ## Sign in
@@ -65,4 +65,4 @@ The twin page is covered in [Twins and the viewer](06-twins-and-the-viewer.md).
 
 - [Organisations and members](02-organisations-and-members.md): who can do what.
 - [Twins and the viewer](06-twins-and-the-viewer.md): everything on the twin page.
-- [Running Meridian](13-running-meridian.md): installing it for your team.
+- [Running Meridian](14-running-meridian.md): installing it for your team.

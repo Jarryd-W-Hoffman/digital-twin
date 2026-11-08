@@ -120,14 +120,16 @@ Each live twin needs a gateway. In Docker:
 
 Elsewhere, run `npm run gateway` from a copy of the code with these set:
 
-| Setting                        | What it does                                                          |
-| ------------------------------ | --------------------------------------------------------------------- |
-| `MERIDIAN_URL`                 | Meridian's address                                                    |
-| `MERIDIAN_GATEWAY_TOKEN`       | The twin's token                                                      |
-| `GATEWAY_HOST`, `GATEWAY_PORT` | Where it listens, default `127.0.0.1:8787`                            |
-| `GATEWAY_PUBLIC_URL`           | Where browsers reach its socket, such as `wss://twin1.example.com/ws` |
-| `GATEWAY_ORIGINS`              | Meridian's address, so browsers from it may open the socket           |
-| `MQTT_URL`                     | The broker, such as `mqtt://localhost:1883`                           |
+| Setting                             | What it does                                                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `MERIDIAN_URL`                      | Meridian's address                                                                                                    |
+| `MERIDIAN_GATEWAY_TOKEN`            | The twin's token                                                                                                      |
+| `GATEWAY_HOST`, `GATEWAY_PORT`      | Where it listens, default `127.0.0.1:8787`                                                                            |
+| `GATEWAY_PUBLIC_URL`                | Where browsers reach its socket, such as `wss://twin1.example.com/ws`                                                 |
+| `GATEWAY_ORIGINS`                   | Meridian's address, so browsers from it may open the socket                                                           |
+| `MQTT_URL`                          | The broker, such as `mqtt://localhost:1883`                                                                           |
+| `OPCUA_PKI_DIR`                     | Where it keeps its OPC UA certificate and the servers' it trusts; see [Secured servers](11-opc-ua.md#secured-servers) |
+| `OPCUA_ACCEPT_UNKNOWN_CERTIFICATES` | `1` to trust an OPC UA server's certificate the first time it's seen                                                  |
 
 ## Readings and history
 

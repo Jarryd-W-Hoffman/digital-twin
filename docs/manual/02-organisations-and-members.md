@@ -49,7 +49,7 @@ On **Members**, owners and admins see a role menu beside each person:
 
 ## The type library
 
-A [custom type](11-twin-definitions.md#custom-asset-types) describes equipment Meridian has no built-in physics for: a fire water tank, a pump, a meter. The **type library** keeps an organisation's types in one place, so each is written once and used in any twin. Choose **Types** in the sidebar to see it.
+A [custom type](12-twin-definitions.md#custom-asset-types) describes equipment Meridian has no built-in physics for: a fire water tank, a pump, a meter. The **type library** keeps an organisation's types in one place, so each is written once and used in any twin. Choose **Types** in the sidebar to see it.
 
 ![The type library: each type with its colour, metrics and states, what it reads, who saved it, and the import form.](../images/types.png)
 
@@ -77,4 +77,4 @@ In the twin's **Layout** panel, the **Types** section lists the twin's own types
 ## See also
 
 - [Projects and the library](03-projects-and-the-library.md): what editors can upload.
-- [Your account](12-your-account.md): two-factor authentication and passkeys.
+- [Your account](13-your-account.md): two-factor authentication and passkeys.
