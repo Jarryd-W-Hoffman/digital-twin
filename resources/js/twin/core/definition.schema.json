@@ -254,10 +254,21 @@
             "items": {
                 "required": ["path"],
                 "properties": {
+                    "id": {
+                        "title": "Id",
+                        "x-form": "id"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "x-form": "text"
+                    },
                     "path": {
                         "type": "array",
                         "minItems": 2,
-                        "x-message": "Route {0:id}: path needs 2+ points"
+                        "x-message": "Route {0:id}: path needs 2+ points",
+                        "title": "Path",
+                        "x-form": "polygon",
+                        "description": "Points the vehicle drives through, in order: one per line, east, north."
                     },
                     "stops": {
                         "items": {
@@ -265,15 +276,32 @@
                                 "at": {
                                     "type": "integer",
                                     "minimum": 0,
-                                    "x-message": "Route {0:id}: stop at {value} is off the path"
+                                    "x-message": "Route {0:id}: stop at {value} is off the path",
+                                    "title": "At point",
+                                    "x-form": "number",
+                                    "description": "Which point of the path, counting from 0"
                                 },
                                 "dwellS": {
                                     "type": "number",
                                     "exclusiveMinimum": 0,
-                                    "x-message": "Route {0:id}: stop dwell must be positive"
+                                    "x-message": "Route {0:id}: stop dwell must be positive",
+                                    "title": "Dwell (s)",
+                                    "x-form": "number"
+                                },
+                                "charger": {
+                                    "title": "Charger",
+                                    "x-form": "asset",
+                                    "x-of-kind": "charger"
                                 }
                             },
                             "required": ["at", "dwellS"]
+                        },
+                        "title": "Stops",
+                        "x-form": "list",
+                        "x-keep-empty": true,
+                        "x-new": {
+                            "at": 0,
+                            "dwellS": 60
                         }
                     }
                 }
@@ -302,7 +330,9 @@
                             "properties": {
                                 "op": {
                                     "enum": ["gt", "lt"],
-                                    "x-message": "Rule {0:id}: op must be gt or lt"
+                                    "x-message": "Rule {0:id}: op must be gt or lt",
+                                    "title": "Above or below",
+                                    "x-form": "select"
                                 },
                                 "change": {
                                     "type": "object",
@@ -312,19 +342,169 @@
                                         "overS": {
                                             "type": "number",
                                             "exclusiveMinimum": 0,
-                                            "x-message": "Rule {0:id}: change.overS must be positive"
+                                            "x-message": "Rule {0:id}: change.overS must be positive",
+                                            "title": "Over (s)",
+                                            "x-form": "number"
                                         }
-                                    }
+                                    },
+                                    "title": "Change over",
+                                    "x-form": "object",
+                                    "description": "Compare how much the metric moved, not its value"
                                 }
                             }
                         }
                     }
-                ]
+                ],
+                "x-order": [
+                    "id",
+                    "name",
+                    "severity",
+                    "kind",
+                    "asset",
+                    "metric",
+                    "op",
+                    "threshold",
+                    "change",
+                    "forS",
+                    "clearAt",
+                    "when",
+                    "clearWhen",
+                    "message"
+                ],
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "x-form": "id"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "x-form": "text"
+                    },
+                    "severity": {
+                        "title": "Severity",
+                        "x-form": "select",
+                        "x-options": ["info", "warning", "critical"]
+                    },
+                    "kind": {
+                        "title": "Every asset of kind",
+                        "x-form": "select",
+                        "x-options": [
+                            "site",
+                            "weather",
+                            "grid",
+                            "solar",
+                            "battery",
+                            "genset",
+                            "bus",
+                            "chiller",
+                            "coldstore",
+                            "building",
+                            "charger",
+                            "vehicle",
+                            "custom"
+                        ]
+                    },
+                    "asset": {
+                        "title": "Or one asset",
+                        "x-form": "asset"
+                    },
+                    "metric": {
+                        "title": "Metric",
+                        "x-form": "metric"
+                    },
+                    "threshold": {
+                        "title": "Threshold",
+                        "x-form": "number"
+                    },
+                    "forS": {
+                        "title": "Hold (s)",
+                        "x-form": "number",
+                        "description": "Must stay breached this long before raising"
+                    },
+                    "clearAt": {
+                        "title": "Clear at",
+                        "x-form": "number",
+                        "description": "Value past which it clears; the threshold if not set"
+                    },
+                    "when": {
+                        "title": "When",
+                        "x-form": "expr",
+                        "description": "An expression over the asset's metrics; instead of metric, op and threshold"
+                    },
+                    "clearWhen": {
+                        "title": "Clear when",
+                        "x-form": "expr"
+                    },
+                    "message": {
+                        "title": "Message",
+                        "x-form": "text",
+                        "description": "{asset} is replaced with the asset's name"
+                    }
+                }
             }
         },
         "scenarios": {
             "type": "array",
-            "x-message": "scenarios must be an array"
+            "x-message": "scenarios must be an array",
+            "items": {
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "x-form": "id"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "x-form": "text"
+                    },
+                    "description": {
+                        "title": "Description",
+                        "x-form": "textarea"
+                    },
+                    "faults": {
+                        "title": "Faults",
+                        "x-form": "list",
+                        "x-keep-empty": true,
+                        "x-new": {
+                            "type": "trip"
+                        },
+                        "items": {
+                            "properties": {
+                                "type": {
+                                    "title": "Fault",
+                                    "x-form": "select",
+                                    "x-options": [
+                                        "grid-outage",
+                                        "trip",
+                                        "door-stuck",
+                                        "heatwave",
+                                        "bearing-wear",
+                                        "genset-fail",
+                                        "cloud-cover"
+                                    ]
+                                },
+                                "target": {
+                                    "title": "Target",
+                                    "x-form": "asset"
+                                },
+                                "magnitude": {
+                                    "title": "Magnitude",
+                                    "x-form": "number",
+                                    "description": "Heatwave: extra °C. Bearing wear: mm/s per hour. Cloud cover: 0 to 1."
+                                },
+                                "offsetS": {
+                                    "title": "Starts after (s)",
+                                    "x-form": "number"
+                                },
+                                "durationS": {
+                                    "title": "Lasts (s)",
+                                    "x-form": "number",
+                                    "description": "Until cleared if not set"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         },
         "types": {
             "type": "array",
@@ -338,7 +518,8 @@
                         "type": "string",
                         "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
                         "x-message": "A type needs an id of lowercase letters, digits, - or _",
-                        "title": "Id"
+                        "title": "Id",
+                        "x-form": "id"
                     }
                 },
                 "if": {
@@ -356,7 +537,9 @@
                         "name": {
                             "type": "string",
                             "minLength": 1,
-                            "x-message": "Type {0:id}: needs a name"
+                            "x-message": "Type {0:id}: needs a name",
+                            "title": "Name",
+                            "x-form": "text"
                         },
                         "metrics": {
                             "type": "array",
@@ -374,7 +557,9 @@
                                             "const": "state"
                                         },
                                         "x-message": "Type {0:id}: metric keys must be camelCase identifiers other than state",
-                                        "title": "Id"
+                                        "title": "Key",
+                                        "x-form": "text",
+                                        "description": "camelCase, used in expressions"
                                     }
                                 },
                                 "if": {
@@ -400,11 +585,16 @@
                                     "properties": {
                                         "unit": {
                                             "type": "string",
-                                            "x-message": "Type {0:id}: metric {1:key} needs a unit"
+                                            "x-message": "Type {0:id}: metric {1:key} needs a unit",
+                                            "title": "Unit",
+                                            "x-form": "text",
+                                            "x-keep-empty": true
                                         },
                                         "default": {
                                             "type": "number",
-                                            "x-message": "Type {0:id}: metric {1:key} default must be a number"
+                                            "x-message": "Type {0:id}: metric {1:key} default must be a number",
+                                            "title": "Starts at",
+                                            "x-form": "number"
                                         },
                                         "setpoint": {
                                             "type": "object",
@@ -413,21 +603,58 @@
                                             "properties": {
                                                 "min": {
                                                     "type": "number",
-                                                    "x-message": "Type {0:id}: metric {1:key} setpoint needs a min below its max"
+                                                    "x-message": "Type {0:id}: metric {1:key} setpoint needs a min below its max",
+                                                    "title": "Min",
+                                                    "x-form": "number"
                                                 },
                                                 "max": {
                                                     "type": "number",
-                                                    "x-message": "Type {0:id}: metric {1:key} setpoint needs a min below its max"
+                                                    "x-message": "Type {0:id}: metric {1:key} setpoint needs a min below its max",
+                                                    "title": "Max",
+                                                    "x-form": "number"
                                                 },
                                                 "step": {
                                                     "type": "number",
                                                     "exclusiveMinimum": 0,
-                                                    "x-message": "Type {0:id}: metric {1:key} setpoint step must be positive"
+                                                    "x-message": "Type {0:id}: metric {1:key} setpoint step must be positive",
+                                                    "title": "Step",
+                                                    "x-form": "number"
                                                 }
-                                            }
+                                            },
+                                            "title": "Setpoint",
+                                            "x-form": "object",
+                                            "description": "Operators may set this metric within the range"
+                                        },
+                                        "label": {
+                                            "title": "Label",
+                                            "x-form": "text"
+                                        },
+                                        "decimals": {
+                                            "title": "Decimals",
+                                            "x-form": "number"
+                                        },
+                                        "expr": {
+                                            "title": "Expression",
+                                            "x-form": "expr",
+                                            "description": "Worked out every step; can read its own last value, other metrics, states, dt, hour, ambientC and powered"
                                         }
                                     }
-                                }
+                                },
+                                "x-order": [
+                                    "key",
+                                    "label",
+                                    "unit",
+                                    "decimals",
+                                    "default",
+                                    "expr",
+                                    "setpoint"
+                                ]
+                            },
+                            "title": "Metrics",
+                            "x-form": "list",
+                            "x-new": {
+                                "key": "value",
+                                "unit": ""
                             }
                         },
                         "states": {
@@ -443,7 +670,8 @@
                                             "const": "state"
                                         },
                                         "x-message": "Type {0:id}: state ids must be camelCase identifiers other than state",
-                                        "title": "Id"
+                                        "title": "Id",
+                                        "x-form": "text"
                                     }
                                 },
                                 "if": {
@@ -469,11 +697,25 @@
                                                 "fault",
                                                 "maintenance"
                                             ],
-                                            "x-message": "Type {0:id}: state {1:id} status must be running, standby, off, fault or maintenance"
+                                            "x-message": "Type {0:id}: state {1:id} status must be running, standby, off, fault or maintenance",
+                                            "title": "Status",
+                                            "x-form": "select"
+                                        },
+                                        "label": {
+                                            "title": "Label",
+                                            "x-form": "text"
                                         }
                                     }
-                                }
-                            }
+                                },
+                                "x-order": ["id", "label", "status"]
+                            },
+                            "title": "States",
+                            "x-form": "list",
+                            "x-new": {
+                                "id": "state",
+                                "status": "running"
+                            },
+                            "description": "The first is where an asset starts"
                         },
                         "visual": {
                             "type": "object",
@@ -483,16 +725,65 @@
                                 "color": {
                                     "type": "string",
                                     "pattern": "^#[0-9a-fA-F]{6}$",
-                                    "x-message": "Type {0:id}: visual.color must be a #rrggbb colour"
+                                    "x-message": "Type {0:id}: visual.color must be a #rrggbb colour",
+                                    "title": "Colour",
+                                    "x-form": "color"
                                 },
                                 "shape": {
                                     "enum": ["box", "cylinder"],
-                                    "x-message": "Type {0:id}: visual.shape must be box or cylinder"
+                                    "x-message": "Type {0:id}: visual.shape must be box or cylinder",
+                                    "title": "Shape",
+                                    "x-form": "select"
+                                },
+                                "height": {
+                                    "title": "Height (m)",
+                                    "x-form": "number"
+                                }
+                            },
+                            "title": "Look",
+                            "x-form": "object"
+                        },
+                        "primary": {
+                            "title": "Primary metric",
+                            "x-form": "type-metric",
+                            "description": "Shown in lists and labels"
+                        },
+                        "transitions": {
+                            "title": "Transitions",
+                            "x-form": "list",
+                            "x-new": {
+                                "from": "*",
+                                "when": "false"
+                            },
+                            "description": "The first whose condition holds is taken",
+                            "items": {
+                                "properties": {
+                                    "from": {
+                                        "title": "From",
+                                        "x-form": "from-state"
+                                    },
+                                    "to": {
+                                        "title": "To",
+                                        "x-form": "state"
+                                    },
+                                    "when": {
+                                        "title": "When",
+                                        "x-form": "expr"
+                                    }
                                 }
                             }
                         }
                     }
-                }
+                },
+                "x-order": [
+                    "id",
+                    "name",
+                    "primary",
+                    "metrics",
+                    "states",
+                    "transitions",
+                    "visual"
+                ]
             }
         },
         "tilesets": {
@@ -695,6 +986,27 @@
             "maxItems": 8,
             "x-messages": {
                 "maxItems": "At most 8 KPIs fit in the top bar"
+            },
+            "items": {
+                "properties": {
+                    "label": {
+                        "title": "Label",
+                        "x-form": "text"
+                    },
+                    "value": {
+                        "title": "Value",
+                        "x-form": "expr",
+                        "description": "An expression over {asset.metric}, such as {store.tempC}"
+                    },
+                    "unit": {
+                        "title": "Unit",
+                        "x-form": "text"
+                    },
+                    "decimals": {
+                        "title": "Decimals",
+                        "x-form": "number"
+                    }
+                }
             }
         },
         "panels": {
@@ -708,11 +1020,64 @@
                     "title": {
                         "type": "string",
                         "minLength": 1,
-                        "x-message": "A panel needs a title"
+                        "x-message": "A panel needs a title",
+                        "x-form": "text",
+                        "title": "Title"
                     },
                     "items": {
                         "type": "array",
-                        "x-message": "Panel {0:title}: items must be an array"
+                        "x-message": "Panel {0:title}: items must be an array",
+                        "title": "Figures",
+                        "x-form": "list",
+                        "x-new": {
+                            "label": "Figure",
+                            "value": "0"
+                        },
+                        "items": {
+                            "properties": {
+                                "label": {
+                                    "title": "Label",
+                                    "x-form": "text"
+                                },
+                                "value": {
+                                    "title": "Value",
+                                    "x-form": "expr",
+                                    "description": "An expression over {asset.metric}, such as {store.tempC}"
+                                },
+                                "unit": {
+                                    "title": "Unit",
+                                    "x-form": "text"
+                                },
+                                "decimals": {
+                                    "title": "Decimals",
+                                    "x-form": "number"
+                                }
+                            }
+                        }
+                    },
+                    "chart": {
+                        "properties": {
+                            "value": {
+                                "title": "Value",
+                                "x-form": "expr",
+                                "description": "An expression over {asset.metric}, such as {store.tempC}"
+                            },
+                            "unit": {
+                                "title": "Unit",
+                                "x-form": "text"
+                            },
+                            "decimals": {
+                                "title": "Decimals",
+                                "x-form": "number"
+                            },
+                            "label": {
+                                "title": "Label",
+                                "x-form": "text",
+                                "description": "The title if not set"
+                            }
+                        },
+                        "title": "Chart",
+                        "x-form": "object"
                     }
                 }
             }

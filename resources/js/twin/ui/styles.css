@@ -1304,7 +1304,7 @@
     justify-self: start;
 }
 
-/* Zones and assets: lists beside a form drawn from the schema. */
+/* The definition editor: a tab per list, its items beside a form drawn from the schema. */
 .twin-root .def-editor {
     width: min(560px, calc(100vw - 2 * var(--gap)));
 }
@@ -1353,6 +1353,11 @@
     margin: 0;
     padding: 0;
 }
+.twin-root .def-editor-field > label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
 .twin-root .def-editor-field legend {
     padding: 0;
     margin-bottom: 3px;
@@ -1393,6 +1398,47 @@
     flex-direction: column;
     gap: 2px;
     color: var(--ink-3);
+}
+.twin-root .def-editor-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.twin-root .def-editor-tabs button {
+    background: transparent;
+    border-color: transparent;
+    color: var(--ink-2);
+    padding: 2px 8px;
+}
+.twin-root .def-editor-tabs button.on {
+    background: var(--raised);
+    border-color: var(--line-strong);
+    color: var(--ink);
+}
+.twin-root .def-editor-group {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.twin-root .def-editor-group > legend {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 0 4px;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+.twin-root .def-editor .mono {
+    font-family: var(--mono);
+}
+.twin-root .def-editor input[type='color'] {
+    width: 48px;
+    height: 24px;
+    padding: 0;
 }
 .twin-root .def-editor-foot {
     display: flex;

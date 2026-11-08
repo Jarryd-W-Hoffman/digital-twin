@@ -71,3 +71,20 @@ it('hides versions from outsiders', function (): void {
 
     $this->actingAs($outsider)->get(route('twins.versions.show', [$twin, $twin->versions()->sole()]))->assertForbidden();
 });
+
+it('keeps a definition exactly as sent, empty and padded strings included', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $definition = resolve(SampleTwins::class)->definition('harbour-depot');
+    $definition['types'] = [['id' => 'gauge', 'name' => 'Gauge', 'primary' => 'level', 'metrics' => [['key' => 'level', 'unit' => '', 'default' => 0]], 'visual' => ['color' => '#7f8c8d', 'shape' => 'box']]];
+    $definition['scenarios'][0]['description'] = '';
+    $definition['rules'][0]['message'] = ' {asset} is warm ';
+
+    $this->actingAs($user)->postJson(route('twins.versions.store', $twin), ['definition' => $definition, 'note' => 'Edited types'])
+        ->assertRedirectToRoute('twins.show', $twin);
+
+    $saved = $twin->latestVersion()->sole()->definition;
+    expect($saved['types'][0]['metrics'][0]['unit'])->toBe('')
+        ->and($saved['scenarios'][0]['description'])->toBe('')
+        ->and($saved['rules'][0]['message'])->toBe(' {asset} is warm ');
+});

@@ -315,8 +315,8 @@ test('zones and assets are edited as forms, checked as they change, and saved as
   await openTwin(page, 'Northshore Cold Chain Hub');
   const version = Number((await page.locator('.version-chip').innerText()).slice(1));
 
-  await page.getByRole('button', { name: 'Zones and assets' }).click();
-  const editor = page.getByRole('complementary', { name: 'Zones and assets' });
+  await page.getByRole('button', { name: 'Definition' }).click();
+  const editor = page.getByRole('complementary', { name: 'Definition' });
   const save = editor.getByRole('button', { name: 'Save', exact: true });
   await expect(editor.getByText('No changes yet.')).toBeVisible();
   await expect(save).toBeDisabled();
@@ -333,6 +333,7 @@ test('zones and assets are edited as forms, checked as they change, and saved as
   await expect(editor.getByRole('alert')).toContainText('Zone cold: footprint needs 3+ points');
   await zone.getByLabel('Footprint').fill('-150, -60\n60, -60\n60, 110\n-150, 110');
 
+  await editor.getByRole('tab', { name: 'Assets' }).click();
   await editor.getByRole('button', { name: 'Add asset' }).click();
   const asset = editor.getByRole('form', { name: 'Edit building' });
   await asset.getByLabel('Name').fill('Workshop');
@@ -356,9 +357,58 @@ test('zones and assets are edited as forms, checked as they change, and saved as
   }), { timeout: 90_000 }).toEqual({ zone: 'Cold rooms', asset: expect.objectContaining({ name: 'Workshop', zone: 'plant', params: { baseKw: 12 } }) });
 
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Zones and assets' }).click();
+  await page.getByRole('button', { name: 'Definition' }).click();
   await editor.getByRole('button', { name: 'Add zone' }).click();
   await editor.getByRole('button', { name: 'Discard' }).click();
   await expect(editor).toHaveCount(0);
   await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+});
+
+test('types, rules and scenarios are edited with their nested lists', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  await openTwin(page, 'Harbour Depot');
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+  await page.getByRole('button', { name: 'Definition' }).click();
+  const editor = page.getByRole('complementary', { name: 'Definition' });
+  const alert = editor.getByRole('alert');
+
+  await editor.getByRole('tab', { name: 'Types' }).click();
+  await editor.getByRole('button', { name: 'Add type' }).click();
+  const type = editor.getByRole('form', { name: 'Edit equipment' });
+  await type.getByLabel('Name', { exact: true }).fill('Pump');
+  await type.getByRole('button', { name: 'Add to metrics' }).click();
+  const metric = type.getByRole('group', { name: 'Metrics 2' });
+  await metric.getByLabel('Key').fill('flowLps');
+  await metric.getByLabel('Unit').fill('L/s');
+  await metric.getByLabel('Expression').fill('value * ');
+  await expect(alert).toContainText('Type equipment: metric flowLps');
+  await metric.getByLabel('Expression').fill('value * 2');
+  await type.getByLabel('Primary metric').selectOption('flowLps');
+  await expect(editor.getByText('No problems.')).toBeVisible();
+
+  await editor.getByRole('tab', { name: 'Rules' }).click();
+  await editor.getByRole('button', { name: 'Add rule' }).click();
+  const rule = editor.getByRole('form', { name: 'Edit rule' });
+  await rule.getByLabel('Name', { exact: true }).fill('Store warm');
+  await rule.getByLabel('Or one asset').selectOption('store');
+  await rule.getByLabel('Metric').selectOption('tempC');
+  await rule.getByLabel('Threshold').fill('-15');
+  await rule.getByLabel('Above or below').selectOption('');
+  await expect(alert).toContainText('Rule rule: op must be gt or lt');
+  await rule.getByLabel('Above or below').selectOption('gt');
+
+  await editor.getByRole('tab', { name: 'Scenarios' }).click();
+  await editor.getByRole('button', { name: 'Add scenario' }).click();
+  const scenario = editor.getByRole('form', { name: 'Edit scenario' });
+  await scenario.getByLabel('Name', { exact: true }).fill('Store trips');
+  await scenario.getByRole('button', { name: 'Add to faults' }).click();
+  await scenario.getByRole('group', { name: 'Faults 1' }).getByLabel('Target').selectOption('store');
+  await expect(editor.getByText('No problems.')).toBeVisible();
+
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+  await expect.poll(() => page.evaluate(() => {
+    const def = (window as unknown as { __twin: { getState(): { def?: { types?: { id: string; primary: string }[]; rules: { id: string; op?: string }[]; scenarios: { id: string; faults: { target?: string }[] }[] } } } }).__twin.getState().def;
+    return def && [def.types?.find((t) => t.id === 'equipment')?.primary, def.rules.find((r) => r.id === 'rule')?.op, def.scenarios.find((s) => s.id === 'scenario')?.faults];
+  }), { timeout: 90_000 }).toEqual(['flowLps', 'gt', [{ type: 'trip', target: 'store' }]]);
 });
