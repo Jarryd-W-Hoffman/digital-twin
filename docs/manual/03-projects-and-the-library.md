@@ -1,6 +1,6 @@
 # Projects and the library
 
-A **project** holds the twins of one site, client or programme of work, together with what they share: a **library** of uploaded files and the [devices](09-devices-and-mqtt.md) that send readings. Upload a model or a scan to the library once, and any twin in the project can show it.
+A **project** holds the twins of one site, client or programme of work, together with what they share: a **library** of uploaded files and the [devices](10-devices-and-mqtt.md) that send readings. Upload a model or a scan to the library once, and any twin in the project can show it.
 
 ![The Pilot sites project page: its twins, its library with a model, a tileset and a converted point cloud, and its devices.](../images/project.png)
 
@@ -12,17 +12,18 @@ A **project** holds the twins of one site, client or programme of work, together
 
 Only editors (owners and admins) can create projects. The project page shows:
 
-- **Twins**: each with its latest version and when it was last changed. **New twin** starts one in this project; see [Creating a twin](05-twins-and-the-viewer.md#create-a-twin).
+- **Twins**: each with its latest version and when it was last changed. **New twin** starts one in this project; see [Creating a twin](06-twins-and-the-viewer.md#create-a-twin).
 - **Library**: uploads any of the project's twins can show.
-- **Devices**: sensors and controllers allowed to publish readings; see [Devices and MQTT](09-devices-and-mqtt.md).
+- **Devices**: sensors and controllers allowed to publish readings; see [Devices and MQTT](10-devices-and-mqtt.md).
 
 ## What you can upload
 
-| File                                 | Becomes                                   | Checked for                                                                                                                                                                                                           |
-| ------------------------------------ | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`.glb`** (binary glTF)             | A **model**                               | A real glTF 2 header whose length matches the file                                                                                                                                                                    |
-| **`.zip`** of a 3D Tiles tileset     | A **tileset**                             | `tileset.json` at the top or inside one top-level folder; only tile files (json, b3dm, i3dm, pnts, cmpt, glb, gltf, bin, subtree and images); no paths that escape the folder; at most 20,000 files and 4 GB unpacked |
-| **`.las`**, **`.laz`** or **`.e57`** | A **point cloud**, converted to a tileset | See [Point clouds](04-point-clouds.md)                                                                                                                                                                                |
+| File                                  | Becomes                                   | Checked for                                                                                                                                                                                                           |
+| ------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`.glb`** (binary glTF)              | A **model**                               | A real glTF 2 header whose length matches the file                                                                                                                                                                    |
+| **`.zip`** of a 3D Tiles tileset      | A **tileset**                             | `tileset.json` at the top or inside one top-level folder; only tile files (json, b3dm, i3dm, pnts, cmpt, glb, gltf, bin, subtree and images); no paths that escape the folder; at most 20,000 files and 4 GB unpacked |
+| **`.las`**, **`.laz`** or **`.e57`**  | A **point cloud**, converted to a tileset | See [Point clouds](04-point-clouds.md)                                                                                                                                                                                |
+| **`.tif`**, **`.tiff`** or **`.asc`** | **Terrain**, converted from a DEM         | See [Terrain](05-terrain.md)                                                                                                                                                                                          |
 
 - **Models** are things you place by hand: a pump skid, a container, a piece of plant from CAD. You give them a position, heading and scale in the twin.
 - **Tilesets** are large or detailed scenes streamed in pieces: photogrammetry, a BIM export, a city model. A tileset usually knows where on Earth it belongs; if it was built in local metres, you can place it like a model.
@@ -32,19 +33,19 @@ Only editors (owners and admins) can create projects. The project page shows:
 ![The library while a point cloud converts: a tileset, the scan at 45% with its log open, and a model.](../images/library-converting.png)
 
 1. On the project page, under **Library**, choose the file. The **Name** fills in from the file name; change it to something people will recognise.
-2. For a point cloud, two more fields appear: **EPSG code** and **Thin to spacing (m)**. See [Point clouds](04-point-clouds.md).
+2. For a point cloud, two more fields appear: **EPSG code** and **Thin to spacing (m)**. See [Point clouds](04-point-clouds.md). A DEM gets **EPSG code** only; see [Terrain](05-terrain.md).
 3. Choose **Upload**. The button shows the progress.
 
 Each item in the library shows what it is, its size and the original file name, and its state:
 
-| State                                                 | Meaning                                                                                        |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **Uploading**                                         | The browser is still sending it (large uploads only)                                           |
-| **Processing** / **Converting N%**                    | The server is checking or converting it. The page updates itself while anything is in progress |
-| **Model**, **Tileset · N files**, **Point cloud · …** | Ready. Add it to a twin from the twin's **Layout** panel                                       |
-| **Failed**                                            | It couldn't be used. The reason is shown underneath, and nothing half-finished is kept         |
+| State                                                                  | Meaning                                                                                        |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Uploading**                                                          | The browser is still sending it (large uploads only)                                           |
+| **Processing** / **Converting N%**                                     | The server is checking or converting it. The page updates itself while anything is in progress |
+| **Model**, **Tileset · N files**, **Point cloud · …**, **Terrain · …** | Ready. Add it to a twin from the twin's **Layout** panel                                       |
+| **Failed**                                                             | It couldn't be used. The reason is shown underneath, and nothing half-finished is kept         |
 
-You can also upload from a twin's **Layout** panel: the file goes into the project's library and is added to that twin in one step. See [Layout and versions](07-layout-and-versions.md).
+You can also upload from a twin's **Layout** panel: the file goes into the project's library and is added to that twin in one step. See [Layout and versions](08-layout-and-versions.md).
 
 ## Large uploads
 
@@ -54,7 +55,7 @@ If your Meridian stores files in object storage (S3, or RustFS in the Docker sta
 - **Cancel** stops the upload and discards what was sent.
 - When the last part arrives, the item shows **Processing** while the server checks it.
 
-Your administrator sets this up; see [Running Meridian](12-running-meridian.md#uploads-and-storage).
+Your administrator sets this up; see [Running Meridian](13-running-meridian.md#uploads-and-storage).
 
 ## Delete an upload
 
@@ -75,4 +76,4 @@ On the project page, choose **Delete** and confirm. This deletes the project, **
 ## See also
 
 - [Point clouds](04-point-clouds.md): converting laser scans.
-- [Layout and versions](07-layout-and-versions.md): putting uploads into a twin.
+- [Layout and versions](08-layout-and-versions.md): putting uploads into a twin.

@@ -13,7 +13,7 @@ A **twin** is one site: its buildings and equipment, where they are, how power a
 3. Under **Start from**, choose one:
     - **An empty site at a location**: enter the **Latitude**, **Longitude** and **UTC offset (hours)** of the site. The twin starts with weather, a grid connection and a main board, ready for you to add models, scans and equipment.
     - **A sample site**: a copy of **Northshore Cold Chain Hub** or **Harbour Depot**, to explore or adapt.
-    - **A definition file**: a twin definition saved as JSON, such as one downloaded from another twin. See [Twin definitions](10-twin-definitions.md).
+    - **A definition file**: a twin definition saved as JSON, such as one downloaded from another twin. See [Twin definitions](11-twin-definitions.md).
 4. Choose **Create twin**. Meridian checks the definition, saves it as version 1 and opens the twin.
 
 Only editors can create twins. Renaming or deleting a twin isn't in the app yet.
@@ -27,10 +27,10 @@ The page has five parts.
 From left to right:
 
 - **← and the twin's name**: back to its project.
-- **The version chip** (`v4`): the version you're looking at. Every saved change adds one; see [Layout and versions](07-layout-and-versions.md).
-- **Simulator / Live**: shown while a [gateway](08-gateways-and-live-data.md) is running the twin. **Live** follows the gateway; **Simulator** runs the model in your browser instead.
-- **Layout** (editors only): opens the [Layout panel](07-layout-and-versions.md).
-- **The headline figures**: **Site load**, **Solar**, **Grid import** (or **Export**, or **Lost** during an outage), **Battery** charge, and **Tightest store**, how close the warmest cold store is to its limit.
+- **The version chip** (`v4`): the version you're looking at. Every saved change adds one; see [Layout and versions](08-layout-and-versions.md).
+- **Simulator / Live**: shown while a [gateway](09-gateways-and-live-data.md) is running the twin. **Live** follows the gateway; **Simulator** runs the model in your browser instead.
+- **Layout** (editors only): opens the [Layout panel](08-layout-and-versions.md).
+- **The headline figures**: **Site load**, **Solar**, **Grid import** (or **Export**, or **Lost** during an outage), **Battery** charge, and **Tightest store**, how close the warmest cold store is to its limit. A twin can declare its own figures instead, like Harbour Depot's **Margin to limit** and **Run cost**; see [KPIs and panels](11-twin-definitions.md#kpis-and-panels).
 - **The alerts button**: **No alerts**, or how many are active. Choose it to open the **Alerts** tab.
 - **The source**: **Simulator**, or the gateway's address, with how many metrics come from real sensors.
 - **The clock**: the time at the site. It reads **Replay** while you're looking back in time.
@@ -60,7 +60,7 @@ Below the list:
 
 ### The inspector (right)
 
-With nothing selected, **Inspect** summarises the site: its description, site load over the last hours, every cold store against its limit, and energy and cost so far.
+With nothing selected, **Inspect** summarises the site: its description, site load over the last hours, every cold store against its limit, and energy and cost so far. A twin can add its own panels here, like Northshore's **Fire protection**; see [KPIs and panels](11-twin-definitions.md#kpis-and-panels).
 
 ![The inspector on Chiller 2: its status, readings with six hours of history, and what it's connected to.](../images/inspector.png)
 
@@ -69,15 +69,16 @@ Select an asset to see:
 - **Its status and kind**, and the commands it takes, for operators and up:
     - **Cold stores**: **Setpoint**. Use **−** and **+**, then **Apply**.
     - **Chillers**: **Take out of service** and **Return to service**.
+    - **Custom types with setpoints**, like the jockey pump's start and stop pressures: **−** and **+** for each, then **Apply**. Values stay within the type's range.
 - **Readings**: every metric with a sparkline of the last six hours. A reading from a real sensor rather than the model is marked as measured.
-- **Recorded**: what sensors actually reported over the last **24 h**, **7 days** or **30 days**, when the twin has a gateway sending history. See [Devices and MQTT](09-devices-and-mqtt.md#see-what-was-recorded).
+- **Recorded**: what sensors actually reported over the last **24 h**, **7 days** or **30 days**, when the twin has a gateway sending history. See [Devices and MQTT](10-devices-and-mqtt.md#see-what-was-recorded).
 - **Connected to**: what feeds it, what it feeds, and what it cools or is cooled by. Choose a name to jump to that asset.
 
-Choose **← Site** to go back to the summary. The **Alerts** and **What-if** tabs are covered in [Alerts, time travel and what-if](06-alerts-time-and-what-if.md).
+Choose **← Site** to go back to the summary. The **Alerts** and **What-if** tabs are covered in [Alerts, time travel and what-if](07-alerts-time-and-what-if.md).
 
 ![Fire water tank, a custom asset type, in the inspector.](../images/custom-type.png)
 
-Equipment the model has no physics for, like this fire water tank, can still be described as a [custom type](10-twin-definitions.md#custom-asset-types). It shows its own metrics, takes readings from sensors and raises alerts like anything else.
+Equipment the model has no physics for, like this fire water tank, can still be described as a [custom type](11-twin-definitions.md#custom-asset-types). It shows its own metrics, takes readings from sensors and raises alerts like anything else. A type can also behave on its own: the jockey pump starts and stops on the tank's pressure, and draws power from its board.
 
 ### The timeline (bottom)
 
@@ -98,6 +99,6 @@ Equipment the model has no physics for, like this fire water tank, can still be 
 
 ## See also
 
-- [Alerts, time travel and what-if](06-alerts-time-and-what-if.md)
-- [Layout and versions](07-layout-and-versions.md)
-- [Gateways and live data](08-gateways-and-live-data.md)
+- [Alerts, time travel and what-if](07-alerts-time-and-what-if.md)
+- [Layout and versions](08-layout-and-versions.md)
+- [Gateways and live data](09-gateways-and-live-data.md)

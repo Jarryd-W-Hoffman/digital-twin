@@ -674,6 +674,8 @@ state colour ← the current state's status (Off whenever its bus is down)
 | Bare names            | The asset's own metrics; its type's state ids (1 in that state, 0 otherwise); `dt` (seconds per step), `hour` (site time), `ambientC` and `powered` |
 | `{asset.metric}`      | Another asset's metric, such as `{wx.ambientC}` or `{store.tempC}`                                                                                  |
 
+![The jockey pump in the inspector, with its two pressure setpoints](docs/images/setpoints.png)
+
 Expressions are parsed by hand in both TypeScript and PHP, so nothing in them can reach either language, and both validators report the same problems: syntax, names a type doesn't have, references to assets that don't exist, setpoints without a range, transitions to unknown states. A setpoint metric gets **−**, **+** and **Apply** in the inspector for operators, and the gateway clamps what it receives to the range.
 
 ### The type library
@@ -683,6 +685,10 @@ Each organisation keeps a library of types under **Types** in the sidebar, so a 
 - **Import** takes a JSON file holding one type, a list of them, or a whole twin definition (its `types` are taken). Every type is checked as a twin would check it, except whether the assets it reads exist, and a type with the same id as one in the library replaces it. The library lists what each type reads, such as `fire-tank`, because a twin needs assets with those ids to use it.
 - In a twin's **Layout** panel, **Types** lists the twin's own types against the library. **Add** copies a library type in, and **Take library's** replaces the twin's type of that id. **Save to library** copies the twin's type out. Each copy into a twin saves a version, and the definition must still be valid: the jockey pump can't go into Harbour Depot, which has no `fire-tank`, and the editor says so.
 - Copies are not links. Changing or deleting a library type never changes a twin, and gateways keep reading types from the definition alone. The panel marks a twin's type as **in the library** or as **differs from the library**, comparing them field by field.
+
+![The type library](docs/images/types.png)
+
+![A twin's types against the library, with a refusal](docs/images/twin-types.png)
 
 ### Rules
 
@@ -725,6 +731,10 @@ The top bar and site summary can be declared too. Each figure is an expression o
 }]
 ```
 
+![Harbour Depot's declared KPIs](docs/images/kpis.png)
+
+![Northshore's Fire protection panel](docs/images/panel.png)
+
 With no `kpis`, the top bar shows site load, solar, grid, battery and the tightest store, as before. A chart is drawn from the history the twin keeps, so it works in replay too. Figures read only `{asset.metric}`, and the validators refuse bare names and references to assets that don't exist.
 
 ### Terrain
@@ -732,6 +742,8 @@ With no `kpis`, the top bar shows site load, solar, grid, battery and the tighte
 ```jsonc
 "terrain": { "name": "Site lidar", "url": "/assets/.../files/layer.json", "assetId": "..." }
 ```
+
+![Harbour Depot on its terrain](docs/images/terrain.png)
 
 Quantized-mesh terrain to stand the site on; without it, the site sits on the plain ellipsoid. The viewer samples the terrain's height at the origin and builds the site level at that height, so pick an origin on the pad the site stands on. Zones and routes drape over the ground, and hills hide what's behind them. Choosing **Use as terrain** on a converted DEM in the twin editor writes this for you; a twin has one terrain, so choosing another replaces it. Harbour Depot uses a synthetic one (`scripts/generate-terrain.py`): a 12 m pad, a ridge to the south-west and the harbour to the north.
 

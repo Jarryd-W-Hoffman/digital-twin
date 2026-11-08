@@ -22,7 +22,7 @@ flowchart TD
 
 - An **organisation** is everyone who works together, and everything they share. You can belong to several and switch between them.
 - A **project** groups the twins of one site or job with the files and devices they share. Upload a scan once, and every twin in the project can show it.
-- A **twin** is a site: its assets (buildings, chillers, batteries, sensors…), their positions, how they connect, the rules that raise alerts, and the uploads it shows. It's stored as a [JSON definition](10-twin-definitions.md), and each change makes a new version.
+- A **twin** is a site: its assets (buildings, chillers, batteries, sensors…), their positions, how they connect, the rules that raise alerts, and the uploads it shows. It's stored as a [JSON definition](11-twin-definitions.md), and each change makes a new version.
 - A **gateway** runs a twin as a service and feeds it real readings, from HTTP or from **devices** publishing over MQTT. Without one, the twin runs on its built-in simulator in your browser.
 
 ## Sign in
@@ -52,17 +52,17 @@ A project page has three parts: **Twins**, the **Library** of uploads, and **Dev
 
 ![The Northshore Cold Chain Hub twin.](../images/overview.png)
 
-The twin page is covered in [Twins and the viewer](05-twins-and-the-viewer.md).
+The twin page is covered in [Twins and the viewer](06-twins-and-the-viewer.md).
 
 ## A first walk-through
 
 1. Open **Pilot sites**, then **Northshore Cold Chain Hub**. The camera flies down from orbit to the site.
 2. Choose **Chiller 2** in the list on the left. The inspector on the right shows its readings and what it's connected to.
-3. Choose **What-if** at the top of the inspector, pick **Refrigeration board trips**, and choose **Run forecast** to see what would happen. See [Alerts, time travel and what-if](06-alerts-time-and-what-if.md).
-4. Back on the project page, upload a model to the **Library**, then add it to **Harbour Depot** from its **Layout** panel. See [Layout and versions](07-layout-and-versions.md).
+3. Choose **What-if** at the top of the inspector, pick **Refrigeration board trips**, and choose **Run forecast** to see what would happen. See [Alerts, time travel and what-if](07-alerts-time-and-what-if.md).
+4. Back on the project page, upload a model to the **Library**, then add it to **Harbour Depot** from its **Layout** panel. See [Layout and versions](08-layout-and-versions.md).
 
 ## See also
 
 - [Organisations and members](02-organisations-and-members.md): who can do what.
-- [Twins and the viewer](05-twins-and-the-viewer.md): everything on the twin page.
-- [Running Meridian](12-running-meridian.md): installing it for your team.
+- [Twins and the viewer](06-twins-and-the-viewer.md): everything on the twin page.
+- [Running Meridian](13-running-meridian.md): installing it for your team.
