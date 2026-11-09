@@ -4,6 +4,7 @@ import { runForecast, type Forecast } from '../core/forecast.ts';
 import { History } from '../core/history.ts';
 import type { Measurement, MeasureLock, MeasureTool } from '../core/measure.ts';
 import { activeAt, createRuleEngine, type RuleEngine } from '../core/rules.ts';
+import type { Section } from '../core/section.ts';
 import type {
     Alert,
     Command,
@@ -102,6 +103,9 @@ export interface TwinStore {
     /** What the scene measured, as the pointer moves and clicks. */
     measurement: Measurement | null;
     setMeasurement: (measurement: Measurement | null) => void;
+    /** The site cut open to see inside; null when it's whole. */
+    section: Section | null;
+    setSection: (section: Section | null) => void;
     /** Bumped to clear the measurement and start again with the same tool. */
     measureClear: number;
     clearMeasurement: () => void;
@@ -188,6 +192,8 @@ export const useTwin = create<TwinStore>((set, get) => ({
     setMeasuring: (measuring) => set({ measuring, measurement: null }),
     measurement: null,
     setMeasurement: (measurement) => set({ measurement }),
+    section: null,
+    setSection: (section) => set({ section }),
     measureClear: 0,
     clearMeasurement: () =>
         set((s) => ({ measureClear: s.measureClear + 1, measurement: null })),
@@ -354,6 +360,7 @@ export function runDefinition(
         placingLayer: null,
         measuring: null,
         measurement: null,
+        section: null,
         sketch: null,
         featurePick: null,
     });
@@ -382,6 +389,7 @@ export function runGateway(
         placingLayer: null,
         measuring: null,
         measurement: null,
+        section: null,
     });
     startSource(new GatewaySource(url));
 }
@@ -401,6 +409,7 @@ export function stopTwin(): void {
         placingLayer: null,
         measuring: null,
         measurement: null,
+        section: null,
     });
 }
 

@@ -57,6 +57,7 @@ Below the list:
 - Click a building to select it. An asset that stands for part of a model, such as one wall of a BIM model, is selected by clicking that part.
 - **Whole site** flies back to the standard view; **Globe** pulls back until you can see the whole Earth, lit for the time at the site.
 - **Measure** opens the measuring tools; see [Measure in the scene](#measure-in-the-scene).
+- **Section** cuts the site open to see inside; see [Cut the site open](#cut-the-site-open).
 
 ![Pulled back to the whole Earth with Globe.](../images/globe.png)
 
@@ -82,6 +83,19 @@ For **Distance**, the second point can be held:
 The result follows the pointer until you click. **Clear** starts again with the same tool; **Done** or Esc puts the tools away. Measurements aren't saved, and anyone who can see the twin can measure, viewers included.
 
 Distances are measured on the Earth itself, so they're right at any distance. Heights are above the terrain where a twin has it, and above the site's level ground where it doesn't, so slope only shows on terrain. Points picked on the ground can read a few centimetres off; anything within 20 cm of the ground counts as on it.
+
+### Cut the site open
+
+![A section: everything above 8 m and everything east of the dashed line taken away, the neighbouring buildings cut open with gold edges where they're cut.](../images/section.png)
+
+**Section** above the scene cuts away part of the site, so you can see inside building models, scans and tilesets. It starts by cutting everything above 6 m.
+
+- **Cut above** takes away everything higher than **Cut height** above the ground: a floor plan, for a building model with floors.
+- **Cut across** takes away everything on one side of a vertical cut, shown as a dashed line on the ground. **Cut position** moves the cut, in metres from the site's origin, and **Cut direction** turns it; the readout says which side it takes away. **Flip** keeps the other side instead, along the same line.
+
+Both cuts can be on at once. Tilesets and placed models are clipped: they're drawn open where they're cut, with a gold edge, so their insides show. The blocks drawn for assets are cut to match, closed at the cut. The ground and terrain aren't cut.
+
+Measuring works inside a section, so you can open up a model and then measure what's inside it. Like measurements, sections aren't saved, and anyone who can see the twin can make one. **Done** puts the site back together.
 
 ### The inspector (right)
 

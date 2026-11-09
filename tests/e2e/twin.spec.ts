@@ -290,3 +290,48 @@ test('measures distances, heights, areas and points in the scene, without select
   await expect(panel).toHaveCount(0);
   expect(problems).toEqual([]);
 });
+
+test('a section cuts the blocks and clips the neighbouring buildings, and flips', async ({ page }) => {
+  const problems = await open(page);
+  type Hooks = { __scene: { bodyTop(id: string): number | null; clipPlanes(layer: string): number } };
+  const top = (id: string) => page.evaluate((a) => (window as unknown as Hooks).__scene.bodyTop(a), id);
+  const planes = () => page.evaluate(() => (window as unknown as Hooks).__scene.clipPlanes('context'));
+  await expect.poll(planes, { timeout: 30_000 }).toBe(0);
+  expect(await top('freezer')).toBeCloseTo(18.5);
+
+  await page.getByRole('button', { name: 'Section' }).click();
+  const panel = page.getByRole('region', { name: 'Section' });
+  // A new section cuts everything above 6 m.
+  await expect(panel.getByLabel('Cut above')).toBeChecked();
+  await expect.poll(() => top('freezer')).toBe(6);
+  expect(await planes()).toBe(1);
+  await panel.getByLabel('Cut height').fill('2');
+  await expect(panel.getByText('2.0 m up')).toBeVisible();
+  await expect.poll(() => top('freezer')).toBe(2);
+  // The freezer keeps its colour once its block is rebuilt.
+  await expect.poll(() => color(page, 'freezer')).not.toBeNull();
+
+  // Across, through the origin, taking away the north: the freezer reaches
+  // 100 m north and is cut; the dispatch hall is wholly south and isn't.
+  await panel.getByLabel('Cut above').click();
+  await panel.getByLabel('Cut across').click();
+  await expect.poll(() => top('freezer')).toBeCloseTo(18.5);
+  expect(await planes()).toBe(1);
+  // Taking away everything north of 90 m south leaves the freezer nothing.
+  await panel.getByLabel('Cut position').fill('-90');
+  await expect.poll(() => top('freezer')).toBeNull();
+  expect(await top('dispatch')).not.toBeNull();
+  // Flipped along the same line, the freezer comes back whole.
+  await panel.getByRole('button', { name: 'Flip' }).click();
+  await expect(panel.getByText('takes away S · 180°')).toBeVisible();
+  await expect.poll(() => top('freezer')).toBeCloseTo(18.5);
+  // South of 120 m south: the dispatch hall, at 80 m to 110 m south, is all kept.
+  await panel.getByLabel('Cut position').fill('120');
+  await expect.poll(() => top('dispatch')).toBeCloseTo(9.5);
+
+  await panel.getByRole('button', { name: 'Done' }).click();
+  await expect(panel).toHaveCount(0);
+  await expect.poll(planes).toBe(0);
+  expect(await top('freezer')).toBeCloseTo(18.5);
+  expect(problems).toEqual([]);
+});

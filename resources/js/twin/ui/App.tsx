@@ -5,6 +5,7 @@ import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { Inspector } from './Inspector.tsx';
 import { LeftPanel } from './LeftPanel.tsx';
 import { MeasurePanel } from './MeasurePanel.tsx';
+import { SectionPanel } from './SectionPanel.tsx';
 import { Timeline } from './Timeline.tsx';
 import { TopBar } from './TopBar.tsx';
 import { WhatIfPanel } from './WhatIfPanel.tsx';
@@ -34,6 +35,7 @@ export function App({
     const [leftOpen, setLeftOpen] = useState(startsOpen);
     const [rightOpen, setRightOpen] = useState(startsOpen);
     const measuring = useTwin((s) => s.measuring);
+    const section = useTwin((s) => s.section);
 
     return (
         <div className="app">
@@ -87,8 +89,25 @@ export function App({
                     >
                         Measure
                     </button>
+                    <button
+                        title="Cut the site open to see inside"
+                        aria-pressed={section !== null}
+                        className={section ? 'on' : ''}
+                        onClick={() =>
+                            useTwin
+                                .getState()
+                                .setSection(
+                                    section ? null : { above: 6, across: null },
+                                )
+                        }
+                    >
+                        Section
+                    </button>
                 </div>
-                <MeasurePanel />
+                <div className="scene-tools">
+                    <MeasurePanel />
+                    <SectionPanel />
+                </div>
                 <div className="drawer drawer-right">
                     <button
                         className="drawer-toggle"

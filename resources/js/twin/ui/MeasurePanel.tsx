@@ -90,7 +90,7 @@ export function MeasurePanel() {
     }
 
     return (
-        <section className="measure-panel" aria-label="Measure">
+        <section className="tool-panel" aria-label="Measure">
             <div className="segmented" role="group" aria-label="Measuring tool">
                 {TOOLS.map((t) => (
                     <button
@@ -144,7 +144,7 @@ export function MeasurePanel() {
             ) : (
                 <p className="muted hint">{current.hint}</p>
             )}
-            <div className="measure-actions">
+            <div className="tool-actions">
                 <button onClick={clearMeasurement} disabled={!measurement}>
                     Clear
                 </button>
