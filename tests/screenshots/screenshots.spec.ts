@@ -399,6 +399,16 @@ test('screenshots', async ({ page, context }) => {
         ).toBeVisible();
         await measure.waitForTimeout(1500);
         await shot(measure, 'measure');
+        await measure.getByRole('button', { name: 'Done' }).click();
+
+        // Cut away the east half, and everything above 8 m.
+        await measure.getByRole('button', { name: 'Section' }).click();
+        const section = measure.getByRole('region', { name: 'Section' });
+        await section.getByLabel('Cut height').fill('8');
+        await section.getByLabel('Cut across').click();
+        await section.getByLabel('Cut direction').fill('90');
+        await measure.waitForTimeout(2500);
+        await shot(measure, 'section');
         await measure.close();
 
         // Low and toward the ridge, so the ground's shape shows on the skyline.
@@ -811,8 +821,10 @@ test('screenshots', async ({ page, context }) => {
         const allowed = opcua.getByLabel(
             "Write operators' setpoints to OPC UA",
         );
+        // The box shows what the server holds, so it's checked only once the
+        // change is saved; clicking again before then would turn it back off.
         await allowed.click();
-        await expect(allowed).toBeChecked();
+        await expect(allowed).toBeChecked({ timeout: 30_000 });
         await expect.poll(health, { timeout: 60_000 }).toMatchObject({
             opcua: {
                 writes: true,

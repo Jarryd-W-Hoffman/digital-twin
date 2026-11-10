@@ -141,7 +141,7 @@
     .panels .panel,
     .drawer-toggle,
     .view-buttons,
-    .measure-panel,
+    .tool-panel,
     .modal-scrim {
         pointer-events: auto;
     }
@@ -344,11 +344,11 @@
         border-radius: 0 4px 4px 0;
     }
     .view-buttons button.on,
-    .measure-panel .segmented button.on {
+    .tool-panel .segmented button.on {
         background: var(--accent);
         color: var(--bg);
     }
-    .measure-panel {
+    .scene-tools {
         position: absolute;
         left: 50%;
         transform: translateX(-50%);
@@ -357,24 +357,29 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
+    }
+    .tool-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
         padding: 10px;
         background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 6px;
     }
-    .measure-panel .segmented {
+    .tool-panel .segmented {
         display: flex;
     }
-    .measure-panel .segmented button {
+    .tool-panel .segmented button {
         flex: 1;
         border-radius: 0;
         margin-left: -1px;
     }
-    .measure-panel .segmented button:first-child {
+    .tool-panel .segmented button:first-child {
         border-radius: 4px 0 0 4px;
         margin-left: 0;
     }
-    .measure-panel .segmented button:last-child {
+    .tool-panel .segmented button:last-child {
         border-radius: 0 4px 4px 0;
     }
     .measure-readout {
@@ -395,10 +400,30 @@
         font-family: var(--mono);
         font-weight: 600;
     }
-    .measure-actions {
+    .tool-actions {
         display: flex;
         justify-content: flex-end;
         gap: 6px;
+    }
+    .section-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .section-slider {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 10px;
+    }
+    .section-slider output {
+        font-family: var(--mono);
+        font-size: 12px;
+        min-width: 11ch;
+        text-align: right;
+    }
+    .section-panel .hint {
+        margin: 0;
     }
     .left-panel {
         width: 272px;

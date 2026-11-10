@@ -7,6 +7,8 @@ import {
     Cartesian3,
     Cesium3DTileset,
     Cesium3DTileStyle,
+    ClippingPlane,
+    ClippingPlaneCollection,
     CesiumTerrainProvider,
     Color,
     Credit,
@@ -32,6 +34,7 @@ import {
     PolygonGeometry,
     PolygonHierarchy,
     PolygonOutlineGeometry,
+    PolylineDashMaterialProperty,
     Polyline,
     PolylineCollection,
     PolylineGlowMaterialProperty,
@@ -61,6 +64,14 @@ import {
     primaryMetricFor,
     typeOf,
 } from '../core/metrics.ts';
+import {
+    cutBody,
+    facing,
+    reach,
+    sectionPlanes,
+    type Body,
+    type Section,
+} from '../core/section.ts';
 import type {
     Alert,
     AssetDef,
@@ -141,6 +152,11 @@ const featureKey = (value: unknown): string | null =>
         ? String(value)
         : null;
 
+/** A layer's clipping planes: a cut above and a cut across. */
+const CLIP_SLOTS = 2;
+/** An unused plane's distance: far enough below to keep everything. */
+const KEEP_ALL = 1e7;
+
 /** A selected asset's feature: the selection outline's colour. */
 const SELECTED_FEATURE = '#ffd166';
 
@@ -169,12 +185,13 @@ export class TwinScene {
     private readonly flowLines: PolylineCollection;
     private readonly pulses: PointPrimitiveCollection;
     private bodies?: Primitive;
-    private readonly pendingBodies: {
-        id: string;
-        footprint: Point[];
-        base: number;
-        top: number;
-    }[] = [];
+    private edges?: Primitive;
+    /** Every asset's blocks, uncut: the section is cut from these. */
+    private readonly bodyShapes: (Body & { id: string })[] = [];
+    /** The blocks drawn, as cut by the section, by instance id. */
+    private readonly drawnBodies = new Map<string, Body>();
+    private section: Section | null = null;
+    private readonly sectionLines = new CustomDataSource('section');
     private readonly visuals = new Map<string, AssetVisual>();
     private readonly vehicles = new Map<string, Vehicle>();
     private readonly flows: Flow[] = [];
@@ -266,7 +283,12 @@ export class TwinScene {
         // Bundled imagery means the twin still renders with no network at all.
         void this.addOfflineImagery();
 
-        for (const source of [this.zones, this.data, this.labels]) {
+        for (const source of [
+            this.zones,
+            this.data,
+            this.labels,
+            this.sectionLines,
+        ]) {
             void this.viewer.dataSources.add(source);
         }
         this.flowLines = scene.primitives.add(
@@ -540,7 +562,7 @@ export class TwinScene {
         const addBody = (footprint: Point[], from: number, to: number) => {
             const id = `${a.id}#${bodies.length}`;
             bodies.push(id);
-            this.pendingBodies.push({ id, footprint, base: from, top: to });
+            this.bodyShapes.push({ id, footprint, base: from, top: to });
         };
 
         if (a.feature) {
@@ -601,8 +623,22 @@ export class TwinScene {
      * All bodies are instances in one primitive. A colour change writes straight
      * to a per-instance attribute; doing it through entities would rebuild the
      * geometry in a worker each time, which at this update rate never catches up.
+     * A section rebuilds them, cut; their colours are written again once built.
      */
     private buildBodies(): void {
+        const { primitives } = this.viewer.scene;
+        if (this.bodies) primitives.remove(this.bodies);
+        if (this.edges) primitives.remove(this.edges);
+        this.bodies = this.edges = undefined;
+        this.drawnBodies.clear();
+        for (const b of this.bodyShapes) {
+            const cut = cutBody(b, this.section);
+            if (cut) this.drawnBodies.set(b.id, cut);
+        }
+        for (const visual of this.visuals.values())
+            if (!visual.def.feature) visual.color = undefined;
+        if (this.drawnBodies.size === 0) return;
+        const drawn = [...this.drawnBodies];
         const hierarchy = (footprint: Point[]) =>
             new PolygonHierarchy(
                 Cartesian3.fromDegreesArray(this.ring(footprint)),
@@ -610,12 +646,12 @@ export class TwinScene {
         const start = ColorGeometryInstanceAttribute.fromColor(
             Color.fromCssColorString(INERT_COLOR),
         );
-        this.bodies = this.viewer.scene.primitives.add(
+        const bodies = primitives.add(
             new Primitive({
-                geometryInstances: this.pendingBodies.map(
-                    (b) =>
+                geometryInstances: drawn.map(
+                    ([id, b]) =>
                         new GeometryInstance({
-                            id: b.id,
+                            id,
                             geometry: new PolygonGeometry({
                                 polygonHierarchy: hierarchy(b.footprint),
                                 height: this.ground + b.base,
@@ -636,12 +672,13 @@ export class TwinScene {
                 asynchronous: false,
             }),
         ) as Primitive;
-        this.viewer.scene.primitives.add(
+        this.bodies = bodies;
+        this.edges = primitives.add(
             new Primitive({
-                geometryInstances: this.pendingBodies.map(
-                    (b) =>
+                geometryInstances: drawn.map(
+                    ([id, b]) =>
                         new GeometryInstance({
-                            id: `${b.id}#edge`,
+                            id: `${id}#edge`,
                             geometry: new PolygonOutlineGeometry({
                                 polygonHierarchy: hierarchy(b.footprint),
                                 height: this.ground + b.base,
@@ -662,8 +699,102 @@ export class TwinScene {
                 }),
                 asynchronous: false,
             }),
+        ) as Primitive;
+        // Colours are written as frames arrive; a paused twin sends none, so
+        // write the last frame's once the new primitive can take them.
+        const remove = this.viewer.scene.postRender.addEventListener(() => {
+            if (this.bodies !== bodies) return remove();
+            if (!bodies.ready) return;
+            remove();
+            if (this.lastFrame) this.updateFrame(this.lastFrame, this.colorBy);
+        });
+    }
+
+    /** Cuts the site open: blocks are rebuilt cut, and layers are clipped. */
+    setSection(section: Section | null): void {
+        if (section === this.section) return;
+        this.section = section;
+        if (this.visuals.size) this.buildBodies();
+        for (const primitive of this.layerPrimitives.values())
+            this.clip(primitive);
+        this.drawSection();
+    }
+
+    /**
+     * Clipping planes for a tileset or model, given in the site's
+     * east-north-up frame: a tileset's planes are relative to its own origin,
+     * a model's to its placement, so each gets the way back to the site.
+     * Each layer keeps one collection of two planes for good, changed in
+     * place: replacing a tileset's collection while its tiles draw left them
+     * drawing with the old one's freed texture.
+     */
+    private clip(primitive: Cesium3DTileset | Model): void {
+        const planes = this.section ? sectionPlanes(this.section) : [];
+        let collection = primitive.clippingPlanes as
+            | ClippingPlaneCollection
+            | undefined;
+        if (!collection) {
+            if (!planes.length) return;
+            collection = new ClippingPlaneCollection({
+                // Clipped outside either plane, so the spare one cuts nothing.
+                unionClippingRegions: true,
+                edgeWidth: 1.5,
+                edgeColor: Color.fromCssColorString(SELECTED_FEATURE),
+            });
+            for (let k = 0; k < CLIP_SLOTS; k++)
+                collection.add(new ClippingPlane(Cartesian3.UNIT_Z, KEEP_ALL));
+            primitive.clippingPlanes = collection;
+        }
+        collection.enabled = planes.length > 0;
+        for (let k = 0; k < CLIP_SLOTS; k++) {
+            const plane = collection.get(k);
+            const wanted = planes[k];
+            plane.normal = wanted
+                ? new Cartesian3(...wanted.normal)
+                : Cartesian3.UNIT_Z;
+            plane.distance = wanted ? wanted.distance : KEEP_ALL;
+        }
+        const own =
+            primitive instanceof Cesium3DTileset
+                ? (
+                      primitive as unknown as {
+                          clippingPlanesOriginMatrix: Matrix4;
+                      }
+                  ).clippingPlanesOriginMatrix
+                : primitive.modelMatrix;
+        collection.modelMatrix = Matrix4.multiply(
+            Matrix4.inverse(own, new Matrix4()),
+            Transforms.eastNorthUpToFixedFrame(this.cart([0, 0])),
+            new Matrix4(),
         );
-        this.pendingBodies.length = 0;
+    }
+
+    /** The vertical cut's line on the ground, so it's clear where it runs. */
+    private drawSection(): void {
+        const { entities } = this.sectionLines;
+        entities.removeAll();
+        const across = this.section?.across;
+        if (!across) return;
+        const [fe, fn] = facing(across.heading);
+        const half = 2 * reach(this.bodyShapes.flatMap((b) => b.footprint));
+        const centre: Point = [fe * across.offset, fn * across.offset];
+        const end = (k: number): Point => [
+            centre[0] + k * fn,
+            centre[1] - k * fe,
+        ];
+        const ends = [this.cart(end(-half), 0.3), this.cart(end(half), 0.3)];
+        entities.add({
+            polyline: {
+                // Drawn every frame rather than built in a worker, so it shows
+                // at once, as the cut moves.
+                positions: new CallbackProperty(() => ends, false),
+                width: 2,
+                material: new PolylineDashMaterialProperty({
+                    color: Color.fromCssColorString(SELECTED_FEATURE),
+                    dashLength: 16,
+                }),
+            },
+        });
     }
 
     private buildVehicle(a: AssetDef): void {
@@ -841,6 +972,7 @@ export class TwinScene {
                     tileset.style = this.featureStyle(t.id, t.featureProperty);
                 this.viewer.scene.primitives.add(tileset);
                 this.layerPrimitives.set(t.id, tileset);
+                this.clip(tileset);
             } catch (error) {
                 console.warn(`Could not load tileset ${t.id}`, error);
             }
@@ -858,6 +990,7 @@ export class TwinScene {
                     model.style = this.featureStyle(m.id, m.featureProperty);
                 this.viewer.scene.primitives.add(model);
                 this.layerPrimitives.set(m.id, model);
+                this.clip(model);
             } catch (error) {
                 console.warn(`Could not load model ${m.id}`, error);
             }
@@ -1033,6 +1166,8 @@ export class TwinScene {
             visual.color = color;
             const value = Color.fromCssColorString(color);
             for (const id of visual.bodies) {
+                // A block the section took away has nothing to colour.
+                if (!this.drawnBodies.has(id)) continue;
                 const attributes =
                     this.bodies.getGeometryInstanceAttributes(id);
                 attributes.color = ColorGeometryInstanceAttribute.toValue(
@@ -1254,11 +1389,29 @@ export class TwinScene {
     /** The colour actually written to an asset's geometry, for tests. */
     appliedColor(id: string): string | null {
         const visual = this.visuals.get(id);
-        const instance = visual?.bodies[0];
+        const instance = visual?.bodies.find((b) => this.drawnBodies.has(b));
         if (!instance || !this.bodies?.ready) return null;
         const [r, g, b] = this.bodies.getGeometryInstanceAttributes(instance)
             .color as Uint8Array;
         return `#${[r, g, b].map((c) => c!.toString(16).padStart(2, '0')).join('')}`;
+    }
+
+    /** How high an asset's first block now reaches, as cut, for tests; null when cut away. */
+    bodyTop(id: string): number | null {
+        const instance = this.visuals
+            .get(id)
+            ?.bodies.find((b) => this.drawnBodies.has(b));
+        return instance ? this.drawnBodies.get(instance)!.top : null;
+    }
+
+    /** How many clipping planes a layer has, for tests. */
+    clipPlanes(layer: string): number {
+        const planes = this.layerPrimitives.get(layer)?.clippingPlanes;
+        if (!planes?.enabled) return 0;
+        let cutting = 0;
+        for (let k = 0; k < planes.length; k++)
+            if (planes.get(k).distance !== KEEP_ALL) cutting++;
+        return cutting;
     }
 
     /** The colour a layer's feature is drawn with, for tests; null when unstyled. */

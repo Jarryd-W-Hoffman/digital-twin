@@ -54,6 +54,7 @@ export default function CesiumView() {
             scene.setSelected(s.selectedId);
             scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
             scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
+            scene.setSection(s.section);
             pickFeatures(waitingFor(s));
             if (s.view) {
                 scene.updateFrame(s.view, s.colorBy);
@@ -76,6 +77,7 @@ export default function CesiumView() {
             if (s.measuring !== prev.measuring)
                 scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
             if (s.measureClear !== prev.measureClear) scene.measure.clear();
+            if (s.section !== prev.section) scene.setSection(s.section);
             if (s.placingLayer !== prev.placingLayer)
                 placeOnClick(s.placingLayer);
             if (waitingFor(s) !== waitingFor(prev)) pickFeatures(waitingFor(s));
