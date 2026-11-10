@@ -8,10 +8,12 @@ use App\Models\OpcUaWrite;
 use App\Models\Twin;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 
 /**
  * Keeps a gateway's report of a setpoint it wrote to an OPC UA node, or
- * failed to. The operator is kept while they're still a user.
+ * failed to. The operator is kept while they're still a user; an id that
+ * isn't a UUID can't be one, and isn't looked up (Postgres refuses it).
  */
 final readonly class RecordOpcUaWrite
 {
@@ -20,8 +22,10 @@ final readonly class RecordOpcUaWrite
      */
     public function handle(Twin $twin, array $write): OpcUaWrite
     {
+        $user = $write['user'];
+
         return $twin->opcUaWrites()->create([
-            'user_id' => $write['user'] !== null && User::query()->whereKey($write['user'])->exists() ? $write['user'] : null,
+            'user_id' => $user !== null && Str::isUuid($user) && User::query()->whereKey($user)->exists() ? $user : null,
             'server' => $write['server'],
             'node' => $write['node'],
             'asset' => $write['asset'],

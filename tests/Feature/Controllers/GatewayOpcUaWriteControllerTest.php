@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\OpcUaWrite;
 use App\Models\User;
+use Illuminate\Support\Str;
 
 /**
  * @return array<string, mixed>
@@ -64,6 +65,16 @@ it('keeps a failed write with its reason, and drops users it does not know', fun
     expect($write->user_id)->toBeNull()
         ->and($write->succeeded)->toBeFalse()
         ->and($write->error)->toHaveLength(500)->toStartWith('BadNotWritable');
+});
+
+it('drops a user id that is a UUID of nobody', function (): void {
+    [, $token] = gatewayTwin();
+
+    $this->withToken($token)
+        ->postJson(route('gateway.opcua-writes.store'), opcUaWriteReport(['user' => (string) Str::uuid()]))
+        ->assertCreated();
+
+    expect(OpcUaWrite::query()->sole()->user_id)->toBeNull();
 });
 
 it('drops the reason from a write that succeeded', function (): void {
