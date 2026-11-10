@@ -103,6 +103,9 @@ export interface TwinStore {
     /** What the scene measured, as the pointer moves and clicks. */
     measurement: Measurement | null;
     setMeasurement: (measurement: Measurement | null) => void;
+    /** The layer whose handles are shown in the scene, to drag it into place. */
+    movingLayer: string | null;
+    setMovingLayer: (id: string | null) => void;
     /** The site cut open to see inside; null when it's whole. */
     section: Section | null;
     setSection: (section: Section | null) => void;
@@ -178,10 +181,22 @@ export const useTwin = create<TwinStore>((set, get) => ({
         set((s) => ({
             placingLayer: id,
             measuring: id ? null : s.measuring,
+            movingLayer: id ? null : s.movingLayer,
+        })),
+    movingLayer: null,
+    setMovingLayer: (id) =>
+        set((s) => ({
+            movingLayer: id,
+            placingLayer: id ? null : s.placingLayer,
+            measuring: id ? null : s.measuring,
         })),
     sketch: null,
     setSketch: (sketch) =>
-        set((s) => ({ sketch, measuring: sketch ? null : s.measuring })),
+        set((s) => ({
+            sketch,
+            measuring: sketch ? null : s.measuring,
+            movingLayer: sketch ? null : s.movingLayer,
+        })),
     featurePick: null,
     setFeaturePick: (featurePick) =>
         set((s) => ({
@@ -189,7 +204,12 @@ export const useTwin = create<TwinStore>((set, get) => ({
             measuring: featurePick ? null : s.measuring,
         })),
     measuring: null,
-    setMeasuring: (measuring) => set({ measuring, measurement: null }),
+    setMeasuring: (measuring) =>
+        set((s) => ({
+            measuring,
+            measurement: null,
+            movingLayer: measuring ? null : s.movingLayer,
+        })),
     measurement: null,
     setMeasurement: (measurement) => set({ measurement }),
     section: null,
@@ -358,6 +378,7 @@ export function runDefinition(
         canOperate: options.canOperate,
         drafts: {},
         placingLayer: null,
+        movingLayer: null,
         measuring: null,
         measurement: null,
         section: null,
@@ -387,6 +408,7 @@ export function runGateway(
         canOperate: options.canOperate,
         drafts: {},
         placingLayer: null,
+        movingLayer: null,
         measuring: null,
         measurement: null,
         section: null,
@@ -407,6 +429,7 @@ export function stopTwin(): void {
         recorded: null,
         drafts: {},
         placingLayer: null,
+        movingLayer: null,
         measuring: null,
         measurement: null,
         section: null,

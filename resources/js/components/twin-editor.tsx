@@ -1,5 +1,5 @@
 import { router, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { GatewayPanel, type GatewayStatus } from '@/components/gateway-panel';
 import { OpcUaPanel, type OpcUaWrites } from '@/components/opcua-panel';
 import { TelemetryPanel } from '@/components/telemetry-panel';
@@ -90,7 +90,16 @@ export function TwinEditor({
 }) {
     const drafts = useTwin((s) => s.drafts);
     const placingLayer = useTwin((s) => s.placingLayer);
-    const { setDraft, setPlacingLayer } = useTwin.getState();
+    const movingLayer = useTwin((s) => s.movingLayer);
+    const { setDraft, setPlacingLayer, setMovingLayer } = useTwin.getState();
+    // Closing the editor puts its tools in the scene away.
+    useEffect(
+        () => () => {
+            setPlacingLayer(null);
+            setMovingLayer(null);
+        },
+        [setPlacingLayer, setMovingLayer],
+    );
     const [replaceErrors, setReplaceErrors] = useState<string[]>([]);
     const [typeErrors, setTypeErrors] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
@@ -408,6 +417,35 @@ export function TwinEditor({
                                                 ? 'Click the ground…'
                                                 : 'Place on map'}
                                         </button>
+                                        <button
+                                            className={
+                                                movingLayer === layer.id
+                                                    ? 'primary'
+                                                    : ''
+                                            }
+                                            aria-pressed={
+                                                movingLayer === layer.id
+                                            }
+                                            onClick={() =>
+                                                setMovingLayer(
+                                                    movingLayer === layer.id
+                                                        ? null
+                                                        : layer.id,
+                                                )
+                                            }
+                                        >
+                                            {movingLayer === layer.id
+                                                ? 'Done moving'
+                                                : 'Move in scene'}
+                                        </button>
+                                        {movingLayer === layer.id && (
+                                            <p className="muted editor-hint">
+                                                Drag the red, green or blue
+                                                arrow to move it east, north or
+                                                up, the white point to slide it,
+                                                or the gold ring to turn it.
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </li>

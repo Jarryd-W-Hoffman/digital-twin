@@ -90,6 +90,7 @@ import {
     SEVERITY_COLOR,
     temperatureColor,
 } from './colors.ts';
+import { Gizmo } from './Gizmo.ts';
 import { Measure } from './Measure.ts';
 import { Sketch } from './Sketch.ts';
 
@@ -201,6 +202,8 @@ export class TwinScene {
     readonly sketch: Sketch;
     /** Distances, heights, areas and points measured in the scene. */
     readonly measure: Measure;
+    /** Handles for moving a placed layer by dragging. */
+    readonly gizmo: Gizmo;
     private readonly sunLight = new SunLight({ intensity: 1.35 });
     private readonly moonLight = new DirectionalLight({
         direction: Cartesian3.normalize(
@@ -310,6 +313,9 @@ export class TwinScene {
             this.terrainLoaded
                 ? (scene.globe.getHeight(at) ?? this.ground)
                 : this.ground,
+        );
+        this.gizmo = new Gizmo(this.viewer, () =>
+            Transforms.eastNorthUpToFixedFrame(this.cart([0, 0])),
         );
         this.handler = new ScreenSpaceEventHandler(scene.canvas);
         this.handler.setInputAction((e: { position: Cartesian2 }) => {
@@ -1476,6 +1482,7 @@ export class TwinScene {
         this.handler.destroy();
         this.sketch.destroy();
         this.measure.destroy();
+        this.gizmo.destroy();
         if (!this.viewer.isDestroyed()) this.viewer.destroy();
     }
 }

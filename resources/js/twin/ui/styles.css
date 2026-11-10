@@ -1302,8 +1302,13 @@
     font-size: 11px;
     color: var(--ink-3);
 }
-.twin-root .editor-placement button {
+.twin-root .editor-placement button,
+.twin-root .editor-placement .editor-hint {
     grid-column: span 2;
+}
+.twin-root .editor-placement .editor-hint {
+    margin: 0;
+    font-size: 12px;
 }
 .twin-root .editor-actions {
     display: flex;

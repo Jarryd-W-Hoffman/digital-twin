@@ -70,6 +70,71 @@ test('an owner uploads a model and a tileset, places the model, and the twin kee
   expect(problems).toEqual([]);
 });
 
+test('a placed model is moved by dragging its handles in the scene, and saved', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  await logIn(page, 'test@example.com');
+  await openTwin(page, 'Harbour Depot');
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const editor = page.getByRole('complementary', { name: 'Layout' });
+  await editor.getByLabel('Upload file').setInputFiles(model);
+  await editor.getByLabel('Upload name').fill('Gizmo crate');
+  await editor.getByRole('button', { name: 'Upload', exact: true }).click();
+  const layer = editor.getByRole('listitem').filter({ hasText: 'Gizmo crate' }).filter({ has: page.getByLabel('East (m)') });
+  await expect(layer).toBeVisible();
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+  await expect.poll(async () => (await layers(page)).length, { timeout: 45_000 }).toBeGreaterThan(0);
+
+  type Gizmo = { __scene: { gizmo: { handleAt(h: string, bearing?: number): { x: number; y: number } | null } } };
+  const handle = async (h: string, bearing?: number) =>
+    (await page.evaluate(([name, b]) => (window as unknown as Gizmo).__scene.gizmo.handleAt(name as string, b as number | undefined), [h, bearing] as const))!;
+  const box = (await page.locator('.globe canvas').first().boundingBox())!;
+  /** Drags a handle (the ring from south-west) to a point on screen. */
+  const drag = async (h: string, to: { x: number; y: number }) => {
+    const from = await handle(h);
+    await page.mouse.move(box.x + from.x, box.y + from.y);
+    await page.mouse.down();
+    for (let k = 1; k <= 8; k++)
+      await page.mouse.move(box.x + from.x + ((to.x - from.x) * k) / 8, box.y + from.y + ((to.y - from.y) * k) / 8);
+    await page.mouse.up();
+  };
+  const field = async (label: string) => Number(await layer.getByLabel(label).inputValue());
+  const away = (a: { x: number; y: number }, b: { x: number; y: number }, by: number) => ({ x: a.x + (a.x - b.x) * by, y: a.y + (a.y - b.y) * by });
+
+  await layer.getByRole('button', { name: 'Move in scene' }).click();
+  await expect(layer.getByText('Drag the red, green or blue arrow')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as Gizmo).__scene.gizmo.handleAt('slide'))).not.toBeNull();
+  const start = { east: await field('East (m)'), north: await field('North (m)'), up: await field('Up (m)') };
+
+  // Out along the east arrow: east grows, north and up stay.
+  await drag('east', away(await handle('east'), await handle('slide'), 0.8));
+  await expect.poll(() => field('East (m)')).toBeGreaterThan(start.east + 1);
+  expect(await field('North (m)')).toBe(start.north);
+  // Up the blue arrow.
+  await drag('up', away(await handle('up'), await handle('slide'), 0.8));
+  await expect.poll(() => field('Up (m)')).toBeGreaterThan(start.up + 1);
+  // A quarter turn clockwise: the ring dragged from south-west round to north-west.
+  const heading = await field('Heading (°)');
+  await drag('turn', await handle('turn', 315));
+  await expect.poll(async () => ((await field('Heading (°)')) - heading + 360) % 360).toBeGreaterThan(45);
+  expect(((await field('Heading (°)')) - heading + 360) % 360).toBeLessThan(135);
+  // Slid toward the north arrow's tip.
+  const north = await field('North (m)');
+  await drag('slide', await handle('north'));
+  await expect.poll(() => field('North (m)')).toBeGreaterThan(north + 1);
+
+  // Dragging handles selected nothing behind them.
+  expect(await page.evaluate(() => (window as unknown as { __twin: { getState(): { selectedId: string | null } } }).__twin.getState().selectedId)).toBeNull();
+  await layer.getByRole('button', { name: 'Done moving' }).click();
+  await expect(layer.getByRole('button', { name: 'Move in scene' })).toBeVisible();
+  const moved = await field('East (m)');
+  await editor.getByRole('button', { name: 'Save layout' }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+  await expect.poll(() => page.evaluate(() => (window as unknown as Debug).__twin.getState().def?.models?.find((m) => m.id.startsWith('upload-') && m.placement.east !== 25)?.placement.east))
+    .toBe(moved);
+  expect(problems).toEqual([]);
+});
+
 test('a project library upload is shared: added to a twin, then taken out again without losing it', async ({ page }) => {
   page.on('dialog', (dialog) => void dialog.accept());
   await logIn(page, 'test@example.com');
