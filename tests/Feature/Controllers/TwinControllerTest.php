@@ -189,7 +189,7 @@ it('lets editors browse OPC UA servers through the gateway, and operators only o
     [$user, $organisation] = member($role);
     $twin = twinIn($organisation);
     resolve(IssueGatewayToken::class)->handle($twin);
-    resolve(RecordGatewayCheckIn::class)->handle($twin, 'ws://localhost:8788/ws', null, null);
+    resolve(RecordGatewayCheckIn::class)->handle($twin, 'ws://localhost:8788/ws');
 
     $this->actingAs($user)->get(route('twins.show', $twin))
         ->assertInertia(fn ($page) => $page->where('gateway.ticket', fn (string $ticket): bool => array_intersect_key(ticketClaims($ticket), ['operate' => 0, 'edit' => 0]) === ['operate' => $operate, 'edit' => $edit]));
