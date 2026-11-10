@@ -828,12 +828,10 @@ test('screenshots', async ({ page, context }) => {
         const allowed = opcua.getByLabel(
             "Write operators' setpoints to OPC UA",
         );
-        // The panel re-renders as the saved version arrives; a click in
-        // between can be lost, so click until it holds.
-        await expect(async () => {
-            if (!(await allowed.isChecked())) await allowed.click();
-            await expect(allowed).toBeChecked({ timeout: 2000 });
-        }).toPass({ timeout: 30_000 });
+        // The box shows what the server holds, so it's checked only once the
+        // change is saved; clicking again before then would turn it back off.
+        await allowed.click();
+        await expect(allowed).toBeChecked({ timeout: 30_000 });
         await expect.poll(health, { timeout: 60_000 }).toMatchObject({
             opcua: {
                 writes: true,
