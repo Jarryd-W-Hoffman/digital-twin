@@ -335,3 +335,101 @@ test('a section cuts the blocks and clips the neighbouring buildings, and flips'
   expect(await top('freezer')).toBeCloseTo(18.5);
   expect(problems).toEqual([]);
 });
+
+test('a viewshed tints what a sensor sees, by its shape, and a line of sight finds what blocks it', async ({ page }) => {
+  const problems = await open(page);
+  type Vec3 = [number, number, number];
+  type Hooks = {
+    __scene: {
+      sight: {
+        clickLocal(point: Vec3): void;
+        screenAt(point: Vec3): { x: number; y: number } | null;
+        pixelAt(x: number, y: number): Promise<[number, number, number]>;
+      };
+    };
+  };
+  const pick = (point: Vec3) => page.evaluate((p) => (window as unknown as Hooks).__scene.sight.clickLocal(p), point);
+  const colourAt = (point: Vec3) =>
+    page.evaluate(async (p) => {
+      const sight = (window as unknown as Hooks).__scene.sight;
+      const at = sight.screenAt(p);
+      return at ? sight.pixelAt(at.x, at.y) : null;
+    }, point);
+  // Each point's own colour, before any tint: the zones colour the ground.
+  const untinted = new Map<Vec3, [number, number, number]>();
+  const settle = async (point: Vec3) => {
+    let last = '';
+    await expect
+      .poll(async () => {
+        const now = JSON.stringify(await colourAt(point));
+        const same = now === last;
+        last = now;
+        return same;
+      }, { timeout: 30_000, intervals: [500] })
+      .toBe(true);
+    untinted.set(point, JSON.parse(last));
+  };
+  // Green where it's seen, red where it's hidden, as a shift from its own colour.
+  const tint = async (point: Vec3) => {
+    const [r, g] = (await colourAt(point))!;
+    const [r0, g0] = untinted.get(point)!;
+    const greener = g - g0 - (r - r0);
+    return greener > 40 ? 'seen' : greener < -40 ? 'hidden' : 'none';
+  };
+  // Open ground south of the dispatch hall, which is 9 m tall and 110 m to
+  // 80 m south; in front of it, and behind it.
+  const sensor: Vec3 = [-60, -130, 0];
+  const front: Vec3 = [-45, -170, 0];
+  const behind: Vec3 = [-60, -62, 0];
+  await settle(front);
+  await settle(behind);
+
+  await page.getByRole('button', { name: 'Sight' }).click();
+  const panel = page.getByRole('region', { name: 'Sight' });
+  await expect(panel.getByText('Click where the sensor goes')).toBeVisible();
+  await panel.getByRole('button', { name: 'Dome' }).click();
+  await pick(sensor);
+  await expect(panel.getByText('all round')).toBeVisible();
+  // A dome sees all round, but not through the hall: its 6 m eye is lower than the roof.
+  // The first viewshed waits on its shaders.
+  await expect.poll(() => tint(front), { timeout: 30_000 }).toBe('seen');
+  await expect.poll(() => tint(behind)).toBe('hidden');
+
+  // A cone looks one way: facing south, the ground behind the hall is out of it.
+  await panel.getByRole('button', { name: 'Cone' }).click();
+  await panel.getByLabel('Heading').fill('180');
+  await expect(panel.getByText('facing S · 180°')).toBeVisible();
+  await expect.poll(() => tint(behind)).toBe('none');
+  await expect.poll(() => tint(front)).toBe('seen');
+  // Aimed at the ground behind the hall, it faces north, and sees the hall in the way.
+  await panel.getByRole('button', { name: 'Aim at…' }).click();
+  await pick(behind);
+  await expect(panel.getByText('facing N · 0°')).toBeVisible();
+  await expect.poll(() => tint(behind)).toBe('hidden');
+  // A rectangle, the same way.
+  await panel.getByRole('button', { name: 'Rectangle' }).click();
+  await expect.poll(() => tint(behind)).toBe('hidden');
+
+  // From where the sensor stands, the hall's south wall is 20 m away, at eye height.
+  await panel.getByRole('button', { name: 'Line of sight' }).click();
+  await expect.poll(() => tint(behind)).toBe('none');
+  await pick(sensor);
+  await expect(panel.getByText('Click what it should see.')).toBeVisible();
+  await pick(behind);
+  const readout = panel.getByRole('definition');
+  await expect(readout.nth(0)).toHaveText('No');
+  // The wall is 20 m of the 68 m between them; the readout's metres are the
+  // globe's, a little shorter north to south than the site's plan.
+  const metres = async (n: number) => parseFloat(await readout.nth(n).innerText());
+  expect(await metres(1)).toBeCloseTo(68, 0);
+  expect((await metres(2)) / (await metres(1))).toBeCloseTo(20 / 68, 2);
+  // A new line starts with the next click: across open ground, it's clear.
+  await pick(sensor);
+  await pick(front);
+  await expect(readout.nth(0)).toHaveText('Yes');
+  await expect(readout).toHaveCount(2);
+
+  await panel.getByRole('button', { name: 'Done' }).click();
+  await expect(panel).toHaveCount(0);
+  expect(problems).toEqual([]);
+});

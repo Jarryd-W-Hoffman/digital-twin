@@ -409,6 +409,26 @@ test('screenshots', async ({ page, context }) => {
         await section.getByLabel('Cut direction').fill('90');
         await measure.waitForTimeout(2500);
         await shot(measure, 'section');
+        await section.getByRole('button', { name: 'Done' }).click();
+
+        // A dome on a 6 m mast in the yard south of the dispatch hall.
+        await measure.getByRole('button', { name: 'Sight' }).click();
+        const sight = measure.getByRole('region', { name: 'Sight' });
+        await sight.getByRole('button', { name: 'Dome' }).click();
+        await measure.evaluate(() =>
+            (
+                window as unknown as {
+                    __scene: {
+                        sight: {
+                            clickLocal(p: [number, number, number]): void;
+                        };
+                    };
+                }
+            ).__scene.sight.clickLocal([-60, -130, 0]),
+        );
+        await expect(sight.getByText('all round')).toBeVisible();
+        await measure.waitForTimeout(3000);
+        await shot(measure, 'sight');
         await measure.close();
 
         // Low and toward the ridge, so the ground's shape shows on the skyline.

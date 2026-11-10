@@ -58,6 +58,7 @@ Below the list:
 - **Whole site** flies back to the standard view; **Globe** pulls back until you can see the whole Earth, lit for the time at the site.
 - **Measure** opens the measuring tools; see [Measure in the scene](#measure-in-the-scene).
 - **Section** cuts the site open to see inside; see [Cut the site open](#cut-the-site-open).
+- **Sight** shows what can be seen from a point; see [See what can be seen](#see-what-can-be-seen).
 
 ![Pulled back to the whole Earth with Globe.](../images/globe.png)
 
@@ -96,6 +97,26 @@ Distances are measured on the Earth itself, so they're right at any distance. He
 Both cuts can be on at once. Tilesets and placed models are clipped: they're drawn open where they're cut, with a gold edge, so their insides show. The blocks drawn for assets are cut to match, closed at the cut. The ground and terrain aren't cut.
 
 Measuring works inside a section, so you can open up a model and then measure what's inside it. Like measurements, sections aren't saved, and anyone who can see the twin can make one. **Done** puts the site back together.
+
+### See what can be seen
+
+![A dome viewshed from a 6 m mast in the yard: the open ground around it green, and the ground behind the dispatch hall and the roofs above the mast red.](../images/sight.png)
+
+**Sight** above the scene answers what a camera, radio or person can see: for CCTV coverage, a radio link or a clear view.
+
+**Viewshed** places a sensor and tints everything within its range: green where the sensor can see it, red where something is in the way. Click where it goes: the ground, a roof or the top of a mast. Then choose its shape:
+
+| Shape         | Sees                                                | Settings                                                          |
+| ------------- | --------------------------------------------------- | ----------------------------------------------------------------- |
+| **Cone**      | A circle around where it looks, like a spotlight    | **Heading**, **Tilt** and **Cone angle**                          |
+| **Rectangle** | A rectangle around where it looks, like a camera    | **Heading**, **Tilt**, **Angle across** and **Angle up and down** |
+| **Dome**      | Everything around it, like a radio mast or a person |                                                                   |
+
+**Sensor height** raises it above where you clicked, and **Range** is how far it sees. **Aim at…** turns a cone or rectangle to look at the next thing you click; **Move sensor** puts it somewhere else.
+
+**Line of sight** says whether one point can see another. Click where the observer stands, then what they should see. **Eye height** and **Target height** raise the two ends above where you clicked; they start at a standing person's eye and a target 1.5 m up. The line is green as far as it's seen, and red past whatever blocks it, and the panel says how far away that is. The next click starts a new line.
+
+Everything in the scene blocks the view: the ground and terrain, asset blocks, models, tilesets and scans. A surface facing away from a sensor counts as hidden. Like measurements, sight lines aren't saved, and anyone who can see the twin can use them. **Done** puts the tools away.
 
 ### The inspector (right)
 

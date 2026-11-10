@@ -1,11 +1,12 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react';
-import { useTwin, type Tab } from '../state/store.ts';
+import { NEW_SIGHTING, useTwin, type Tab } from '../state/store.ts';
 import { AlertsPanel } from './AlertsPanel.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { Inspector } from './Inspector.tsx';
 import { LeftPanel } from './LeftPanel.tsx';
 import { MeasurePanel } from './MeasurePanel.tsx';
 import { SectionPanel } from './SectionPanel.tsx';
+import { SightPanel } from './SightPanel.tsx';
 import { Timeline } from './Timeline.tsx';
 import { TopBar } from './TopBar.tsx';
 import { WhatIfPanel } from './WhatIfPanel.tsx';
@@ -36,6 +37,7 @@ export function App({
     const [rightOpen, setRightOpen] = useState(startsOpen);
     const measuring = useTwin((s) => s.measuring);
     const section = useTwin((s) => s.section);
+    const sighting = useTwin((s) => s.sighting);
 
     return (
         <div className="app">
@@ -103,10 +105,23 @@ export function App({
                     >
                         Section
                     </button>
+                    <button
+                        title="What can be seen from a point"
+                        aria-pressed={sighting !== null}
+                        className={sighting ? 'on' : ''}
+                        onClick={() =>
+                            useTwin
+                                .getState()
+                                .setSighting(sighting ? null : NEW_SIGHTING)
+                        }
+                    >
+                        Sight
+                    </button>
                 </div>
                 <div className="scene-tools">
                     <MeasurePanel />
                     <SectionPanel />
+                    <SightPanel />
                 </div>
                 <div className="drawer drawer-right">
                     <button
