@@ -692,6 +692,114 @@ test('screenshots', async ({ page, context }) => {
         await shot(page, 'feature-bound');
     });
 
+    await test.step('writing setpoints to OPC UA', async () => {
+        page.once('dialog', (dialog) => void dialog.accept());
+        await page.goto('/projects');
+        await page.getByRole('link', { name: /^Pilot sites/ }).click();
+        await page
+            .getByRole('link', { name: 'Northshore Cold Chain Hub' })
+            .click();
+        await settle(page);
+        const version = Number((await versionChip.innerText()).slice(1));
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+
+        // The jockey pump's start pressure, held by the PLC in bar.
+        const opcua = editor.getByRole('region', { name: 'OPC UA' });
+        await opcua.getByRole('button', { name: 'Add OPC UA mapping' }).click();
+        await opcua.getByLabel('Node').fill('ns=1;s=Pump.StartBar');
+        await opcua.getByLabel('Asset').selectOption({ label: 'Jockey pump' });
+        await opcua.getByLabel('Metric').selectOption({ label: 'Start below' });
+        await opcua.getByLabel('Scale').fill('100');
+        await opcua.getByLabel('Sampling, ms').fill('500');
+        await opcua.getByLabel('Write setpoints').check();
+        await opcua
+            .getByRole('button', { name: 'Save OPC UA mappings' })
+            .click();
+        await expect(versionChip).toHaveText(`v${version + 1}`, {
+            timeout: 60_000,
+        });
+        const allowed = opcua.getByLabel(
+            "Write operators' setpoints to OPC UA",
+        );
+        await allowed.click();
+        await expect(allowed).toBeChecked();
+
+        const gatewayPanel = editor.locator('section', {
+            has: page.getByRole('heading', { name: 'Gateway' }),
+        });
+        await gatewayPanel.getByRole('button', { name: 'Issue token' }).click();
+        const token = /MERIDIAN_GATEWAY_TOKEN=(\S+)/.exec(
+            await gatewayPanel.getByLabel('Gateway command').inputValue(),
+        )![1];
+        const port = GATEWAY_PORT + 1;
+        const log = openSync(
+            resolve(ROOT, 'test-results/screenshots-gateway-northshore.log'),
+            'w',
+        );
+        processes.push(
+            spawn(process.execPath, ['--import', 'tsx', 'gateway/gateway.ts'], {
+                cwd: ROOT,
+                env: {
+                    ...process.env,
+                    MERIDIAN_URL: 'http://127.0.0.1:8199',
+                    MERIDIAN_GATEWAY_TOKEN: token,
+                    GATEWAY_PORT: String(port),
+                    GATEWAY_PUBLIC_URL: `ws://127.0.0.1:${port}/ws`,
+                    GATEWAY_POLL_MS: '2000',
+                    OPCUA_PKI_DIR: resolve(ROOT, 'test-results/opcua-pki'),
+                },
+                stdio: ['ignore', log, log],
+            }),
+        );
+        await expect
+            .poll(
+                () =>
+                    fetch(`http://127.0.0.1:${port}/health`).then(
+                        (r) => (r.ok ? r.json() : null),
+                        () => null,
+                    ),
+                { timeout: 60_000 },
+            )
+            .toMatchObject({
+                opcua: { servers: { 'Depot PLC': { status: 'connected' } } },
+            });
+
+        await expect(async () => {
+            await page.reload();
+            await expect(page.getByRole('radio', { name: 'Live' })).toBeChecked(
+                { timeout: 5000 },
+            );
+        }).toPass({ timeout: 60_000 });
+        await settle(page, 4000);
+        await page.locator('.asset-row', { hasText: 'Jockey pump' }).click();
+        // 600 kPa, read from the PLC, up to 630.
+        const raise = page.getByRole('button', { name: 'Raise Start below' });
+        for (const _ of [1, 2, 3]) await raise.click();
+        await page
+            .locator('.control-row', { hasText: 'Start below' })
+            .getByRole('button', { name: 'Apply' })
+            .click();
+        await expect
+            .poll(
+                () =>
+                    fetch(`http://127.0.0.1:${port}/health`)
+                        .then((r) => r.json())
+                        .then(
+                            (health: { opcua: { written: number } }) =>
+                                health.opcua.written,
+                        ),
+                { timeout: 30_000 },
+            )
+            .toBe(1);
+
+        await page.reload();
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+        await expect(
+            opcua.getByRole('list', { name: 'Recent OPC UA writes' }),
+        ).toContainText('Jockey pump Start below = 630');
+        await shot(opcua, 'opcua-writes');
+    });
+
     await test.step('members and account', async () => {
         await page.goto('/organisation/members');
         await expect(page.getByText('viewer@example.com')).toBeVisible();

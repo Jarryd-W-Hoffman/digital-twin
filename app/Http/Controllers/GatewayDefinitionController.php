@@ -14,8 +14,8 @@ use Illuminate\Http\Response;
 /**
  * What a gateway polls: the latest version of the twin its token belongs to,
  * how to log in to the broker for its telemetry, and the project's OPC UA
- * servers. Each call is also its check-in. Answers 304 while the version and
- * the servers are unchanged.
+ * servers and whether operators' setpoints may be written to them. Each call
+ * is also its check-in. Answers 304 while all of that is unchanged.
  */
 final readonly class GatewayDefinitionController
 {
@@ -33,7 +33,9 @@ final readonly class GatewayDefinitionController
         $servers = $twin->project->opcUaServers()->orderBy('name')->get()
             ->map(fn (OpcUaServer $server): array => $server->forGateway())
             ->all();
-        $tag = 'v'.$latest->number.($servers === [] ? '' : '-'.mb_substr(hash('sha256', (string) json_encode($servers)), 0, 16));
+        $tag = 'v'.$latest->number
+            .($servers === [] ? '' : '-'.mb_substr(hash('sha256', (string) json_encode($servers)), 0, 16))
+            .($twin->opcua_writes ? '-w' : '');
 
         if ($request->header('If-None-Match') === '"'.$tag.'"') {
             return response()->noContent(304)->setEtag($tag);
@@ -44,7 +46,7 @@ final readonly class GatewayDefinitionController
             'version' => $latest->number,
             'definition' => $latest->definition,
             'mqtt' => ['username' => $twin->mqttUsername(), 'topicPrefix' => $twin->project->topicPrefix()],
-            'opcua' => ['servers' => $servers],
+            'opcua' => ['servers' => $servers, 'writes' => $twin->opcua_writes],
         ])->setEtag($tag);
     }
 }

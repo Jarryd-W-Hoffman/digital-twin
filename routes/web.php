@@ -20,6 +20,7 @@ use App\Http\Controllers\TwinAssetController;
 use App\Http\Controllers\TwinController;
 use App\Http\Controllers\TwinGatewayTokenController;
 use App\Http\Controllers\TwinLayerController;
+use App\Http\Controllers\TwinOpcUaWritesController;
 use App\Http\Controllers\TwinReadingController;
 use App\Http\Controllers\TwinTypeController;
 use App\Http\Controllers\TwinVersionController;
@@ -75,6 +76,7 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::put('twins/{twin}/types/{type}/library', [TwinTypeController::class, 'update'])->name('twins.types.library.update');
     Route::post('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'store'])->name('twins.gateway-token.store');
     Route::delete('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'destroy'])->name('twins.gateway-token.destroy');
+    Route::put('twins/{twin}/opcua-writes', [TwinOpcUaWritesController::class, 'update'])->name('twins.opcua-writes.update');
 
     // Organisations...
     Route::post('organisations', [OrganisationController::class, 'store'])->name('organisations.store');

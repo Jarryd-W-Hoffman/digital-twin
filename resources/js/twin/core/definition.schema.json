@@ -1069,6 +1069,10 @@
                             "type": "number",
                             "minimum": 50,
                             "x-message": "OPC UA {0:node}: samplingMs must be at least 50"
+                        },
+                        "write": {
+                            "type": "boolean",
+                            "x-message": "OPC UA {0:node}: write must be true or false"
                         }
                     }
                 }

@@ -35,6 +35,19 @@ export function numberFrom(value: unknown): number | null {
         : null;
 }
 
+/** A custom asset's setpoint range for a metric, if an operator may set it. */
+function setpointOf(
+    def: TwinDefinition,
+    assetId: string,
+    metric: string,
+): { min: number; max: number } | undefined {
+    const asset = def.assets.find((a) => a.id === assetId);
+    if (asset?.kind !== 'custom') return undefined;
+    return def.types
+        ?.find((t) => t.id === asset.type)
+        ?.metrics.find((m) => m.key === metric)?.setpoint;
+}
+
 /** One node to monitor on a server, and the metrics it feeds. */
 export interface MonitoredNode {
     node: string;
@@ -53,6 +66,25 @@ export interface OpcUa {
         node: string,
         value: unknown,
     ): { readings: Reading[]; problems: string[] };
+    /**
+     * Where an operator's setpoint goes: each written mapping of that metric,
+     * with the setpoint clamped to its range and the mapping's scale and
+     * offset undone, so the node gets what it would report back.
+     */
+    writes(asset: string, metric: string, value: number): OpcUaWrite[];
+}
+
+/** A value to write to one node. */
+export interface OpcUaWrite {
+    server: string;
+    node: string;
+    asset: string;
+    metric: string;
+    /** The setpoint as the operator asked for it, and as clamped. */
+    requested: number;
+    setpoint: number;
+    /** What the node is sent. */
+    value: number;
 }
 
 /**
@@ -97,6 +129,35 @@ export function compileOpcua(
     return {
         servers,
         skipped,
+        writes(asset, metric, requested) {
+            const range = setpointOf(def, asset, metric);
+            if (!range || !Number.isFinite(requested)) return [];
+            const setpoint = Math.min(
+                range.max,
+                Math.max(range.min, requested),
+            );
+            return [...servers.entries()].flatMap(([server, nodes]) =>
+                nodes.flatMap((n) =>
+                    n.mappings
+                        .filter(
+                            (m) =>
+                                m.write === true &&
+                                m.asset === asset &&
+                                m.metric === metric,
+                        )
+                        .map((m) => ({
+                            server,
+                            node: n.node,
+                            asset,
+                            metric,
+                            requested,
+                            setpoint,
+                            value:
+                                (setpoint - (m.offset ?? 0)) / (m.scale ?? 1),
+                        })),
+                ),
+            );
+        },
         read(server, node, value) {
             const monitored = servers.get(server)?.find((n) => n.node === node);
             if (!monitored) return { readings: [], problems: [] };

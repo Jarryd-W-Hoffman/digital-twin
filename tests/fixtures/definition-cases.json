@@ -153,6 +153,24 @@
             "errors": []
         },
         {
+            "name": "an OPC UA mapping written back to a setpoint",
+            "ops": [
+                {"set": "types", "value": [{"id": "tank", "name": "Tank", "primary": "levelPct", "visual": {"shape": "cylinder", "color": "#3a86ff"}, "metrics": [{"key": "levelPct", "unit": "%", "default": 80}, {"key": "targetPct", "unit": "%", "default": 90, "setpoint": {"min": 0, "max": 100, "step": 5}}]}]},
+                {"push": "assets", "value": {"id": "tank-1", "kind": "custom", "type": "tank", "position": [10, 10], "zone": "yard", "fedBy": "board"}},
+                {"set": "opcua", "value": [{"server": "Plant PLC", "node": "ns=2;s=Tank.Target", "asset": "tank-1", "metric": "targetPct", "scale": 0.5, "write": true}, {"server": "Plant PLC", "node": "ns=2;s=Tank.Level", "asset": "tank-1", "metric": "levelPct", "write": false}]}
+            ],
+            "errors": []
+        },
+        {
+            "name": "OPC UA mappings written where they can't be",
+            "ops": [
+                {"set": "types", "value": [{"id": "valve", "name": "Valve", "primary": "openPct", "visual": {"shape": "box", "color": "#3a86ff"}, "metrics": [{"key": "openPct", "unit": "%"}]}, {"id": "tank", "name": "Tank", "primary": "levelPct", "visual": {"shape": "cylinder", "color": "#3a86ff"}, "metrics": [{"key": "levelPct", "unit": "%", "default": 80}, {"key": "targetPct", "unit": "%", "default": 90, "setpoint": {"min": 0, "max": 100, "step": 5}}]}]},
+                {"push": "assets", "value": {"id": "tank-1", "kind": "custom", "type": "tank", "position": [10, 10], "zone": "yard", "fedBy": "board"}},
+                {"set": "opcua", "value": [{"server": "Plant PLC", "node": "ns=2;s=Tank.Level", "asset": "tank-1", "metric": "levelPct", "write": true}, {"server": "Plant PLC", "node": "ns=2;s=Store.Setpoint", "asset": "store", "metric": "setpointC", "write": true}, {"server": "Plant PLC", "node": "ns=2;s=Tank.Target", "asset": "tank-1", "metric": "targetPct", "scale": 0, "write": true}, {"server": "Plant PLC", "node": "ns=2;s=Tank.Other", "asset": "tank-1", "metric": "targetPct", "write": "yes"}]}
+            ],
+            "errors": ["OPC UA ns=2;s=Tank.Other: write must be true or false", "OPC UA ns=2;s=Tank.Level: tank-1 levelPct is not a setpoint, so it can't be written", "OPC UA ns=2;s=Store.Setpoint: store setpointC is not a setpoint, so it can't be written", "OPC UA ns=2;s=Tank.Target: a written mapping can't have a scale of 0"]
+        },
+        {
             "name": "OPC UA mappings that are malformed or point nowhere",
             "ops": [{ "set": "opcua", "value": [{ "server": "Plant PLC", "node": "Store.TempC", "asset": "store", "metric": "tempC" }, { "node": "i=2258", "asset": "ghost", "metric": "TempC", "samplingMs": 10 }, { "server": "", "node": "ns=1;i=7", "asset": "store", "metric": "tempC", "scale": "x", "ttlS": 0 }, { "server": "Plant PLC", "asset": "store", "metric": "tempC" }, "x"] }],
             "errors": ["OPC UA Store.TempC: node must be a node id, such as ns=2;s=Pump1.Flow", "OPC UA i=2258: metric must be a camelCase identifier", "OPC UA i=2258: samplingMs must be at least 50", "OPC UA i=2258: needs a server", "OPC UA ns=1;i=7: scale must be a number", "OPC UA ns=1;i=7: needs a server", "OPC UA ns=1;i=7: ttlS must be positive", "An OPC UA mapping has no node", "OPC UA i=2258: unknown asset ghost"]

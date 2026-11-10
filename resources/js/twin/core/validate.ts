@@ -327,6 +327,22 @@ export function validateDefinition(input: unknown): string[] {
         if (!isText(m.node)) continue;
         if (!ids.has(show(m.asset)))
             errors.push(`OPC UA ${m.node}: unknown asset ${show(m.asset)}`);
+        else if (m.write === true) {
+            // Only what an operator may set goes back to a server.
+            const asset = byId.get(show(m.asset))!;
+            const type = types.get(show(asset.type));
+            const metric = objects(type?.metrics).find(
+                (x) => x.key === m.metric,
+            );
+            if (asset.kind !== 'custom' || !isObj(metric?.setpoint))
+                errors.push(
+                    `OPC UA ${m.node}: ${show(m.asset)} ${show(m.metric)} is not a setpoint, so it can't be written`,
+                );
+            if (m.scale === 0)
+                errors.push(
+                    `OPC UA ${m.node}: a written mapping can't have a scale of 0`,
+                );
+        }
     }
     return unique(errors);
 }

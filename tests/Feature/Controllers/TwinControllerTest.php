@@ -7,6 +7,7 @@ use App\Actions\IssueGatewayToken;
 use App\Actions\RecordGatewayCheckIn;
 use App\Enums\OrganisationRole;
 use App\Models\OpcUaServer;
+use App\Models\OpcUaWrite;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use App\Models\Twin;
@@ -153,6 +154,7 @@ it('shows a twin with its definition, history, project library and abilities', f
             ->where('assets.0.url', $asset->url())
             ->where('types', [])
             ->where('gateway', null)
+            ->where('opcuaWrites', ['allowed' => false, 'recent' => []])
             ->where('can', ['update' => $update, 'operate' => $operate, 'manageTypes' => $update]));
 })->with([
     [OrganisationRole::Owner, true, true],
@@ -237,4 +239,33 @@ it('creates a personal organisation on first visit', function (): void {
     $this->actingAs($user)->get(route('twins.index'))->assertOk();
 
     expect($user->refresh()->current_organisation_id)->not->toBeNull();
+});
+
+it("lists the twin's latest OPC UA writes, newest first, with who asked", function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $twin->update(['opcua_writes' => true]);
+    OpcUaWrite::factory()->for($twin)->create(['written_at' => now()->subHour(), 'user_id' => $user->id]);
+    $latest = OpcUaWrite::factory()->for($twin)->failed()->create(['written_at' => now()]);
+    OpcUaWrite::factory()->count(20)->for($twin)->create(['written_at' => now()->subDay()]);
+    OpcUaWrite::factory()->create();
+
+    $this->actingAs($user)->get(route('twins.show', $twin))
+        ->assertInertia(fn ($page) => $page
+            ->where('opcuaWrites.allowed', true)
+            ->has('opcuaWrites.recent', 20)
+            ->where('opcuaWrites.recent.0', [
+                'id' => $latest->id,
+                'at' => $latest->written_at->toIso8601String(),
+                'user' => null,
+                'server' => 'Plant PLC',
+                'node' => 'ns=2;s=Jockey.Start',
+                'asset' => 'jockey',
+                'metric' => 'startKpa',
+                'requested' => 600,
+                'setpoint' => 600,
+                'value' => 6,
+                'error' => 'BadNotWritable',
+            ])
+            ->where('opcuaWrites.recent.1.user', $user->name));
 });

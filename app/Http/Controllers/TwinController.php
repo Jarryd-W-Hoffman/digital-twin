@@ -11,6 +11,7 @@ use App\Enums\ProjectAssetStatus;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
 use App\Models\AssetType;
+use App\Models\OpcUaWrite;
 use App\Models\ProjectAsset;
 use App\Models\Twin;
 use App\Models\TwinVersion;
@@ -123,6 +124,23 @@ final readonly class TwinController
                     default => 'different',
                 },
             ]),
+            'opcuaWrites' => [
+                'allowed' => $twin->opcua_writes,
+                'recent' => $twin->opcUaWrites()->with('user:id,name')->latest('written_at')->limit(20)->get()
+                    ->map(fn (OpcUaWrite $write): array => [
+                        'id' => $write->id,
+                        'at' => $write->written_at->toIso8601String(),
+                        'user' => $write->user?->name,
+                        'server' => $write->server,
+                        'node' => $write->node,
+                        'asset' => $write->asset,
+                        'metric' => $write->metric,
+                        'requested' => $write->requested,
+                        'setpoint' => $write->setpoint,
+                        'value' => $write->value,
+                        'error' => $write->error,
+                    ]),
+            ],
             'gateway' => $twin->gateway_token_hash === null ? null : [
                 'online' => $online,
                 'url' => $online ? $twin->gateway_url : null,

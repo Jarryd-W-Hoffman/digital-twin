@@ -2,13 +2,14 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { OPCUACertificateManager } from 'node-opcua-certificate-manager';
-import { DataType, Variant } from 'node-opcua-client';
+import { DataType, StatusCodes, Variant } from 'node-opcua-client';
 import { OPCUAServer } from 'node-opcua-server';
 
 /**
  * A small OPC UA server to develop and test against: a cold store's
  * temperature and door, and a meter's energy count, as variables in its own
- * namespace (ns=1). Values are set from outside with `set`.
+ * namespace (ns=1), and a writable setpoint and fan speed. Values are set
+ * from outside with `set`; what clients write is kept in `writes`.
  *
  *     npm run opcua-simulator      # opc.tcp://127.0.0.1:4840, the store warming and cooling
  */
@@ -24,6 +25,8 @@ export const SIMULATED = {
   'Store.DoorOpen': DataType.Boolean,
   'Meter.EnergyWh': DataType.UInt32,
   'Store.Status': DataType.String,
+  'Pump.StartBar': DataType.Double,
+  'Fan.SpeedPct': DataType.UInt16,
 } as const;
 
 export type SimulatedNode = keyof typeof SIMULATED;
@@ -34,7 +37,10 @@ export async function startSimulator(options: SimulatorOptions = {}) {
     'Store.DoorOpen': false,
     'Meter.EnergyWh': 0,
     'Store.Status': 'ok',
+    'Pump.StartBar': 6,
+    'Fan.SpeedPct': 50,
   };
+  const writes: { node: SimulatedNode; value: unknown }[] = [];
   const users = options.users;
   const server = new OPCUAServer({
     port: options.port ?? 4840,
@@ -58,7 +64,16 @@ export async function startSimulator(options: SimulatorOptions = {}) {
       browseName: name,
       dataType,
       minimumSamplingInterval: 100,
-      value: { get: () => new Variant({ dataType, value: values[name] }) },
+      // Store.Status is read-only; the rest can be written, as a PLC's tags can.
+      ...(name === 'Store.Status' ? {} : { accessLevel: 'CurrentRead | CurrentWrite', userAccessLevel: 'CurrentRead | CurrentWrite' }),
+      value: {
+        get: () => new Variant({ dataType, value: values[name] }),
+        set: (variant: Variant) => {
+          values[name] = variant.value;
+          writes.push({ node: name, value: variant.value });
+          return StatusCodes.Good;
+        },
+      },
     });
   }
   await server.start();
@@ -67,6 +82,9 @@ export async function startSimulator(options: SimulatorOptions = {}) {
     set(name: SimulatedNode, value: unknown) {
       values[name] = value;
     },
+    get: (name: SimulatedNode) => values[name],
+    /** What clients have written, oldest first. */
+    writes,
     stop: () => server.shutdown(0),
   };
 }
