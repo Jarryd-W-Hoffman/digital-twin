@@ -478,6 +478,13 @@ test('screenshots', async ({ page, context }) => {
         await editor.getByLabel('Scale').first().fill('2');
         await page.waitForTimeout(3000);
         await shot(page, 'layout-editor');
+        await editor
+            .getByRole('button', { name: 'Move in scene' })
+            .first()
+            .click();
+        await page.waitForTimeout(1500);
+        await shot(page, 'gizmo');
+        await editor.getByRole('button', { name: 'Done moving' }).click();
         await editor.getByRole('button', { name: 'Save layout' }).click();
         await expect(versionChip).toHaveText('v4', { timeout: 60_000 });
         await shot(

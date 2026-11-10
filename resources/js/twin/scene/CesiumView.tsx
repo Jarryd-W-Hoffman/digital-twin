@@ -15,6 +15,18 @@ export default function CesiumView() {
         scene.onPick = (id) => useTwin.getState().select(id);
         scene.measure.onChange = (measurement) =>
             useTwin.getState().setMeasurement(measurement);
+        scene.gizmo.onChange = (placement) => {
+            const { movingLayer, setDraft } = useTwin.getState();
+            if (movingLayer) setDraft(movingLayer, placement);
+        };
+        const showGizmo = (s: ReturnType<typeof useTwin.getState>) =>
+            scene.gizmo.set(
+                s.movingLayer
+                    ? (s.drafts[s.movingLayer] ??
+                          savedPlacement(s.def, s.movingLayer) ??
+                          null)
+                    : null,
+            );
         scene.sketch.onChange = (points) => {
             const { sketch, setSketch } = useTwin.getState();
             if (sketch) setSketch({ ...sketch, points });
@@ -55,6 +67,7 @@ export default function CesiumView() {
             scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
             scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
             scene.setSection(s.section);
+            showGizmo(s);
             pickFeatures(waitingFor(s));
             if (s.view) {
                 scene.updateFrame(s.view, s.colorBy);
@@ -78,6 +91,8 @@ export default function CesiumView() {
                 scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
             if (s.measureClear !== prev.measureClear) scene.measure.clear();
             if (s.section !== prev.section) scene.setSection(s.section);
+            if (s.movingLayer !== prev.movingLayer || s.drafts !== prev.drafts)
+                showGizmo(s);
             if (s.placingLayer !== prev.placingLayer)
                 placeOnClick(s.placingLayer);
             if (waitingFor(s) !== waitingFor(prev)) pickFeatures(waitingFor(s));

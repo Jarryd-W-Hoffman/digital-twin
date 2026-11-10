@@ -54,7 +54,20 @@ Models always need placing. Tilesets usually already know where they belong; if 
     - **Scale**: 1 is the size it was made at.
 2. Change the numbers. The scene moves the layer as you type.
 3. Or choose **Place on map**, then click the ground where it should go. **Click the ground…** shows while it's waiting.
-4. Choose **Save layout** to save the new positions as one version, or **Discard** to put everything back.
+4. Or choose **Move in scene** and drag the layer's handles (see below).
+5. Choose **Save layout** to save the new positions as one version, or **Discard** to put everything back.
+
+### Move it in the scene
+
+![Move in scene: red, green and blue arrows, a white point and a gold ring on the placed model.](../images/gizmo.png)
+
+**Move in scene** puts handles on the layer, drawn over everything so a building can't hide them:
+
+- The **red**, **green** and **blue** arrows move it east, north and up. Drag along an arrow; it moves only that way.
+- The **white point** slides it across the level, east and north at once.
+- The **gold ring** turns it: drag round the ring.
+
+The fields follow as you drag, in 10 cm and whole-degree steps, and typing in a field moves the handles. Dragging a handle never moves the camera or selects anything; drag anywhere else to look around as usual. Choose **Done moving**, or close the editor, to put the handles away; **Save layout** keeps the new position.
 
 ## Remove a layer
 
@@ -93,7 +106,7 @@ Under **History**, every version is listed newest first, with its note (**Create
 
 ## Tips
 
-- **Place roughly, then refine.** Use **Place on map** to get close, then nudge **East** and **North** in half-metre steps.
+- **Place roughly, then refine.** Use **Place on map** to get close, drag the handles to line it up, then type exact values if you have them.
 - **Save once.** Move everything you need to, then **Save layout**: one version is easier to restore than ten.
 - **Restoring is safe.** It never throws anything away, so if the restored version is wrong, restore the one after it.
 
