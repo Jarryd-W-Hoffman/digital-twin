@@ -13,6 +13,8 @@ export default function CesiumView() {
         if (!def || !container.current) return;
         const scene = new TwinScene(container.current, def);
         scene.onPick = (id) => useTwin.getState().select(id);
+        scene.measure.onChange = (measurement) =>
+            useTwin.getState().setMeasurement(measurement);
         scene.sketch.onChange = (points) => {
             const { sketch, setSketch } = useTwin.getState();
             if (sketch) setSketch({ ...sketch, points });
@@ -51,6 +53,7 @@ export default function CesiumView() {
             scene.setLayers(s.layers);
             scene.setSelected(s.selectedId);
             scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
+            scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
             pickFeatures(waitingFor(s));
             if (s.view) {
                 scene.updateFrame(s.view, s.colorBy);
@@ -70,6 +73,9 @@ export default function CesiumView() {
             if (s.globeRequest !== prev.globeRequest) scene.globeView();
             if (s.sketch !== prev.sketch)
                 scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
+            if (s.measuring !== prev.measuring)
+                scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
+            if (s.measureClear !== prev.measureClear) scene.measure.clear();
             if (s.placingLayer !== prev.placingLayer)
                 placeOnClick(s.placingLayer);
             if (waitingFor(s) !== waitingFor(prev)) pickFeatures(waitingFor(s));

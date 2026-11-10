@@ -225,3 +225,68 @@ test('works at phone width without horizontal scroll', async ({ page }) => {
   await page.getByRole('button', { name: 'Details' }).click();
   await expect(page.getByRole('tab', { name: 'What-if' })).toBeVisible();
 });
+
+test('measures distances, heights, areas and points in the scene, without selecting anything', async ({ page }) => {
+  const problems = await open(page);
+  // Clicks should land on the ground, not on the neighbouring buildings.
+  await page.getByLabel('Neighbouring buildings').uncheck();
+  await page.getByRole('button', { name: 'Whole site' }).click();
+  await page.waitForTimeout(3000);
+  const screen = (point: [number, number], height = 0) =>
+    page.evaluate(
+      ([p, h]) => (window as unknown as { __scene: { screenAt(p: [number, number], h: number): { x: number; y: number } } }).__scene.screenAt(p, h),
+      [point, height] as const,
+    );
+  const clickAt = async (point: [number, number], height = 0) => {
+    const at = await screen(point, height);
+    const box = (await page.locator('.globe canvas').first().boundingBox())!;
+    await page.mouse.click(box.x + at.x, box.y + at.y);
+  };
+  const readout = page.getByRole('region', { name: 'Measure' }).getByRole('definition');
+  const reading = async (label: string) => {
+    const row = page.getByRole('region', { name: 'Measure' }).locator('.measure-readout div', { has: page.getByText(label, { exact: true }) });
+    return (await row.locator('dd').innerText()).replace(/,/g, '');
+  };
+  const metres = (text: string) => Number(/([\d.]+) m/.exec(text)![1]);
+
+  await page.getByRole('button', { name: 'Measure' }).click();
+  const panel = page.getByRole('region', { name: 'Measure' });
+  await expect(panel.getByRole('button', { name: 'Distance' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(panel.getByText('Click two points.')).toBeVisible();
+
+  // 30 m east and 40 m north: 50 m, all of it along the level.
+  await clickAt([0, -170]);
+  await clickAt([30, -130]);
+  await expect(readout.first()).toBeVisible();
+  expect(metres(await reading('Distance'))).toBeCloseTo(50, -0.5);
+  expect(metres(await reading('Along the level'))).toBeCloseTo(50, -0.5);
+  expect(metres(await reading('Up'))).toBeLessThan(0.5);
+
+  // The freezer hall is 18 m tall.
+  await panel.getByRole('button', { name: 'Height' }).click();
+  await clickAt([-80, 30], 18);
+  await expect(panel.getByText('Above the ground')).toBeVisible();
+  expect(metres(await reading('Above the ground'))).toBeCloseTo(18, -0.5);
+
+  // A right triangle of 40 m by 40 m: 800 m².
+  await panel.getByRole('button', { name: 'Area' }).click();
+  await clickAt([0, -170]);
+  await clickAt([40, -170]);
+  await clickAt([0, -130]);
+  await expect(panel.getByText('Perimeter')).toBeVisible();
+  const area = Number(/([\d.]+) m²/.exec(await reading('Area'))![1]);
+  expect(area).toBeGreaterThan(760);
+  expect(area).toBeLessThan(840);
+
+  await panel.getByRole('button', { name: 'Point' }).click();
+  await clickAt([0, -150]);
+  await expect(panel.getByText('Latitude')).toBeVisible();
+  expect(await reading('Latitude')).toMatch(/^−\d+\.\d{6}°$/);
+  expect(await reading('Ground slope')).toBe('level');
+
+  // Measuring never selected anything; Escape puts the tools away.
+  expect(await page.evaluate(() => (window as unknown as Debug).__twin.getState().selectedId)).toBeNull();
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+  expect(problems).toEqual([]);
+});

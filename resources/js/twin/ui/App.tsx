@@ -4,6 +4,7 @@ import { AlertsPanel } from './AlertsPanel.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { Inspector } from './Inspector.tsx';
 import { LeftPanel } from './LeftPanel.tsx';
+import { MeasurePanel } from './MeasurePanel.tsx';
 import { Timeline } from './Timeline.tsx';
 import { TopBar } from './TopBar.tsx';
 import { WhatIfPanel } from './WhatIfPanel.tsx';
@@ -32,6 +33,7 @@ export function App({
     const def = useTwin((s) => s.def);
     const [leftOpen, setLeftOpen] = useState(startsOpen);
     const [rightOpen, setRightOpen] = useState(startsOpen);
+    const measuring = useTwin((s) => s.measuring);
 
     return (
         <div className="app">
@@ -69,7 +71,24 @@ export function App({
                     >
                         Globe
                     </button>
+                    <button
+                        title="Measure distances, heights, areas and points"
+                        aria-pressed={measuring !== null}
+                        className={measuring ? 'on' : ''}
+                        onClick={() =>
+                            useTwin
+                                .getState()
+                                .setMeasuring(
+                                    measuring
+                                        ? null
+                                        : { tool: 'distance', lock: 'none' },
+                                )
+                        }
+                    >
+                        Measure
+                    </button>
                 </div>
+                <MeasurePanel />
                 <div className="drawer drawer-right">
                     <button
                         className="drawer-toggle"

@@ -56,8 +56,32 @@ Below the list:
 - Drag to move around, scroll or right-drag to zoom, and Ctrl-drag or middle-drag to tilt and turn.
 - Click a building to select it. An asset that stands for part of a model, such as one wall of a BIM model, is selected by clicking that part.
 - **Whole site** flies back to the standard view; **Globe** pulls back until you can see the whole Earth, lit for the time at the site.
+- **Measure** opens the measuring tools; see [Measure in the scene](#measure-in-the-scene).
 
 ![Pulled back to the whole Earth with Globe.](../images/globe.png)
+
+### Measure in the scene
+
+![Measuring from the yard to the freezer hall's roof: 138.7 m in a straight line, 137.5 m along the level and 18.4 m up, with the legs drawn in the scene.](../images/measure.png)
+
+Choose **Measure** above the scene, then a tool. Points land on whatever is under the pointer: the ground, terrain, a building, a model or a scan. While a tool is on, clicks measure instead of selecting.
+
+| Tool         | Click                         | You get                                                                                        |
+| ------------ | ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Distance** | Two points                    | The straight distance, how far along the level, and how far up or down, drawn as a right angle |
+| **Height**   | A roof, tank or anything else | How high it is above the ground beneath it                                                     |
+| **Area**     | Points around the area        | Its area (as seen from above) and perimeter; it closes itself as you go                        |
+| **Point**    | One point                     | Its latitude, longitude and height, how high it is above the ground, and the ground's slope    |
+
+For **Distance**, the second point can be held:
+
+- **Free**: wherever you click.
+- **Level**: at the first point's height, for a horizontal distance across a gap, such as between two roofs.
+- **Vertical**: straight above or below the first point, for a clearance, such as from a floor up to a pipe.
+
+The result follows the pointer until you click. **Clear** starts again with the same tool; **Done** or Esc puts the tools away. Measurements aren't saved, and anyone who can see the twin can measure, viewers included.
+
+Distances are measured on the Earth itself, so they're right at any distance. Heights are above the terrain where a twin has it, and above the site's level ground where it doesn't, so slope only shows on terrain. Points picked on the ground can read a few centimetres off; anything within 20 cm of the ground counts as on it.
 
 ### The inspector (right)
 
