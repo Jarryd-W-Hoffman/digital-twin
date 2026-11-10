@@ -3,8 +3,15 @@ import { compile, type Model } from '../core/engine.ts';
 import { runForecast, type Forecast } from '../core/forecast.ts';
 import { History } from '../core/history.ts';
 import type { Measurement, MeasureLock, MeasureTool } from '../core/measure.ts';
+import type { Vec3 } from '../core/measure.ts';
 import { activeAt, createRuleEngine, type RuleEngine } from '../core/rules.ts';
 import type { Section } from '../core/section.ts';
+import {
+    aimAt,
+    SENSOR_DEFAULTS,
+    type Sensor,
+    type Sight,
+} from '../core/sight.ts';
 import type {
     Alert,
     Command,
@@ -103,6 +110,11 @@ export interface TwinStore {
     /** What the scene measured, as the pointer moves and clicks. */
     measurement: Measurement | null;
     setMeasurement: (measurement: Measurement | null) => void;
+    /** The sight tools, when open. */
+    sighting: Sighting | null;
+    setSighting: (sighting: Sighting | null) => void;
+    /** A click on a surface while a sight tool waits for one. */
+    sightPicked: (point: Vec3) => void;
     /** The layer whose handles are shown in the scene, to drag it into place. */
     movingLayer: string | null;
     setMovingLayer: (id: string | null) => void;
@@ -112,6 +124,46 @@ export interface TwinStore {
     /** Bumped to clear the measurement and start again with the same tool. */
     measureClear: number;
     clearMeasurement: () => void;
+}
+
+/** A sensor's settings, kept while it's moved or before it's placed. */
+export type SensorSettings = Omit<Sensor, 'at'>;
+
+/**
+ * The sight tools. A viewshed's sensor stands on the surface it was put on;
+ * a line of sight runs between two surface points, raised by the eye's and
+ * the target's heights.
+ */
+export interface Sighting {
+    tool: 'viewshed' | 'line';
+    settings: SensorSettings;
+    placed: { at: Point; base: number } | null;
+    /** What the next click in the scene does, for a viewshed. */
+    next: 'place' | 'aim' | null;
+    line: {
+        from: Vec3 | null;
+        to: Vec3 | null;
+        eye: number;
+        target: number;
+        result: Sight | null;
+    };
+}
+
+export const NEW_SIGHTING: Sighting = {
+    tool: 'viewshed',
+    settings: { ...SENSOR_DEFAULTS, height: 6 },
+    placed: null,
+    next: 'place',
+    line: { from: null, to: null, eye: 1.7, target: 1.5, result: null },
+};
+
+/** Where a line of sight's ends are, raised to the eye and the target. */
+export function sightEnds(line: Sighting['line']): [Vec3, Vec3] | null {
+    if (!line.from || !line.to) return null;
+    return [
+        [line.from[0], line.from[1], line.from[2] + line.eye],
+        [line.to[0], line.to[1], line.to[2] + line.target],
+    ];
 }
 
 export interface Sketching {
@@ -182,6 +234,7 @@ export const useTwin = create<TwinStore>((set, get) => ({
             placingLayer: id,
             measuring: id ? null : s.measuring,
             movingLayer: id ? null : s.movingLayer,
+            sighting: id ? null : s.sighting,
         })),
     movingLayer: null,
     setMovingLayer: (id) =>
@@ -189,13 +242,68 @@ export const useTwin = create<TwinStore>((set, get) => ({
             movingLayer: id,
             placingLayer: id ? null : s.placingLayer,
             measuring: id ? null : s.measuring,
+            sighting: id ? null : s.sighting,
         })),
+    sighting: null,
+    setSighting: (sighting) =>
+        set((s) => ({
+            sighting,
+            measuring: sighting ? null : s.measuring,
+            placingLayer: sighting ? null : s.placingLayer,
+            movingLayer: sighting ? null : s.movingLayer,
+        })),
+    sightPicked: (point) =>
+        set((s) => {
+            const sighting = s.sighting;
+            if (!sighting) return {};
+            if (sighting.tool === 'line') {
+                const { line } = sighting;
+                const starting = !line.from || line.to;
+                return {
+                    sighting: {
+                        ...sighting,
+                        line: {
+                            ...line,
+                            from: starting ? point : line.from,
+                            to: starting ? null : point,
+                            result: null,
+                        },
+                    },
+                };
+            }
+            if (sighting.next === 'place')
+                return {
+                    sighting: {
+                        ...sighting,
+                        placed: { at: [point[0], point[1]], base: point[2] },
+                        next: null,
+                    },
+                };
+            if (sighting.next === 'aim' && sighting.placed) {
+                const { at, base } = sighting.placed;
+                const aim = aimAt(
+                    [at[0], at[1], base + sighting.settings.height],
+                    point,
+                );
+                return {
+                    sighting: {
+                        ...sighting,
+                        settings: aim
+                            ? { ...sighting.settings, ...aim }
+                            : sighting.settings,
+                        next: null,
+                    },
+                };
+            }
+            return {};
+        }),
     sketch: null,
     setSketch: (sketch) =>
         set((s) => ({
             sketch,
             measuring: sketch ? null : s.measuring,
             movingLayer: sketch ? null : s.movingLayer,
+            sighting: sketch ? null : s.sighting,
         })),
     featurePick: null,
     setFeaturePick: (featurePick) =>
@@ -209,6 +317,7 @@ export const useTwin = create<TwinStore>((set, get) => ({
             measuring,
             measurement: null,
             movingLayer: measuring ? null : s.movingLayer,
+            sighting: measuring ? null : s.sighting,
         })),
     measurement: null,
     setMeasurement: (measurement) => set({ measurement }),
@@ -379,6 +488,7 @@ export function runDefinition(
         drafts: {},
         placingLayer: null,
         movingLayer: null,
+        sighting: null,
         measuring: null,
         measurement: null,
         section: null,
@@ -409,6 +519,7 @@ export function runGateway(
         drafts: {},
         placingLayer: null,
         movingLayer: null,
+        sighting: null,
         measuring: null,
         measurement: null,
         section: null,
@@ -430,6 +541,7 @@ export function stopTwin(): void {
         drafts: {},
         placingLayer: null,
         movingLayer: null,
+        sighting: null,
         measuring: null,
         measurement: null,
         section: null,

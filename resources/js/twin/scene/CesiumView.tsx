@@ -1,7 +1,7 @@
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { useEffect, useRef } from 'react';
 import { ORIGIN, savedPlacement } from '../core/layers.ts';
-import { alertsAt, useTwin } from '../state/store.ts';
+import { alertsAt, sightEnds, useTwin } from '../state/store.ts';
 import { TwinScene } from './TwinScene.ts';
 
 /** Mounts the Cesium scene, and pushes store changes into it without re-rendering. */
@@ -27,6 +27,45 @@ export default function CesiumView() {
                           null)
                     : null,
             );
+        scene.sight.onPick = (point) => useTwin.getState().sightPicked(point);
+        /** Shows the sight tools, and judges a new line of sight. */
+        const showSight = (s: ReturnType<typeof useTwin.getState>) => {
+            const sighting = s.sighting;
+            scene.sight.setPicking(
+                !!sighting &&
+                    (sighting.tool === 'line' || sighting.next !== null),
+            );
+            const placed = sighting?.tool === 'viewshed' && sighting.placed;
+            scene.sight.showViewshed(
+                placed
+                    ? {
+                          ...sighting.settings,
+                          at: placed.at,
+                          base: placed.base,
+                      }
+                    : null,
+            );
+            if (sighting?.tool !== 'line') return;
+            const ends = sightEnds(sighting.line);
+            if (ends && !sighting.line.result) {
+                const result = scene.sight.lineOfSight(...ends);
+                s.setSighting({
+                    ...sighting,
+                    line: { ...sighting.line, result },
+                });
+                return;
+            }
+            scene.sight.showLine(
+                ends?.[0] ??
+                    (sighting.line.from && [
+                        sighting.line.from[0],
+                        sighting.line.from[1],
+                        sighting.line.from[2] + sighting.line.eye,
+                    ]),
+                ends?.[1] ?? null,
+                sighting.line.result,
+            );
+        };
         scene.sketch.onChange = (points) => {
             const { sketch, setSketch } = useTwin.getState();
             if (sketch) setSketch({ ...sketch, points });
@@ -68,6 +107,7 @@ export default function CesiumView() {
             scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
             scene.setSection(s.section);
             showGizmo(s);
+            showSight(s);
             pickFeatures(waitingFor(s));
             if (s.view) {
                 scene.updateFrame(s.view, s.colorBy);
@@ -93,6 +133,7 @@ export default function CesiumView() {
             if (s.section !== prev.section) scene.setSection(s.section);
             if (s.movingLayer !== prev.movingLayer || s.drafts !== prev.drafts)
                 showGizmo(s);
+            if (s.sighting !== prev.sighting) showSight(s);
             if (s.placingLayer !== prev.placingLayer)
                 placeOnClick(s.placingLayer);
             if (waitingFor(s) !== waitingFor(prev)) pickFeatures(waitingFor(s));

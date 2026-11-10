@@ -92,6 +92,7 @@ import {
 } from './colors.ts';
 import { Gizmo } from './Gizmo.ts';
 import { Measure } from './Measure.ts';
+import { Sight } from './Sight.ts';
 import { Sketch } from './Sketch.ts';
 
 const LABELLED = new Set<AssetDef['kind']>([
@@ -204,6 +205,8 @@ export class TwinScene {
     readonly measure: Measure;
     /** Handles for moving a placed layer by dragging. */
     readonly gizmo: Gizmo;
+    /** Viewsheds and lines of sight. */
+    readonly sight: Sight;
     private readonly sunLight = new SunLight({ intensity: 1.35 });
     private readonly moonLight = new DirectionalLight({
         direction: Cartesian3.normalize(
@@ -317,10 +320,27 @@ export class TwinScene {
         this.gizmo = new Gizmo(this.viewer, () =>
             Transforms.eastNorthUpToFixedFrame(this.cart([0, 0])),
         );
+        this.sight = new Sight(this.viewer, {
+            toWorld: ([east, north, up]) => this.cart([east, north], up),
+            toLocal: (world) => {
+                const c = Cartographic.fromCartesian(world);
+                const [east, north] = lonLatToMetres(
+                    this.origin,
+                    CesiumMath.toDegrees(c.longitude),
+                    CesiumMath.toDegrees(c.latitude),
+                );
+                return [east, north, c.height - this.ground];
+            },
+            frame: () => Transforms.eastNorthUpToFixedFrame(this.cart([0, 0])),
+        });
         this.handler = new ScreenSpaceEventHandler(scene.canvas);
         this.handler.setInputAction((e: { position: Cartesian2 }) => {
             if (this.measure.active) {
                 this.measure.click(e.position);
+                return;
+            }
+            if (this.sight.active) {
+                this.sight.click(e.position);
                 return;
             }
             if (this.sketch.active) {
@@ -1483,6 +1503,7 @@ export class TwinScene {
         this.sketch.destroy();
         this.measure.destroy();
         this.gizmo.destroy();
+        this.sight.destroy();
         if (!this.viewer.isDestroyed()) this.viewer.destroy();
     }
 }
