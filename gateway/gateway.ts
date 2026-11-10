@@ -7,9 +7,9 @@ import type { TwinDefinition } from '../resources/js/twin/core/types.ts';
 import { History } from '../resources/js/twin/core/history.ts';
 import { parseReadings } from '../resources/js/twin/core/ingest.ts';
 import { siteTime, SimRunner } from '../resources/js/twin/core/runner.ts';
-import type { ClientMessage, Reading, ServerMessage } from '../resources/js/twin/core/protocol.ts';
+import type { ClientMessage, OpcUaBrowseResult, Reading, ServerMessage } from '../resources/js/twin/core/protocol.ts';
 import { compileOpcua, type OpcUa, type OpcUaWrite } from '../resources/js/twin/core/opcua.ts';
-import { OpcUaBridge, type OpcUaOptions, type OpcUaServerConfig, type OpcUaStatus } from './opcua.ts';
+import { OBJECTS_FOLDER, OpcUaBridge, type OpcUaOptions, type OpcUaServerConfig, type OpcUaStatus } from './opcua.ts';
 import { compileTelemetry, type Telemetry } from '../resources/js/twin/core/telemetry.ts';
 import { parseDefinition } from '../resources/js/twin/core/validate.ts';
 import { ReadingLog } from './readings.ts';
@@ -188,14 +188,25 @@ export async function startGateway(options: GatewayOptions = {}) {
   let opcua: OpcUa = compileOpcua({ ...definition, opcua: [] }, []);
   let bridge: OpcUaBridge | null = null;
   let opcuaWrites = fetched?.opcuaWrites ?? options.opcua?.writes ?? false;
+  /**
+   * Each node's latest value. A server only says when a value changes, so
+   * these are measured again when a new version restarts the model.
+   */
+  const latestOpcua = new Map<string, { server: string; node: string; value: unknown }>();
   const opcuaStats = { received: 0, mapped: 0, unmapped: 0, written: 0, failedWrites: 0 };
   /** Monitors what the twin maps on the project's servers, starting the bridge on first use. */
   const followOpcua = (def: TwinDefinition) => {
     opcua = compileOpcua(def, opcuaServers.map((s) => s.name));
     for (const problem of opcua.skipped) console.warn(`Gateway: ${problem}`);
     if (!bridge && opcua.servers.size === 0) return;
-    bridge ??= new OpcUaBridge((server, node, value) => {
+    openBridge().follow(opcuaServers, opcua.servers).catch((error: unknown) =>
+      console.warn(`Gateway: OPC UA ${error instanceof Error ? error.message : String(error)}`),
+    );
+  };
+  const openBridge = () =>
+    (bridge ??= new OpcUaBridge((server, node, value) => {
       opcuaStats.received++;
+      latestOpcua.set(`${server}\n${node}`, { server, node, value });
       const { readings, problems } = opcua.read(server, node, value);
       for (const problem of problems) console.warn(`Gateway: ${problem}`);
       if (readings.length === 0) {
@@ -204,10 +215,22 @@ export async function startGateway(options: GatewayOptions = {}) {
       }
       opcuaStats.mapped++;
       measure(readings);
-    }, options.opcua);
-    bridge.follow(opcuaServers, opcua.servers).catch((error: unknown) =>
-      console.warn(`Gateway: OPC UA ${error instanceof Error ? error.message : String(error)}`),
-    );
+    }, options.opcua));
+  /** Sockets with a browse under way: one at a time each, so nobody floods a PLC. */
+  const browsing = new Set<WebSocket>();
+  const browse = (socket: WebSocket, message: Extract<ClientMessage, { type: 'opcua-browse' }>) => {
+    const node = message.node ?? OBJECTS_FOLDER;
+    const answer = (result: OpcUaBrowseResult | { node: string; error: string }) => {
+      browsing.delete(socket);
+      if (socket.readyState === socket.OPEN) send(socket, { type: 'opcua-browse', id: message.id, server: message.server, ...result });
+    };
+    const config = opcuaServers.find((s) => s.name === message.server);
+    if (!config) return answer({ node, error: `The project has no OPC UA server called ${message.server}` });
+    if (browsing.has(socket)) return answer({ node, error: 'Still browsing; wait for the last answer' });
+    browsing.add(socket);
+    openBridge()
+      .browse(config, node)
+      .then(answer, (error: unknown) => answer({ node, error: error instanceof Error ? error.message : String(error) }));
   };
   /**
    * Sends an operator's setpoint on to the OPC UA nodes mapped for writing
@@ -270,6 +293,8 @@ export async function startGateway(options: GatewayOptions = {}) {
     runner = new SimRunner(def, start);
     history = new History(HISTORY_FRAMES);
     for (const f of runner.preroll(PREROLL_S)) history.push(f);
+    for (const { server, node, value } of latestOpcua.values())
+      for (const r of opcua.read(server, node, value).readings) runner.measure(`${r.asset}.${r.metric}`, r.value, r.ttlS);
   };
   const mqttStats = { received: 0, mapped: 0, unmapped: 0 };
   const client = options.mqtt
@@ -342,7 +367,7 @@ export async function startGateway(options: GatewayOptions = {}) {
         t: runner.state.t,
         clients: sockets.size,
         mqtt: client ? { connected: client.connected, topics: telemetry.topics, ...mqttStats } : null,
-        opcua: bridge ? { servers: bridge.health(), ...opcuaStats } : null,
+        opcua: bridge ? { servers: bridge.health(), writes: opcuaWrites, ...opcuaStats } : null,
         history: log ? { pending: log.pending, sent: log.sent, dropped: log.dropped } : null,
       });
       return;
@@ -394,10 +419,18 @@ export async function startGateway(options: GatewayOptions = {}) {
     const granted = access(req);
     sockets.set(socket, granted);
     hello(socket);
-    socket.on('close', () => sockets.delete(socket));
+    socket.on('close', () => {
+      sockets.delete(socket);
+      browsing.delete(socket);
+    });
     socket.on('message', (data) => {
       try {
         const message = JSON.parse((data as Buffer).toString()) as ClientMessage;
+        if (message.type === 'opcua-browse') {
+          if (granted !== null && !granted.edit) throw new Error('Only editors can browse OPC UA servers');
+          browse(socket, message);
+          return;
+        }
         if (granted !== null && !granted.operate) throw new Error('This connection can watch but not operate');
         if (message.type === 'command') {
           runner.command(message.command);
@@ -439,11 +472,16 @@ export async function startGateway(options: GatewayOptions = {}) {
             opcuaStatuses(),
           );
           if (next) {
+            const changed = next.version !== fetched?.version;
             fetched = next;
             opcuaServers = next.opcua;
             opcuaWrites = next.opcuaWrites;
-            boot(next.definition, Date.now());
-            for (const s of sockets.keys()) hello(s);
+            // Only a new version restarts the model; a changed server or the
+            // write switch only changes what OPC UA does.
+            if (changed) {
+              boot(next.definition, Date.now());
+              for (const s of sockets.keys()) hello(s);
+            } else followOpcua(definition);
           }
         } catch (error) {
           console.warn(`Gateway: ${error instanceof Error ? error.message : String(error)}`);

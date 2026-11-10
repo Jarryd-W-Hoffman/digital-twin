@@ -8,6 +8,8 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 export interface TicketAccess {
   user: string;
   operate: boolean;
+  /** May change the twin, so browse its servers. Tickets from before this claim can't. */
+  edit: boolean;
 }
 
 export const ticketKey = (token: string): string => createHash('sha256').update(token).digest('hex');
@@ -33,8 +35,8 @@ export function verifyTicket(
     return null;
   }
   if (typeof data !== 'object' || data === null) return null;
-  const { twin, user, operate, exp } = data as Record<string, unknown>;
-  if (twin !== twinId || typeof user !== 'string' || typeof operate !== 'boolean') return null;
+  const { twin, user, operate, edit = false, exp } = data as Record<string, unknown>;
+  if (twin !== twinId || typeof user !== 'string' || typeof operate !== 'boolean' || typeof edit !== 'boolean') return null;
   if (typeof exp !== 'number' || exp * 1000 <= nowMs) return null;
-  return { user, operate };
+  return { user, operate, edit };
 }

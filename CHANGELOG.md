@@ -22,6 +22,7 @@ Dates are when the change was merged into `main` (UTC).
 - **OPC UA reading** ([#22]): OPC UA servers registered per project (endpoint, security mode and policy, an optional login with the password stored encrypted), and `opcua` mappings in a twin from a server's node to an asset's metric, edited in the **Layout** panel. The gateway subscribes to the mapped nodes with node-opcua, records each new value as a reading, follows changes to the mappings and servers, and reports each server's connection. `npm run opcua-simulator` starts a test server. A new user manual chapter, **OPC UA**, covers it with screenshots; the chapters after it are renumbered.
 - **OPC UA write-back** ([#24]): an `opcua` mapping with `write: true` takes an operator's setpoint on a custom type back to its node. The gateway clamps the setpoint to its range, undoes the mapping's scale and offset, converts it to the node's own data type, and writes it. Writing is off for each twin until an editor turns it on, and every write, good or failed, is recorded with who asked and listed in the twin's OPC UA section. The simulator has two writable nodes.
 - **Analysis and editing tools** are on the roadmap as item 10 ([#24]).
+- **OPC UA browsing** ([#25]): editors browse a project's OPC UA servers from the twin's OPC UA section, through the twin's gateway, a folder at a time, with each variable's type, value and whether it can be written, and map a node with one click. Browsing uses the server's own settings, so it also tests the connection and says why it failed. Browser tickets now say whether their holder can edit. Roadmap item 9 is done.
 - **One JSON Schema for a definition's shape** ([#16]), read by ajv in the browser and gateway and by opis/json-schema on the server, each check carrying its message. The hand-kept validators now keep only the checks that need the whole definition.
 - Zones are validated: each needs an id and a footprint of 3 or more points ([#16]).
 - User manual coverage of the definition editor, drawing in the scene, IFC models and assets bound to model elements, with five new screenshots ([#23]).
@@ -29,6 +30,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Fixed
 
+- A gateway no longer restarts its model when only a project's OPC UA servers or the writing switch change, and after a new version it measures each mapped OPC UA node's last value again. Before, a steady value (which a server never reports again) was lost until it changed ([#25]).
 - The **Definition** panel keeps its tabs and **Save** in view: only the lists and the form scroll, so a long form no longer runs under the save bar ([#23]).
 - IFC models converted by `meridian-ifc` no longer land turned 90° in the viewer ([#21]).
 - Empty and padded strings in a saved definition are kept as sent, instead of being trimmed or turned into null before validation ([#18]).
@@ -203,3 +205,4 @@ Dates are when the change was merged into `main` (UTC).
 [#22]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/22
 [#23]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/23
 [#24]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/24
+[#25]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/25

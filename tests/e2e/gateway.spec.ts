@@ -105,3 +105,95 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
   await expect(owner.getByRole('radio', { name: 'Live' })).toHaveCount(0, { timeout: 30_000 });
   await expect(editor.getByRole('button', { name: 'Issue token' })).toBeVisible({ timeout: 30_000 });
 });
+
+test('an owner browses a PLC through the gateway and maps a node from it, or is told why not', async ({ browser }) => {
+  test.setTimeout(360_000);
+  const processes: ChildProcess[] = [];
+  const log = openSync('test-results/gateway-browse.log', 'w');
+  // The OPC UA simulator: Objects › Site › its variables.
+  processes.push(
+    spawn(process.execPath, ['--import', 'tsx', 'gateway/opcua-simulator.ts'], {
+      env: { ...process.env, OPCUA_PORT: '4842' },
+      stdio: ['ignore', log, log],
+    }),
+  );
+  const owner = await browser.newPage();
+  await owner.goto('/login');
+  await owner.getByLabel('Email address').fill('test@example.com');
+  await owner.getByLabel('Password', { exact: true }).fill('password');
+  await owner.getByRole('button', { name: 'Log in' }).click();
+  await owner.getByRole('link', { name: /^Pilot sites/ }).click();
+  const servers = owner.getByRole('region', { name: 'OPC UA servers' });
+  for (const [name, endpoint] of [
+    ['Browse PLC', 'opc.tcp://127.0.0.1:4842/meridian'],
+    ['Missing PLC', 'opc.tcp://127.0.0.1:4849/meridian'],
+  ]) {
+    await servers.getByLabel('Server name').fill(name);
+    await servers.getByLabel('Endpoint').fill(endpoint);
+    await servers.getByRole('button', { name: 'Add server' }).click();
+    await expect(servers.getByRole('list', { name: 'OPC UA servers' }).getByText(name, { exact: true })).toBeVisible();
+  }
+  await owner.getByRole('link', { name: 'Northshore Cold Chain Hub' }).click();
+  await expect(owner.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
+  const version = Number((await owner.locator('.version-chip').innerText()).slice(1));
+  await owner.getByRole('button', { name: 'Layout', exact: true }).click();
+  const editor = owner.getByRole('complementary', { name: 'Layout' });
+  const browserGroup = editor.getByRole('group', { name: 'OPC UA browser' });
+  await expect(browserGroup.getByText("The twin's gateway connects to the servers, so start it to browse them.")).toBeVisible();
+  await expect(browserGroup.getByRole('button', { name: 'Browse' })).toBeDisabled();
+
+  await editor.getByRole('button', { name: 'Issue token' }).click();
+  const token = /MERIDIAN_GATEWAY_TOKEN=(\S+)/.exec(await editor.getByLabel('Gateway command').inputValue())?.[1];
+  try {
+    processes.push(
+      spawn(process.execPath, ['--import', 'tsx', 'gateway/gateway.ts'], {
+        env: {
+          ...process.env,
+          MERIDIAN_URL: 'http://127.0.0.1:8199',
+          MERIDIAN_GATEWAY_TOKEN: token,
+          GATEWAY_PORT: '8798',
+          GATEWAY_PUBLIC_URL: 'ws://127.0.0.1:8798/ws',
+          GATEWAY_POLL_MS: '2000',
+          OPCUA_PKI_DIR: 'test-results/opcua-pki-browse',
+        },
+        stdio: ['ignore', log, log],
+      }),
+    );
+    await expect
+      .poll(() => fetch('http://127.0.0.1:8798/health').then((r) => (r.ok ? r.json() : null), () => null), { timeout: 60_000 })
+      .toMatchObject({ status: 'ok', version });
+    await expect(async () => {
+      await owner.reload();
+      await expect(owner.getByRole('radio', { name: 'Live' })).toBeChecked({ timeout: 5000 });
+    }).toPass({ timeout: 60_000 });
+    await owner.getByRole('button', { name: 'Layout', exact: true }).click();
+
+    // A server that isn't there: browsing is the connection test.
+    await browserGroup.getByLabel('Look in').selectOption('Missing PLC');
+    await browserGroup.getByRole('button', { name: 'Browse' }).click();
+    await expect(browserGroup.getByRole('alert')).toContainText("Couldn't browse Missing PLC", { timeout: 30_000 });
+
+    await browserGroup.getByLabel('Look in').selectOption('Browse PLC');
+    await browserGroup.getByRole('button', { name: 'Browse' }).click();
+    await browserGroup.getByRole('button', { name: 'Site ›' }).click();
+    const nodes = browserGroup.getByRole('list', { name: "What's on Browse PLC" });
+    await expect(nodes.getByRole('listitem').filter({ hasText: 'Pump.StartBar' })).toContainText('Double = 6, writable');
+    await expect(nodes.getByRole('listitem').filter({ hasText: 'Store.Status' })).not.toContainText('writable');
+    await nodes.getByRole('button', { name: 'Map ns=1;s=Pump.StartBar' }).click();
+
+    const row = editor.getByRole('region', { name: 'OPC UA' }).getByRole('list', { name: 'OPC UA mappings' }).getByRole('listitem').last();
+    await expect(row.getByLabel('Server')).toHaveValue('Browse PLC');
+    await expect(row.getByLabel('Node')).toHaveValue('ns=1;s=Pump.StartBar');
+    await row.getByLabel('Asset').selectOption({ label: 'Jockey pump' });
+    await row.getByLabel('Metric').selectOption({ label: 'Start below' });
+    await row.getByLabel('Scale').fill('100');
+    await editor.getByRole('button', { name: 'Save OPC UA mappings' }).click();
+    await expect(owner.locator('.version-chip')).toHaveText(`v${version + 1}`);
+  } finally {
+    for (const p of processes) p.kill();
+  }
+
+  owner.once('dialog', (dialog) => void dialog.accept());
+  await editor.getByRole('button', { name: 'Revoke' }).click();
+  await expect(editor.getByRole('button', { name: 'Issue token' })).toBeVisible({ timeout: 30_000 });
+});

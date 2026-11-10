@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
 import { useState } from 'react';
+import { OpcUaNodeBrowser } from '@/components/opcua-browser';
 import { update as updateWrites } from '@/routes/twins/opcua-writes';
 import { store as storeVersion } from '@/routes/twins/versions';
 import { metricsFor } from '@/twin/core/metrics';
@@ -80,11 +81,14 @@ export function OpcUaPanel({
     definition,
     servers,
     writes,
+    gateway,
 }: {
     twinId: string;
     definition: TwinDefinition;
     servers: string[];
     writes: OpcUaWrites;
+    /** The gateway's socket and a ticket for it, to browse servers through. */
+    gateway: { url: string; ticket: string } | null;
 }) {
     const [rows, setRows] = useState<Row[]>(() =>
         (definition.opcua ?? []).map(toRow),
@@ -103,6 +107,24 @@ export function OpcUaPanel({
         return asset
             ? metricsFor(definition, asset).filter((m) => !m.hidden)
             : [];
+    };
+
+    /** A new mapping, of the first asset's first metric until it's changed. */
+    const add = (server: string, node: string) => {
+        const asset = assets[0];
+        setRows([
+            ...rows,
+            {
+                server,
+                node,
+                asset: asset.id,
+                metric: metricsOf(asset.id)[0]?.key ?? '',
+                scale: '',
+                offset: '',
+                samplingMs: '',
+                write: false,
+            },
+        ]);
     };
 
     const named = (assetId: string) =>
@@ -301,22 +323,7 @@ export function OpcUaPanel({
             <div className="editor-actions">
                 <button
                     disabled={assets.length === 0 || servers.length === 0}
-                    onClick={() => {
-                        const asset = assets[0];
-                        setRows([
-                            ...rows,
-                            {
-                                server: servers[0],
-                                node: '',
-                                asset: asset.id,
-                                metric: metricsOf(asset.id)[0]?.key ?? '',
-                                scale: '',
-                                offset: '',
-                                samplingMs: '',
-                                write: false,
-                            },
-                        ]);
-                    }}
+                    onClick={() => add(servers[0], '')}
                 >
                     Add OPC UA mapping
                 </button>
@@ -335,51 +342,62 @@ export function OpcUaPanel({
                     ))}
                 </ul>
             )}
-            <h4>Writing setpoints</h4>
-            <label className="editor-check">
-                <input
-                    type="checkbox"
-                    checked={writes.allowed}
-                    onChange={(e) => allow(e.target.checked)}
+            {assets.length > 0 && (
+                <OpcUaNodeBrowser
+                    servers={servers}
+                    gateway={gateway}
+                    onPick={(server, node) => add(server, node.node)}
                 />
-                <span>Write operators' setpoints to OPC UA</span>
-            </label>
-            <p className="muted hint">
-                {writes.allowed
-                    ? 'When an operator applies a setpoint mapped for writing, the gateway writes it to the node, within the setpoint’s range.'
-                    : 'Off: setpoints only change the model. Turn it on to have the gateway write them to the nodes mapped for writing.'}
-            </p>
-            {writes.recent.length > 0 && (
-                <ul className="editor-layers" aria-label="Recent OPC UA writes">
-                    {writes.recent.map((w) => (
-                        <li key={w.id}>
-                            <strong>
-                                {named(w.asset)}{' '}
-                                {metricsOf(w.asset).find(
-                                    (m) => m.key === w.metric,
-                                )?.label ?? w.metric}{' '}
-                                = {w.setpoint}
-                            </strong>
-                            {w.requested !== w.setpoint &&
-                                ` (asked for ${w.requested})`}
-                            <span className="muted">
-                                {' '}
-                                → {w.node} on {w.server}
-                                {w.value !== w.setpoint &&
-                                    ` as ${w.value}`},{' '}
-                                {w.user ?? 'someone'},{' '}
-                                {new Date(w.at).toLocaleString()}
-                            </span>
-                            {w.error !== null && (
-                                <span className="editor-error">
-                                    {' '}
-                                    Failed: {w.error}
-                                </span>
-                            )}
-                        </li>
-                    ))}
-                </ul>
             )}
+            <div role="group" aria-label="Writing setpoints">
+                <h4>Writing setpoints</h4>
+                <label className="editor-check">
+                    <input
+                        type="checkbox"
+                        checked={writes.allowed}
+                        onChange={(e) => allow(e.target.checked)}
+                    />
+                    <span>Write operators' setpoints to OPC UA</span>
+                </label>
+                <p className="muted hint">
+                    {writes.allowed
+                        ? 'When an operator applies a setpoint mapped for writing, the gateway writes it to the node, within the setpoint’s range.'
+                        : 'Off: setpoints only change the model. Turn it on to have the gateway write them to the nodes mapped for writing.'}
+                </p>
+                {writes.recent.length > 0 && (
+                    <ul
+                        className="editor-layers"
+                        aria-label="Recent OPC UA writes"
+                    >
+                        {writes.recent.map((w) => (
+                            <li key={w.id}>
+                                <strong>
+                                    {named(w.asset)}{' '}
+                                    {metricsOf(w.asset).find(
+                                        (m) => m.key === w.metric,
+                                    )?.label ?? w.metric}{' '}
+                                    = {w.setpoint}
+                                </strong>
+                                {w.requested !== w.setpoint &&
+                                    ` (asked for ${w.requested})`}
+                                <span className="muted">
+                                    {' '}
+                                    → {w.node} on {w.server}
+                                    {w.value !== w.setpoint && ` as ${w.value}`}
+                                    , {w.user ?? 'someone'},{' '}
+                                    {new Date(w.at).toLocaleString()}
+                                </span>
+                                {w.error !== null && (
+                                    <span className="editor-error">
+                                        {' '}
+                                        Failed: {w.error}
+                                    </span>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
         </section>
     );
 }

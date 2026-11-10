@@ -1,12 +1,14 @@
 import { OPCUACertificateManager } from 'node-opcua-certificate-manager';
 import {
   AttributeIds,
+  BrowseDirection,
   ClientMonitoredItem,
   DataType,
   type ClientSession,
   type ClientSubscription,
   type DataValue,
   MessageSecurityMode,
+  NodeClass,
   OPCUAClient,
   SecurityPolicy,
   TimestampsToReturn,
@@ -15,6 +17,7 @@ import {
   Variant,
 } from 'node-opcua-client';
 import type { MonitoredNode } from '../resources/js/twin/core/opcua.ts';
+import type { OpcUaBrowseResult } from '../resources/js/twin/core/protocol.ts';
 
 /**
  * The gateway's OPC UA side: one client session per server the twin's
@@ -61,6 +64,90 @@ const MODES = {
 
 const settingsOf = (config: OpcUaServerConfig) => JSON.stringify(config);
 
+/** Where browsing starts: the address space's Objects folder. */
+export const OBJECTS_FOLDER = 'i=85';
+const MAX_CHILDREN = 200;
+const BROWSE_TIMEOUT_MS = 10_000;
+
+const clientFor = (config: OpcUaServerConfig, certificates: OPCUACertificateManager, retry: boolean) =>
+  OPCUAClient.create({
+    applicationName: 'Meridian gateway',
+    endpointMustExist: false,
+    securityMode: MODES[config.securityMode],
+    securityPolicy: SecurityPolicy[config.securityPolicy],
+    clientCertificateManager: certificates,
+    keepSessionAlive: retry,
+    connectionStrategy: retry
+      ? { initialDelay: 1000, maxDelay: 10_000, maxRetry: Number.MAX_SAFE_INTEGER }
+      : { initialDelay: 100, maxDelay: 100, maxRetry: 0 },
+  });
+
+const identityOf = (config: OpcUaServerConfig): UserIdentityInfo =>
+  config.username
+    ? { type: UserTokenType.UserName, userName: config.username, password: config.password ?? '' }
+    : { type: UserTokenType.Anonymous };
+
+/** A built-in type's name, or the node id of a server's own type. */
+function typeName(value: unknown): string {
+  const id = value as { namespace: number; value: unknown; toString(): string };
+  return id.namespace === 0 && typeof id.value === 'number' && DataType[id.value] ? DataType[id.value]! : id.toString();
+}
+
+function shown(value: unknown): number | boolean | string | null {
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.slice(0, 100);
+  if (typeof value === 'bigint') return String(value);
+  return null;
+}
+
+/** The objects and variables one level below a node, with each variable's type, value and access. */
+export async function browseSession(session: ClientSession, node: string): Promise<OpcUaBrowseResult> {
+  const result = await session.browse({
+    nodeId: node,
+    referenceTypeId: 'HierarchicalReferences',
+    includeSubtypes: true,
+    browseDirection: BrowseDirection.Forward,
+    nodeClassMask: NodeClass.Object | NodeClass.Variable,
+    resultMask: 0x3f,
+  });
+  if (!result.statusCode.isGood()) throw new Error(result.statusCode.name);
+  // Namespace 0 holds the standard's own objects (the server's diagnostics,
+  // aliases), never a plant's.
+  const references = (result.references ?? []).filter((r) => !(r.nodeClass === NodeClass.Object && r.nodeId.namespace === 0));
+  const idOf = (r: (typeof references)[number]) => r.nodeId.toString().replace(/^ns=0;/, '');
+  const listed = references.slice(0, MAX_CHILDREN);
+  const variables = listed.filter((r) => r.nodeClass === NodeClass.Variable);
+  const attributes = variables.length
+    ? await session.read(
+        variables.flatMap((r) =>
+          [AttributeIds.DataType, AttributeIds.Value, AttributeIds.UserAccessLevel].map((attributeId) => ({ nodeId: r.nodeId, attributeId })),
+        ),
+      )
+    : [];
+  const details = new Map(
+    variables.map((r, i) => {
+      const [type, value, access] = attributes.slice(i * 3, i * 3 + 3) as [DataValue, DataValue, DataValue];
+      return [
+        idOf(r),
+        {
+          ...(type.statusCode.isGood() ? { dataType: typeName(type.value.value) } : {}),
+          value: value.statusCode.isGood() ? shown(value.value.value) : null,
+          writable: access.statusCode.isGood() && (Number(access.value.value) & 0x02) !== 0,
+        },
+      ];
+    }),
+  );
+  return {
+    node,
+    children: listed.map((r) => {
+      const id = idOf(r);
+      const name = r.displayName.text ?? r.browseName.name ?? id;
+      return r.nodeClass === NodeClass.Variable ? { node: id, name, kind: 'variable', ...details.get(id) } : { node: id, name, kind: 'object' };
+    }),
+    more: references.length > listed.length || result.continuationPoint !== null,
+  };
+}
+
 /** The integer types a setpoint can be written as, and their ranges. */
 const INTEGERS: Partial<Record<DataType, [number, number]>> = {
   [DataType.SByte]: [-128, 127],
@@ -101,15 +188,7 @@ class Connection {
     certificates: OPCUACertificateManager,
     private readonly onValue: (node: string, value: unknown) => void,
   ) {
-    this.client = OPCUAClient.create({
-      applicationName: 'Meridian gateway',
-      endpointMustExist: false,
-      securityMode: MODES[config.securityMode],
-      securityPolicy: SecurityPolicy[config.securityPolicy],
-      clientCertificateManager: certificates,
-      keepSessionAlive: true,
-      connectionStrategy: { initialDelay: 1000, maxDelay: 10_000, maxRetry: Number.MAX_SAFE_INTEGER },
-    });
+    this.client = clientFor(config, certificates, true);
     this.client.on('backoff', () => {
       if (this.status !== 'connected') this.status = this.session ? 'reconnecting' : 'connecting';
     });
@@ -132,10 +211,7 @@ class Connection {
     try {
       await this.client.connect(this.config.endpoint);
       if (this.closed) return;
-      const identity: UserIdentityInfo = this.config.username
-        ? { type: UserTokenType.UserName, userName: this.config.username, password: this.config.password ?? '' }
-        : { type: UserTokenType.Anonymous };
-      this.session = await this.client.createSession(identity);
+      this.session = await this.client.createSession(identityOf(this.config));
       this.subscription = await this.session.createSubscription2({
         requestedPublishingInterval: 500,
         requestedLifetimeCount: 600,
@@ -168,6 +244,11 @@ class Connection {
       value: { value: variantFor(dataType, value) },
     });
     if (!status.isGood()) throw new Error(status.name);
+  }
+
+  /** The connected session, if there is one. */
+  get connected(): ClientSession | undefined {
+    return this.status === 'connected' ? this.session : undefined;
   }
 
   /** Monitors these nodes, and only these. */
@@ -260,6 +341,40 @@ export class OpcUaBridge {
     const connection = this.connections.get(server);
     if (!connection) throw new Error(`not connected to ${server}`);
     await connection.write(node, value);
+  }
+
+  /**
+   * Browses one level of a server's address space. A server the twin
+   * already uses is browsed on its session; any other gets a session of its
+   * own for the browse, so this also tests whether the gateway can reach it.
+   */
+  async browse(config: OpcUaServerConfig, node: string = OBJECTS_FOLDER): Promise<OpcUaBrowseResult> {
+    await this.ready;
+    const existing = this.connections.get(config.name);
+    const session = existing && settingsOf(existing.config) === settingsOf(config) ? existing.connected : undefined;
+    if (session) return browseSession(session, node);
+
+    const client = clientFor(config, this.certificates, false);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${config.name} didn't answer within ${BROWSE_TIMEOUT_MS / 1000} s`)), BROWSE_TIMEOUT_MS);
+    });
+    const attempt = (async () => {
+      await client.connect(config.endpoint);
+      const own = await client.createSession(identityOf(config));
+      try {
+        return await browseSession(own, node);
+      } finally {
+        await own.close();
+      }
+    })();
+    try {
+      return await Promise.race([attempt, timeout]);
+    } finally {
+      clearTimeout(timer);
+      attempt.catch(() => undefined);
+      await client.disconnect();
+    }
   }
 
   health(): Record<string, OpcUaServerHealth> {

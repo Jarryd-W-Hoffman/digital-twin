@@ -20,7 +20,7 @@ final readonly class IssueGatewayTicket
 {
     public const int LIFETIME_SECONDS = 12 * 3600;
 
-    public function handle(Twin $twin, User $user, bool $canOperate): string
+    public function handle(Twin $twin, User $user, bool $canOperate, bool $canEdit): string
     {
         throw_if($twin->gateway_token_hash === null, LogicException::class, 'The twin has no gateway token.');
 
@@ -28,6 +28,7 @@ final readonly class IssueGatewayTicket
             'twin' => $twin->id,
             'user' => $user->id,
             'operate' => $canOperate,
+            'edit' => $canEdit,
             'exp' => now()->addSeconds(self::LIFETIME_SECONDS)->getTimestamp(),
         ], JSON_THROW_ON_ERROR));
 

@@ -18,7 +18,7 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 | 📐  | [Layout and versions](08-layout-and-versions.md)                 | Adding uploads to a twin, placing them, terrain, types, saving, downloading and restoring versions    |
 | 📡  | [Gateways and live data](09-gateways-and-live-data.md)           | Running a twin as a service, tokens, the Live switch, and sending readings over HTTP                  |
 | 🔌  | [Devices and MQTT](10-devices-and-mqtt.md)                       | Registering devices, the broker, mapping topics onto metrics, and the recorded history                |
-| 🏭  | [OPC UA](11-opc-ua.md)                                           | Registering PLCs and SCADA servers, mapping nodes onto metrics, writing setpoints, security           |
+| 🏭  | [OPC UA](11-opc-ua.md)                                           | Registering PLCs and SCADA servers, browsing them, mapping nodes onto metrics, writing setpoints      |
 | 🧾  | [Twin definitions](12-twin-definitions.md)                       | The definition editor, drawing in the scene, binding assets to model elements, and what's in the JSON |
 | 🔐  | [Your account](13-your-account.md)                               | Profile, password, two-factor authentication, passkeys and appearance                                 |
 | 🛠️  | [Running Meridian](14-running-meridian.md)                       | The Docker stack, workers, the broker, configuration and upgrading                                    |

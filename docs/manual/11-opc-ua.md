@@ -37,6 +37,21 @@ Only editors can add servers.
 
 The list shows each server's endpoint, security and login. The password is kept encrypted and is never shown again; it's only ever sent to the project's gateways. To change a server, delete it and add it again with the same name. Twins find servers by name, so their mappings keep working.
 
+## Browse a server
+
+![The OPC UA browser in the Layout panel: the Depot PLC's Site folder, with each variable's type, value and whether it can be written.](../images/opcua-browser.png)
+
+You don't need to know a node's id by heart. While the twin's gateway is online, editors can browse any of the project's servers from the twin's **Layout** panel, under **OPC UA** › **Browse a server**:
+
+1. Choose the server in **Look in**, then **Browse**. You see the folders and variables in the server's **Objects** folder.
+2. Choose a folder to open it. The path above the list goes back up.
+3. Each variable shows its type, its value now, and **writable** if the gateway's login can change it.
+4. Choose **Map** beside a variable. A new mapping is added with the server and node filled in; choose its **Asset** and **Metric**, then save.
+
+The gateway is the one that connects, so it uses the server's own settings, security and login. That makes browsing a connection test too: if the gateway can't reach the server, log in or trust its certificate, you're told why, such as **Couldn't browse Depot PLC: …**. A server the twin doesn't map yet gets a short connection of its own; one it already uses is browsed on the connection it has.
+
+Only editors can browse. A folder with more than 200 items shows the first 200.
+
 ## Map nodes onto metrics
 
 ![The OPC UA section of the Layout panel: the store's door switch on the Depot PLC, mapped onto the Seafood store's Door open with a scale of 100.](../images/opcua-mappings.png)
@@ -46,7 +61,7 @@ In the twin's **Layout** panel, under **OPC UA**:
 1. Choose **Add OPC UA mapping**.
 2. Fill in:
     - **Server**: one of the project's servers.
-    - **Node**: the node id, such as `ns=2;s=Store.TempC` or `ns=3;i=1042`. Find it in the server's documentation, or browse the server with a client such as UaExpert.
+    - **Node**: the node id, such as `ns=2;s=Store.TempC` or `ns=3;i=1042`. [Browse the server](#browse-a-server) to find it, or look in the server's documentation.
     - **Asset** and **Metric**: what the value is.
     - **Scale** and **Offset** (optional): to convert units. The value is multiplied by the scale, then the offset is added.
     - **Sampling, ms** (optional): how often the server should check the node for changes, from 50 ms; 1000 ms by default.
@@ -95,7 +110,7 @@ From then on, when an operator applies that setpoint:
 
 If the server refuses the write (the node is read-only, or the gateway's login can't write), the operator sees why, and the model keeps the new setpoint until the PLC's own value comes back. While writing is off, applying a mapped setpoint changes only the model, and the operator is told so.
 
-![The OPC UA section with the jockey pump's start pressure mapped for writing, writing turned on, and the recent writes.](../images/opcua-writes.png)
+![Writing turned on for the twin, and the latest write: the jockey pump's start pressure of 630 kPa, written to the Depot PLC as 6.3.](../images/opcua-writes.png)
 
 Every write, good or not, is recorded: when, who asked, the node and server, the setpoint asked for and the one written, and any error. The last 20 are listed under **Writing setpoints**. Viewers can't apply setpoints, so they can never write.
 
@@ -134,13 +149,13 @@ npm run opcua-simulator
 
 It listens at `opc.tcp://127.0.0.1:4840/meridian`, anonymous and unsecured, with:
 
-| Node                     | What it is                                           |
-| ------------------------ | ---------------------------------------------------- |
-| `ns=1;s=Store.TempC`     | A freezer temperature, swinging slowly around −18 °C |
-| `ns=1;s=Store.DoorOpen`  | A door switch, open for 10 seconds every 2 minutes   |
-| `ns=1;s=Meter.EnergyWh`  | An energy meter, counting up                         |
-| `ns=1;s=Pump.StartBar` | A pump's start pressure in bar, a writable Double: 6 |
-| `ns=1;s=Fan.SpeedPct`    | A writable fan speed, a whole number from 0 to 65535 |
+| Node                    | What it is                                           |
+| ----------------------- | ---------------------------------------------------- |
+| `ns=1;s=Store.TempC`    | A freezer temperature, swinging slowly around −18 °C |
+| `ns=1;s=Store.DoorOpen` | A door switch, open for 10 seconds every 2 minutes   |
+| `ns=1;s=Meter.EnergyWh` | An energy meter, counting up                         |
+| `ns=1;s=Pump.StartBar`  | A pump's start pressure in bar, a writable Double: 6 |
+| `ns=1;s=Fan.SpeedPct`   | A writable fan speed, a whole number from 0 to 65535 |
 
 Add it to a project as a server, map `ns=1;s=Store.TempC` onto a cold store's **Temperature**, and start the twin's gateway on the same machine.
 

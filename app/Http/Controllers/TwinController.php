@@ -147,7 +147,7 @@ final readonly class TwinController
                 'seenAt' => $twin->gateway_seen_at?->toIso8601String(),
                 'mqtt' => $online ? $twin->gateway_mqtt : null,
                 'opcua' => $online ? $twin->gateway_opcua : null,
-                'ticket' => $online ? $tickets->handle($twin, $user, $canOperate) : null,
+                'ticket' => $online ? $tickets->handle($twin, $user, $canOperate, $user->can('update', $twin)) : null,
             ],
             'can' => [
                 'update' => $user->can('update', $twin),

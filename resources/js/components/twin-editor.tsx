@@ -610,6 +610,11 @@ export function TwinEditor({
                 definition={definition}
                 servers={opcuaServers}
                 writes={opcuaWrites}
+                gateway={
+                    gateway?.online && gateway.url && gateway.ticket
+                        ? { url: gateway.url, ticket: gateway.ticket }
+                        : null
+                }
             />
 
             <section>

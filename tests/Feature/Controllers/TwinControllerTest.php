@@ -180,10 +180,32 @@ it('reports the gateway, and gives viewers a ticket while it is online', functio
             ->where('gateway.opcua', ['Plant PLC' => 'connected'])
             ->where('gateway.url', 'ws://localhost:8788/ws')
             ->where('gateway.seenAt', now()->toIso8601String())
-            ->where('gateway.ticket', fn (string $ticket): bool => json_decode(base64_decode(strtr(explode('.', $ticket)[0], '-_', '+/')), true)['operate'] === false));
+            ->where('gateway.ticket', fn (string $ticket): bool => ticketClaims($ticket)['operate'] === false && ticketClaims($ticket)['edit'] === false));
 
     expect(hash('sha256', $token))->toBe($twin->refresh()->gateway_token_hash);
 });
+
+it('lets editors browse OPC UA servers through the gateway, and operators only operate', function (OrganisationRole $role, bool $operate, bool $edit): void {
+    [$user, $organisation] = member($role);
+    $twin = twinIn($organisation);
+    resolve(IssueGatewayToken::class)->handle($twin);
+    resolve(RecordGatewayCheckIn::class)->handle($twin, 'ws://localhost:8788/ws');
+
+    $this->actingAs($user)->get(route('twins.show', $twin))
+        ->assertInertia(fn ($page) => $page->where('gateway.ticket', fn (string $ticket): bool => array_intersect_key(ticketClaims($ticket), ['operate' => 0, 'edit' => 0]) === ['operate' => $operate, 'edit' => $edit]));
+})->with([
+    'an admin' => [OrganisationRole::Admin, true, true],
+    'an operator' => [OrganisationRole::Operator, true, false],
+]);
+
+/**
+ * @return array<string, mixed>
+ */
+function ticketClaims(string $ticket): array
+{
+    /** @var array<string, mixed> */
+    return json_decode(base64_decode(strtr(explode('.', $ticket)[0], '-_', '+/')), true);
+}
 
 it('hides twins from other organisations', function (): void {
     [, $organisation] = member();

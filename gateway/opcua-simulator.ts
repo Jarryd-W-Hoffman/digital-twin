@@ -65,7 +65,9 @@ export async function startSimulator(options: SimulatorOptions = {}) {
       dataType,
       minimumSamplingInterval: 100,
       // Store.Status is read-only; the rest can be written, as a PLC's tags can.
-      ...(name === 'Store.Status' ? {} : { accessLevel: 'CurrentRead | CurrentWrite', userAccessLevel: 'CurrentRead | CurrentWrite' }),
+      ...(name === 'Store.Status'
+        ? { accessLevel: 'CurrentRead', userAccessLevel: 'CurrentRead' }
+        : { accessLevel: 'CurrentRead | CurrentWrite', userAccessLevel: 'CurrentRead | CurrentWrite' }),
       value: {
         get: () => new Variant({ dataType, value: values[name] }),
         set: (variant: Variant) => {
