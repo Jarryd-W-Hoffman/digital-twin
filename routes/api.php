@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\GatewayAlertController;
 use App\Http\Controllers\GatewayDefinitionController;
 use App\Http\Controllers\GatewayOpcUaWriteController;
 use App\Http\Controllers\GatewayReadingController;
@@ -22,6 +23,9 @@ Route::middleware(AuthenticateGateway::class)->prefix('gateway')->name('gateway.
     Route::post('opcua-writes', [GatewayOpcUaWriteController::class, 'store'])
         ->middleware('throttle:120,1')
         ->name('opcua-writes.store');
+    Route::post('alerts', [GatewayAlertController::class, 'store'])
+        ->middleware('throttle:120,1')
+        ->name('alerts.store');
 });
 
 // The MQTT broker's auth plugin asks who may connect, publish and subscribe.

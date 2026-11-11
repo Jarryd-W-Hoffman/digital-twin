@@ -16,6 +16,8 @@ use App\Http\Controllers\ProjectUploadCompletionController;
 use App\Http\Controllers\ProjectUploadController;
 use App\Http\Controllers\ProjectUploadPartController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\TwinAlertAcknowledgementController;
+use App\Http\Controllers\TwinAlertController;
 use App\Http\Controllers\TwinAssetController;
 use App\Http\Controllers\TwinController;
 use App\Http\Controllers\TwinGatewayTokenController;
@@ -77,6 +79,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'store'])->name('twins.gateway-token.store');
     Route::delete('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'destroy'])->name('twins.gateway-token.destroy');
     Route::put('twins/{twin}/opcua-writes', [TwinOpcUaWritesController::class, 'update'])->name('twins.opcua-writes.update');
+    Route::get('twins/{twin}/alerts', [TwinAlertController::class, 'index'])->name('twins.alerts.index');
+    Route::post('twins/{twin}/alerts/{alert}/acknowledgement', [TwinAlertAcknowledgementController::class, 'store'])->scopeBindings()->name('twins.alerts.acknowledgement.store');
 
     // Organisations...
     Route::post('organisations', [OrganisationController::class, 'store'])->name('organisations.store');

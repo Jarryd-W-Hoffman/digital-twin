@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Alert log** ([#32]): a twin's gateway now runs its rules itself, so alerts are raised while nobody has the twin open, and tells the control plane which are open whenever that changes and every 30 seconds. Each alert is kept in the twin's new **alert log** (`/twins/{twin}/alerts`) with when it was raised and cleared, and who acknowledged it; operators acknowledge there or from the Alerts tab while following the gateway, and everyone sees who did. Roadmap item 11, **Alerts that reach people**, starts here.
 - **Twin settings** ([#31]): **Settings** on the twin page, for editors, renames a twin, changes its description, and deletes it with its history. Its uploads stay in the project's library.
 - **Definition editor, zones and assets** ([#16]): a **Zones and assets** panel on the twin page, with forms generated from the definition's JSON Schema that show only the fields for an asset's kind. Edits are a draft checked as you type, saved as one version or discarded.
 - **Definition editor for every list** ([#18]): **Definition** on the twin page (it was **Zones and assets**) adds routes, types, rules, scenarios, KPIs and panels, with nested forms for a type's metrics, states and transitions, a route's stops, a scenario's faults and a panel's figures. Pickers offer what the definition has, and a save's note names the lists that changed.
@@ -220,3 +221,4 @@ Dates are when the change was merged into `main` (UTC).
 [#29]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/29
 [#30]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/30
 [#31]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/31
+[#32]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/32

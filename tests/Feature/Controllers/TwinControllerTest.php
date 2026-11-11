@@ -6,6 +6,7 @@ use App\Actions\AddAssetToTwin;
 use App\Actions\IssueGatewayToken;
 use App\Actions\RecordGatewayCheckIn;
 use App\Enums\OrganisationRole;
+use App\Models\Alert;
 use App\Models\OpcUaServer;
 use App\Models\OpcUaWrite;
 use App\Models\Project;
@@ -154,6 +155,7 @@ it('shows a twin with its definition, history, project library and abilities', f
             ->where('assets.0.url', $asset->url())
             ->where('types', [])
             ->where('gateway', null)
+            ->where('alerts', null)
             ->where('opcuaWrites', ['allowed' => false, 'recent' => []])
             ->where('can', ['update' => $update, 'operate' => $operate, 'manageTypes' => $update]));
 })->with([
@@ -290,4 +292,20 @@ it("lists the twin's latest OPC UA writes, newest first, with who asked", functi
                 'error' => 'BadNotWritable',
             ])
             ->where('opcuaWrites.recent.1.user', $user->name));
+});
+
+it('passes the open alerts of a twin with a gateway, with who acknowledged them', function (): void {
+    [$user] = member();
+    [$twin] = gatewayTwin();
+    $user->memberships()->create(['organisation_id' => $twin->organisation_id, 'role' => OrganisationRole::Operator]);
+    $acknowledged = Alert::factory()->for($twin)->create(['raised_at' => now()->subHour(), 'acknowledged_at' => now(), 'acknowledged_by' => $user->id]);
+    $latest = Alert::factory()->for($twin)->create(['rule' => 'tripped', 'asset' => 'plant']);
+    Alert::factory()->for($twin)->cleared()->create();
+    Alert::factory()->create();
+
+    $this->actingAs($user)->get(route('twins.show', $twin))
+        ->assertInertia(fn ($page) => $page->where('alerts', [
+            ['id' => $latest->id, 'rule' => 'tripped', 'asset' => 'plant', 'acknowledgedBy' => null, 'acknowledgedAt' => null],
+            ['id' => $acknowledged->id, 'rule' => 'warm', 'asset' => 'store', 'acknowledgedBy' => $user->name, 'acknowledgedAt' => $acknowledged->acknowledged_at?->toIso8601String()],
+        ]));
 });

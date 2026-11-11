@@ -28,9 +28,38 @@ Choose the alerts button, or the **Alerts** tab in the inspector. Each alert sho
 
 - **Show**: selects the asset and flies to it.
 - **Replay from here**: moves the timeline back to the moment it was raised, so you can watch what led to it.
-- **Acknowledge**: marks it as seen. It stays in the list until it clears.
+- **Acknowledge**: marks it as seen. It stays in the list until it clears. While you're following a gateway, it's recorded in the [alert log](#the-alert-log) with your name, and everyone sees **Acknowledged by** you.
+
+With a gateway, **Alert log** at the top of the tab opens the twin's log.
 
 Tick **Include cleared** to see alerts that have already cleared, with the time they did.
+
+### The alert log
+
+While a [gateway](09-gateways-and-live-data.md) runs the twin, it watches the rules itself, so alerts are raised even when nobody has the twin open, and each one is kept in the twin's **alert log**.
+
+```mermaid
+flowchart LR
+    R["Readings and the model"] --> G["Gateway<br/>runs the rules every step"]
+    G -->|"which alerts are open"| CP["Meridian<br/>the alert log"]
+    CP --> L["Raised, cleared,<br/>acknowledged by whom"]
+    U["Operators"] -->|Acknowledge| CP
+```
+
+![The alert log for Harbour Depot: the store above its limit, open and acknowledged by Test User, and an earlier excursion that has cleared, waiting to be acknowledged.](../images/alert-log.png)
+
+Open it from **Alert log** on the Alerts tab, or go to the twin's address followed by `/alerts`. Each entry shows:
+
+- its **severity**, and **Open** while it hasn't cleared;
+- its message, when it was raised and when it cleared, and how long it lasted;
+- the asset and rule it came from, and the value when it was raised;
+- who **acknowledged** it, and when.
+
+Choose **Open** at the top to see only what hasn't cleared, and **Older** and **Newer** to page back through the log, 50 at a time.
+
+Anyone who can see the twin can read the log. Operators, admins and owners can **Acknowledge** an alert there or from the Alerts tab; the first person to acknowledge it is kept.
+
+The times in the log are real times, when Meridian heard from the gateway, not the twin's site time. A twin without a gateway still raises alerts in your browser while it's open, but they aren't logged.
 
 ![The refrigeration board trip applied live, coloured by temperature: a beacon over the tripped board, de-energised chillers, both stores warming, and alerts on the timeline.](../images/cascade.png)
 
@@ -77,6 +106,7 @@ The results show:
 ## Tips
 
 - **Forecast first, then decide.** "If Chiller 2's bearing goes, how long have we got?" is a two-click question.
+- **Run a gateway for anything that matters.** Without one, nobody is told about an alert unless they have the twin open.
 - **Use replay after an incident.** Find the first alert, choose **Replay from here**, and step forward at 60× to see the order things happened in.
 
 ## See also

@@ -13,6 +13,7 @@ import { OBJECTS_FOLDER, OpcUaBridge, type OpcUaOptions, type OpcUaServerConfig,
 import { compileTelemetry, type Telemetry } from '../resources/js/twin/core/telemetry.ts';
 import { parseDefinition } from '../resources/js/twin/core/validate.ts';
 import { ReadingLog } from './readings.ts';
+import { AlertWatch } from './alerts.ts';
 import { ticketKey, verifyTicket, type TicketAccess } from './tickets.ts';
 
 /**
@@ -174,6 +175,7 @@ export async function startGateway(options: GatewayOptions = {}) {
   const ingestToken = options.token ?? cp?.token;
 
   const log = cp ? new ReadingLog(cp) : null;
+  const alerts = new AlertWatch(cp ?? null, definition);
   /** Feeds the model and the history alike, from /ingest or MQTT. */
   const measure = (readings: Reading[]) => {
     for (const r of readings) runner.measure(`${r.asset}.${r.metric}`, r.value, r.ttlS);
@@ -292,7 +294,13 @@ export async function startGateway(options: GatewayOptions = {}) {
     const start = siteTime(now, def.utcOffsetHours, 14) - PREROLL_S * 1000;
     runner = new SimRunner(def, start);
     history = new History(HISTORY_FRAMES);
-    for (const f of runner.preroll(PREROLL_S)) history.push(f);
+    // The rules see the preroll too, so hold times and change windows are
+    // primed, and whatever is open after it is open now.
+    alerts.reset(def);
+    for (const f of runner.preroll(PREROLL_S)) {
+      history.push(f);
+      alerts.evaluate(f);
+    }
     for (const { server, node, value } of latestOpcua.values())
       for (const r of opcua.read(server, node, value).readings) runner.measure(`${r.asset}.${r.metric}`, r.value, r.ttlS);
   };
@@ -369,6 +377,7 @@ export async function startGateway(options: GatewayOptions = {}) {
         mqtt: client ? { connected: client.connected, topics: telemetry.topics, ...mqttStats } : null,
         opcua: bridge ? { servers: bridge.health(), writes: opcuaWrites, ...opcuaStats } : null,
         history: log ? { pending: log.pending, sent: log.sent, dropped: log.dropped } : null,
+        alerts: { open: alerts.open().length, sent: alerts.sent, failed: alerts.failed },
       });
       return;
     }
@@ -451,7 +460,13 @@ export async function startGateway(options: GatewayOptions = {}) {
     const t = performance.now();
     const tick = runner.tick((t - last) / 1000);
     last = t;
-    for (const f of tick.history) history.push(f);
+    for (const f of tick.history) {
+      history.push(f);
+      const { raised, cleared } = alerts.evaluate(f);
+      for (const a of raised) console.log(`Gateway: alert raised, ${a.severity}: ${a.message}`);
+      for (const a of cleared) console.log(`Gateway: alert cleared: ${a.message}`);
+    }
+    void alerts.report();
     if (sockets.size === 0) return;
     const payload = JSON.stringify({ type: 'tick', ...tick, speed: runner.speed } satisfies ServerMessage);
     for (const s of sockets.keys()) s.send(payload);
@@ -504,6 +519,7 @@ export async function startGateway(options: GatewayOptions = {}) {
     runner: SimRunner;
     version: number | null;
     log: ReadingLog | null;
+    alerts: AlertWatch;
     close: () => Promise<void>;
   }>((done) => {
     server.listen(port, host, () => {
@@ -517,6 +533,7 @@ export async function startGateway(options: GatewayOptions = {}) {
           return fetched?.version ?? null;
         },
         log,
+        alerts,
         close: () =>
           new Promise((closed) => {
             clearInterval(timer);

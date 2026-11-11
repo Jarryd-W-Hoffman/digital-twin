@@ -88,6 +88,8 @@ export interface TwinStore {
     canOperate: boolean;
     /** Loads recorded readings from the control plane; null when there is none. */
     recorded: RecordedLoader | null;
+    /** The control plane's alert log, for a twin with a gateway; null otherwise. */
+    serverAlerts: ServerAlerts | null;
     /** Placements being edited, shown live before they are saved. */
     drafts: Record<string, Placement | undefined>;
     /** The layer a ground click moves, while placing. */
@@ -185,6 +187,23 @@ export interface Recorded {
     }[];
 }
 
+/**
+ * A twin's alerts as its gateway reported them to the control plane, so
+ * acknowledging one is shared and recorded with who did it.
+ */
+export interface ServerAlerts {
+    /** Open alerts by `alertKey`, with who acknowledged each (null for nobody yet). */
+    open: Record<string, { acknowledgedBy: string | null }>;
+    /** Acknowledges the open alert for a rule and asset; absent while watching the simulator. */
+    acknowledge?: (ruleId: string, assetId: string) => void;
+    /** The twin's alert log page. */
+    logUrl: string;
+}
+
+/** How an alert is named across the browser, the gateway and the control plane. */
+export const alertKey = (ruleId: string, assetId: string) =>
+    `${ruleId}\n${assetId}`;
+
 export type RecordedLoader = (
     asset: string,
     metric: string,
@@ -225,6 +244,7 @@ export const useTwin = create<TwinStore>((set, get) => ({
     globeRequest: 0,
     canOperate: true,
     recorded: null,
+    serverAlerts: null,
     drafts: {},
     placingLayer: null,
     setDraft: (id, placement) =>
@@ -358,6 +378,9 @@ export const useTwin = create<TwinStore>((set, get) => ({
         if (!rules) return;
         rules.acknowledge(id, get().live?.t ?? Date.now());
         set({ alerts: [...rules.alerts()] });
+        const alert = rules.alerts().find((a) => a.id === id);
+        if (alert && alert.clearedAt === undefined)
+            get().serverAlerts?.acknowledge?.(alert.ruleId, alert.assetId);
     },
     predict: (scenarioId, horizonS) => {
         const { model, simState } = get();
@@ -538,6 +561,7 @@ export function stopTwin(): void {
         view: undefined,
         canOperate: true,
         recorded: null,
+        serverAlerts: null,
         drafts: {},
         placingLayer: null,
         movingLayer: null,

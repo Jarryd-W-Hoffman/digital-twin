@@ -688,6 +688,45 @@ test('screenshots', async ({ page, context }) => {
 
         await page.getByRole('button', { name: 'Layout', exact: true }).click();
         await shot(gatewayPanel, 'gateway-online');
+
+        // The gateway raises alerts while nobody watches, and logs them: a
+        // short excursion that has cleared, then one still open, acknowledged.
+        const storeAt = (value: number, ttlS: number) =>
+            fetch(`http://127.0.0.1:${GATEWAY_PORT}/ingest`, {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    asset: 'store',
+                    metric: 'tempC',
+                    value,
+                    ttlS,
+                }),
+            });
+        const twinUrl = page.url();
+        const alertList = page.getByRole('list', { name: 'Alerts' });
+        const logShows = async (text: string, count: number) =>
+            expect(async () => {
+                await page.goto(`${twinUrl}/alerts`);
+                await expect(
+                    alertList.getByRole('listitem').filter({ hasText: text }),
+                ).toHaveCount(count, { timeout: 2000 });
+            }).toPass({ timeout: 90_000 });
+        await storeAt(7.4, 600);
+        await logShows('Open', 1);
+        await storeAt(1.2, 600);
+        await logShows('cleared', 1);
+        await storeAt(8.1, 86_400);
+        await logShows('Open', 1);
+        await alertList
+            .getByRole('listitem')
+            .filter({ hasText: 'Open' })
+            .getByRole('button', { name: 'Acknowledge' })
+            .click();
+        await expect(alertList).toContainText('Acknowledged by Test User');
+        await shot(page, 'alert-log');
+        await storeAt(1.2, 600);
+        await logShows('Open', 0);
+        await page.goto(twinUrl);
     });
 
     await test.step('a BIM model, the definition editor and drawing', async () => {

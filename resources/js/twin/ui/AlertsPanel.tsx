@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { activeAt } from '../core/rules.ts';
-import { useTwin } from '../state/store.ts';
+import { alertKey, useTwin } from '../state/store.ts';
 import { clock } from './format.ts';
 import { SeverityBadge } from './StatusBadge.tsx';
 
@@ -11,6 +11,7 @@ export function AlertsPanel() {
     const select = useTwin((s) => s.select);
     const acknowledge = useTwin((s) => s.acknowledge);
     const scrubTo = useTwin((s) => s.scrubTo);
+    const server = useTwin((s) => s.serverAlerts);
     const [showAll, setShowAll] = useState(false);
     if (!def) return null;
     const t = view?.t ?? 0;
@@ -23,6 +24,11 @@ export function AlertsPanel() {
         <div className="inspector">
             <div className="inspector-head row-between">
                 <h2>Alerts</h2>
+                {server && (
+                    <a className="link" href={server.logUrl}>
+                        Alert log
+                    </a>
+                )}
                 <label className="check">
                     <input
                         type="checkbox"
@@ -43,6 +49,10 @@ export function AlertsPanel() {
             <ul className="alert-list">
                 {list.map((a) => {
                     const isActive = activeAt(a, t);
+                    const shared = isActive
+                        ? server?.open[alertKey(a.ruleId, a.assetId)]
+                        : undefined;
+                    const ackedBy = shared?.acknowledgedBy ?? null;
                     return (
                         <li
                             key={a.id}
@@ -75,7 +85,11 @@ export function AlertsPanel() {
                                 >
                                     Replay from here
                                 </button>
-                                {a.ackedAt !== undefined ? (
+                                {ackedBy !== null ? (
+                                    <span className="muted">
+                                        Acknowledged by {ackedBy}
+                                    </span>
+                                ) : a.ackedAt !== undefined ? (
                                     <span className="muted">Acknowledged</span>
                                 ) : (
                                     <button

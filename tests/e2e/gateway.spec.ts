@@ -87,6 +87,39 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
     expect(ingest.status).toBe(202);
     await expect.poll(async () => (await state(owner)).freezer, { timeout: 30_000 }).toBe(-11.5);
 
+    // The gateway raises alerts itself and logs them in the control plane,
+    // where acknowledging one records who did it.
+    const reading = (value: number) =>
+      fetch(`http://127.0.0.1:${PORT}/ingest`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+        body: JSON.stringify({ asset: 'fire-tank', metric: 'levelPct', value, ttlS: 86_400 }),
+      });
+    expect((await reading(40)).status).toBe(202);
+    const twinUrl = owner.url();
+    const logged = owner.getByRole('list', { name: 'Alerts' }).getByRole('listitem').filter({ hasText: 'Fire water tank is below 60%' }).first();
+    await expect(async () => {
+      await owner.goto(`${twinUrl}/alerts`);
+      await expect(logged).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 60_000 });
+    await expect(logged).toContainText('Open');
+    await owner.goto(twinUrl);
+    await expect.poll(() => state(owner), { timeout: 60_000 }).toMatchObject({ kind: 'gateway', status: 'online' });
+    await owner.getByRole('tab', { name: 'Alerts' }).click();
+    const inScene = owner.locator('.alert-item', { hasText: 'Fire water tank is below 60%' });
+    await inScene.getByRole('button', { name: 'Acknowledge' }).click();
+    await expect(inScene).toContainText('Acknowledged by Test User', { timeout: 30_000 });
+    await owner.getByRole('link', { name: 'Alert log' }).click();
+    await expect(logged).toContainText('Acknowledged by Test User');
+    expect((await reading(90)).status).toBe(202);
+    await expect(async () => {
+      await owner.reload();
+      await expect(logged).toContainText('cleared', { timeout: 2000 });
+    }).toPass({ timeout: 60_000 });
+    await owner.goto(twinUrl);
+    await expect(owner.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
+
+
     // A viewer follows the same gateway, and may only watch.
     const viewer = await logIn(browser, 'viewer@example.com');
     await expect(viewer.getByRole('radio', { name: 'Live' })).toBeChecked({ timeout: 30_000 });
