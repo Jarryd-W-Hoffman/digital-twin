@@ -151,9 +151,11 @@ test('a different definition runs the whole platform', async ({ page }) => {
   await expect(page.locator('.kpi')).toHaveCount(4);
   await expect(page.locator('.kpi', { hasText: 'Margin to limit' })).toContainText('°C');
   // The depot sits on its terrain's 12 m pad, not the bare ellipsoid.
-  const terrain = () => page.evaluate(() => (window as unknown as { __scene: { terrain(): { loaded: boolean; ground: number } } }).__scene.terrain());
+  // Its relief is hillshaded, since Cesium leaves the ground unlit up close.
+  const terrain = () => page.evaluate(() => (window as unknown as { __scene: { terrain(): { loaded: boolean; ground: number; shaded: boolean } } }).__scene.terrain());
   await expect.poll(async () => (await terrain()).loaded, { timeout: 30_000 }).toBe(true);
   expect((await terrain()).ground).toBeCloseTo(12, 0);
+  expect((await terrain()).shaded).toBe(true);
   await page.getByRole('tab', { name: 'What-if' }).click();
   await page.getByRole('button', { name: 'Run forecast' }).click();
   await expect(page.getByTestId('forecast-results')).toContainText('Seafood store');

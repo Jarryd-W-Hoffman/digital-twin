@@ -519,6 +519,18 @@ test('screenshots', async ({ page, context }) => {
             'versions',
         );
 
+        // The twin's own settings, then back to the Layout panel.
+        await page.getByRole('button', { name: 'Settings' }).click();
+        const settings = page.getByRole('complementary', { name: 'Settings' });
+        await settings
+            .getByLabel('Description')
+            .fill(
+                'A quay depot on its terrain, with a pump skid and a wharf scan.',
+            );
+        await shot(settings, 'twin-settings');
+        await page.getByRole('button', { name: 'Layout' }).click();
+        await expect(editor).toBeVisible();
+
         // The type library: the jockey pump needs Northshore's fire tank.
         const types = editor.locator('section', {
             has: page.getByRole('heading', { name: 'Types', exact: true }),

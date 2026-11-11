@@ -8,7 +8,11 @@ Your account is yours across every organisation you belong to. Open it from **yo
 
 Under **Profile**, change your **Name** and **Email address**, then choose **Save**. If you change your email address, Meridian may ask you to verify the new one with a link sent to it.
 
-**Delete account**, at the bottom, deletes your account for good after you confirm your password. Your organisations, projects and twins aren't deleted with it. If you're an organisation's only owner, [make someone else an owner](02-organisations-and-members.md#change-a-role-or-remove-someone) first, or nobody will be able to manage its members.
+**Delete account**, at the bottom, deletes your account for good after you confirm your password. What happens to your organisations depends on who else is in them:
+
+- **Others are in it, and another is an owner:** it carries on without you.
+- **Others are in it, but you're its only owner:** your account isn't deleted. Meridian names the organisation; [make someone else an owner](02-organisations-and-members.md#change-a-role-or-remove-someone) and try again.
+- **You're its only member:** it's deleted with you, with its projects, twins and uploads.
 
 ## Password
 

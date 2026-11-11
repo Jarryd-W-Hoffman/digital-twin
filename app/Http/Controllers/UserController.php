@@ -44,9 +44,11 @@ final readonly class UserController
 
     public function destroy(DeleteUserRequest $request, #[CurrentUser] User $user, DeleteUser $action): RedirectResponse
     {
-        Auth::logout();
-
+        // Delete first, so a refusal leaves the user signed in. The device-only
+        // logout doesn't save the deleted user's remember token back.
         $action->handle($user);
+
+        Auth::logoutCurrentDevice();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

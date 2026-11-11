@@ -9,6 +9,7 @@ import {
     type TwinAssetSummary,
     type TwinVersionSummary,
 } from '@/components/twin-editor';
+import { TwinSettings } from '@/components/twin-settings';
 import { show as showProject } from '@/routes/projects';
 import { index as twinReadings } from '@/routes/twins/readings';
 import type { TwinDefinition } from '@/twin/core/types';
@@ -51,9 +52,9 @@ export default function ShowTwin({
     opcuaWrites,
     can,
 }: Props) {
-    const [editing, setEditing] = useState<'layout' | 'definition' | null>(
-        null,
-    );
+    const [editing, setEditing] = useState<
+        'layout' | 'definition' | 'settings' | null
+    >(null);
     // Follow the gateway when one is connected, unless the user picks the simulator.
     const [preferSimulator, setPreferSimulator] = useState(false);
     const live =
@@ -149,6 +150,7 @@ export default function ShowTwin({
                                 [
                                     ['layout', 'Layout'],
                                     ['definition', 'Definition'],
+                                    ['settings', 'Settings'],
                                 ] as const
                             ).map(([panel, label]) => (
                                 <button
@@ -181,6 +183,12 @@ export default function ShowTwin({
                         topicPrefix={project.topicPrefix}
                         opcuaServers={project.opcuaServers}
                         opcuaWrites={opcuaWrites}
+                        onClose={() => setEditing(null)}
+                    />
+                )}
+                {editing === 'settings' && (
+                    <TwinSettings
+                        twin={twin}
                         onClose={() => setEditing(null)}
                     />
                 )}

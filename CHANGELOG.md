@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Twin settings** ([#31]): **Settings** on the twin page, for editors, renames a twin, changes its description, and deletes it with its history. Its uploads stay in the project's library.
 - **Definition editor, zones and assets** ([#16]): a **Zones and assets** panel on the twin page, with forms generated from the definition's JSON Schema that show only the fields for an asset's kind. Edits are a draft checked as you type, saved as one version or discarded.
 - **Definition editor for every list** ([#18]): **Definition** on the twin page (it was **Zones and assets**) adds routes, types, rules, scenarios, KPIs and panels, with nested forms for a type's metrics, states and transitions, a route's stops, a scenario's faults and a panel's figures. Pickers offer what the definition has, and a save's note names the lists that changed.
 - **Drawing in the scene** ([#19]): footprints and paths drawn by clicking the ground, with points that can be dragged, and asset positions placed with a click, from the definition editor.
@@ -35,6 +36,8 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Fixed
 
+- **Terrain relief shows** ([#31]): terrain is hillshaded, lit from the north-west, so slopes read at site scale where Cesium leaves the ground unlit. Flat ground is unchanged.
+- **Deleting an account keeps every organisation owned** ([#31]): it's refused while you're the only owner of an organisation with other members, with the organisation named, and you stay signed in. An organisation you're the only member of is deleted with you, its projects' files too.
 - A gateway no longer restarts its model when only a project's OPC UA servers or the writing switch change, and after a new version it measures each mapped OPC UA node's last value again. Before, a steady value (which a server never reports again) was lost until it changed ([#25]).
 - The **Definition** panel keeps its tabs and **Save** in view: only the lists and the form scroll, so a long form no longer runs under the save bar ([#23]).
 - IFC models converted by `meridian-ifc` no longer land turned 90° in the viewer ([#21]).
@@ -216,3 +219,4 @@ Dates are when the change was merged into `main` (UTC).
 [#28]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/28
 [#29]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/29
 [#30]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/30
+[#31]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/31

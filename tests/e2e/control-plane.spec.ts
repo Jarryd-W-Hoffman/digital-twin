@@ -185,6 +185,45 @@ test('an owner starts an empty twin at a location from the project page', async 
   expect(problems).toEqual([]);
 });
 
+test('an owner renames a twin and describes it, then deletes it', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  page.on('dialog', (dialog) => void dialog.accept());
+  await logIn(page, 'test@example.com');
+
+  await page.getByRole('link', { name: 'New twin' }).click();
+  await expect(page.getByLabel('Project')).toHaveValue(/.+/);
+  await page.getByLabel('Name', { exact: true }).fill('Short-lived site');
+  await page.getByLabel('Latitude').fill('-36.8442');
+  await page.getByLabel('Longitude').fill('174.7676');
+  await page.getByLabel('UTC offset (hours)').fill('13');
+  await page.getByRole('button', { name: 'Create twin' }).click();
+  await expect(page.locator('.twin-name')).toHaveText('Short-lived site');
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const settings = page.getByRole('complementary', { name: 'Settings' });
+  await expect(settings.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await settings.getByLabel('Name').fill('Renamed site');
+  await settings.getByLabel('Description').fill('A quay, surveyed in spring.');
+  await settings.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.twin-name')).toHaveText('Renamed site');
+  await expect(settings.getByRole('status')).toHaveText('Saved');
+  await expect(settings.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(settings.getByLabel('Description')).toHaveValue('A quay, surveyed in spring.');
+
+  await settings.getByLabel('Name').fill('');
+  await settings.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.twin-name')).toHaveText('Renamed site');
+
+  await settings.getByRole('button', { name: 'Delete twin' }).click();
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  await expect(page.getByText('Twin deleted.')).toBeVisible();
+  await expect(page.getByRole('link', { name: /^Renamed site/ })).toHaveCount(0);
+  expect(problems).toEqual([]);
+});
+
 test('an owner adds a device, is shown its broker login once, and can reset or delete it', async ({ page }) => {
   await logIn(page, 'test@example.com');
   const devices = page.getByRole('region', { name: 'Devices' });
@@ -450,6 +489,7 @@ test('a viewer watches the twin but cannot edit or operate it', async ({ page })
   await logIn(page, 'viewer@example.com');
   await openTwin(page, 'Northshore Cold Chain Hub');
   await expect(page.getByRole('button', { name: 'Layout' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Settings' })).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as Debug).__twin.getState().canOperate)).toBe(false);
   await page.getByRole('button', { name: /^Freezer hall/ }).first().click();
   await expect(page.getByRole('button', { name: 'Raise setpoint' })).toBeDisabled();

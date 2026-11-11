@@ -16,7 +16,15 @@ A **twin** is one site: its buildings and equipment, where they are, how power a
     - **A definition file**: a twin definition saved as JSON, such as one downloaded from another twin. See [Twin definitions](12-twin-definitions.md).
 4. Choose **Create twin**. Meridian checks the definition, saves it as version 1 and opens the twin.
 
-Only editors can create twins. Renaming or deleting a twin isn't in the app yet.
+Only editors can create twins.
+
+## Rename or delete a twin
+
+![The Settings panel: the twin's name and description with Save, and Delete twin below.](../images/twin-settings.png)
+
+Editors choose **Settings** in the bar above the scene. Change the **Name** or **Description** and choose **Save**; the twin keeps its versions, and the change isn't a new one.
+
+**Delete twin** deletes the twin and all of its versions, after you confirm. Its uploads stay in the project's [library](03-projects-and-the-library.md) for its other twins. It can't be undone.
 
 ## The twin page
 
@@ -31,6 +39,7 @@ From left to right:
 - **Simulator / Live**: shown while a [gateway](09-gateways-and-live-data.md) is running the twin. **Live** follows the gateway; **Simulator** runs the model in your browser instead.
 - **Layout** (editors only): opens the [Layout panel](08-layout-and-versions.md).
 - **Definition** (editors only): opens the [definition editor](12-twin-definitions.md#edit-a-definition), for zones, assets and everything else in the twin.
+- **Settings** (editors only): renames, describes or deletes the twin; see [Rename or delete a twin](#rename-or-delete-a-twin).
 - **The headline figures**: **Site load**, **Solar**, **Grid import** (or **Export**, or **Lost** during an outage), **Battery** charge, and **Tightest store**, how close the warmest cold store is to its limit. A twin can declare its own figures instead, like Harbour Depot's **Margin to limit** and **Run cost**; see [KPIs and panels](12-twin-definitions.md#kpis-and-panels).
 - **The alerts button**: **No alerts**, or how many are active. Choose it to open the **Alerts** tab.
 - **The source**: **Simulator**, or the gateway's address, with how many metrics come from real sensors.
