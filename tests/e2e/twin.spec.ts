@@ -433,3 +433,38 @@ test('a viewshed tints what a sensor sees, by its shape, and a line of sight fin
   await expect(panel).toHaveCount(0);
   expect(problems).toEqual([]);
 });
+
+test('the wind arrow follows the weather mast, and the yard camera’s fan is drawn', async ({ page }) => {
+  const problems = await open(page);
+  type Pose = { headingDeg: number; tiltDeg: number; length: number };
+  type Hooks = {
+    __scene: { shapes: { poseOf(id: string): Pose | null; tipOnScreen(id: string): { x: number; y: number } | null } };
+    __twin: { getState(): { view: { values: Record<string, number> } | null } };
+  };
+  // The arrow and the readings it follows, from the same frame.
+  const now = () =>
+    page.evaluate(() => {
+      const w = window as unknown as Hooks;
+      const values = w.__twin.getState().view?.values ?? {};
+      return { pose: w.__scene.shapes.poseOf('wind'), from: values['wx.windDeg'], speed: values['wx.windMs'] };
+    });
+  await expect.poll(async () => (await now()).pose, { timeout: 30_000 }).not.toBeNull();
+  const seen = new Set<number>();
+  for (let i = 0; i < 3; i++) {
+    const { pose, from, speed } = await now();
+    // It points downwind, 6 m for each metre a second.
+    expect(pose!.headingDeg).toBeCloseTo((from! + 180) % 360, 6);
+    expect(pose!.length).toBeCloseTo(speed! * 6, 6);
+    expect(pose!.tiltDeg).toBe(0);
+    seen.add(pose!.headingDeg);
+    await page.waitForTimeout(1500);
+  }
+  // The wind shifts as the day runs.
+  expect(seen.size).toBeGreaterThan(1);
+
+  // The camera is fixed: south-west, looking down.
+  const camera = await page.evaluate(() => (window as unknown as Hooks).__scene.shapes.poseOf('yard-camera'));
+  expect(camera).toEqual({ headingDeg: 215, tiltDeg: -20, length: 70 });
+  expect(await page.evaluate(() => (window as unknown as Hooks).__scene.shapes.tipOnScreen('yard-camera'))).not.toBeNull();
+  expect(problems).toEqual([]);
+});

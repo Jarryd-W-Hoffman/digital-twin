@@ -274,6 +274,31 @@ describe('nested fields', () => {
             'label',
         ]);
     });
+
+    it('gives each kind of shape its own fields', () => {
+        const common = [
+            'id',
+            'name',
+            'kind',
+            'asset',
+            'position',
+            'height',
+            'heading',
+            'tilt',
+        ];
+        expect(keys(fieldsFor('shapes', { kind: 'vector' }))).toEqual([
+            ...common,
+            'length',
+            'color',
+        ]);
+        expect(keys(fieldsFor('shapes', { kind: 'fan' }))).toEqual([
+            ...common,
+            'radius',
+            'across',
+            'up',
+            'color',
+        ]);
+    });
 });
 
 describe('pickers', () => {

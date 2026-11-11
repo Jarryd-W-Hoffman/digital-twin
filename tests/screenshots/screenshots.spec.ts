@@ -429,6 +429,11 @@ test('screenshots', async ({ page, context }) => {
         await expect(sight.getByText('all round')).toBeVisible();
         await measure.waitForTimeout(3000);
         await shot(measure, 'sight');
+        await sight.getByRole('button', { name: 'Done' }).click();
+
+        // Northshore's wind arrow and the yard camera's fan.
+        await measure.waitForTimeout(1500);
+        await shot(measure, 'shapes');
         await measure.close();
 
         // Low and toward the ridge, so the ground's shape shows on the skyline.

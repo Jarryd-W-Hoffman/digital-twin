@@ -72,6 +72,7 @@ import {
     type Body,
     type Section,
 } from '../core/section.ts';
+import { compileShape } from '../core/shapes.ts';
 import type {
     Alert,
     AssetDef,
@@ -92,6 +93,7 @@ import {
 } from './colors.ts';
 import { Gizmo } from './Gizmo.ts';
 import { Measure } from './Measure.ts';
+import { Shapes } from './Shapes.ts';
 import { Sight } from './Sight.ts';
 import { Sketch } from './Sketch.ts';
 
@@ -207,6 +209,8 @@ export class TwinScene {
     readonly gizmo: Gizmo;
     /** Viewsheds and lines of sight. */
     readonly sight: Sight;
+    /** The definition's vectors and fans. */
+    readonly shapes: Shapes;
     private readonly sunLight = new SunLight({ intensity: 1.35 });
     private readonly moonLight = new DirectionalLight({
         direction: Cartesian3.normalize(
@@ -333,6 +337,11 @@ export class TwinScene {
             },
             frame: () => Transforms.eastNorthUpToFixedFrame(this.cart([0, 0])),
         });
+        this.shapes = new Shapes(
+            this.viewer,
+            ([east, north, up]) => this.cart([east, north], up),
+            (def.shapes ?? []).flatMap((s) => compileShape(def, s) ?? []),
+        );
         this.handler = new ScreenSpaceEventHandler(scene.canvas);
         this.handler.setInputAction((e: { position: Cartesian2 }) => {
             if (this.measure.active) {
@@ -1114,6 +1123,7 @@ export class TwinScene {
         this.colorBy = colorBy;
         this.viewer.clock.currentTime = JulianDate.fromDate(new Date(frame.t));
         this.updateLight(frame.t);
+        this.shapes.update(frame.values);
         for (const visual of this.visuals.values())
             this.updateVisual(visual, frame);
         for (const flow of this.flows) {
@@ -1504,6 +1514,7 @@ export class TwinScene {
         this.measure.destroy();
         this.gizmo.destroy();
         this.sight.destroy();
+        this.shapes.destroy();
         if (!this.viewer.isDestroyed()) this.viewer.destroy();
     }
 }

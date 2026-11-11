@@ -309,11 +309,27 @@ function step(model: Model, state: SimState): void {
         : baseCloud;
     const sun = Math.max(0, Math.sin(((hour - 6) / 12.5) * Math.PI));
     const irradiance = 1000 * sun * (1 - 0.75 * cloud);
+    // A breeze that picks up in the afternoon, mostly from the south-west.
+    const wind = clamp(
+        4 +
+            2 * Math.sin(((hour - 9) / 24) * 2 * Math.PI) +
+            2.5 * smoothNoise(state.seed, state.step, 3, stepsPerHour),
+        0.3,
+        20,
+    );
+    const windFrom =
+        (((225 +
+            45 * smoothNoise(state.seed, state.step, 4, stepsPerHour * 2)) %
+            360) +
+            360) %
+        360;
     if (weather) {
         v[`${weather.id}.state`] = State.Running;
         v[`${weather.id}.ambientC`] = ambient;
         v[`${weather.id}.irradiance`] = irradiance;
         v[`${weather.id}.cloud`] = cloud;
+        v[`${weather.id}.windMs`] = wind;
+        v[`${weather.id}.windDeg`] = windFrom;
     }
 
     // Custom assets: transitions, then derived metrics, from last step's values

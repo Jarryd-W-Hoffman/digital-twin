@@ -283,6 +283,27 @@ export function validateDefinition(input: unknown): string[] {
                 refs,
             );
     }
+    // Shapes: where they stand, and expressions that read other assets by
+    // reference, as figures do.
+    const shapes = new Set<string>();
+    for (const shape of objects(def.shapes)) {
+        if (!isText(shape.id)) continue;
+        const owner = `Shape ${shape.id}`;
+        if (shapes.has(shape.id)) errors.push(`Duplicate shape id ${shape.id}`);
+        shapes.add(shape.id);
+        if (shape.asset !== undefined && !ids.has(show(shape.asset)))
+            errors.push(`${owner}: unknown asset ${show(shape.asset)}`);
+        for (const key of ['heading', 'tilt', 'length'] as const) {
+            if (shape[key] !== undefined)
+                checkExpression(
+                    errors,
+                    `${owner}: ${key}`,
+                    shape[key],
+                    new Set(),
+                    refs,
+                );
+        }
+    }
 
     for (const [owner, asset] of refs) {
         if (!ids.has(asset))

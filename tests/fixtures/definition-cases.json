@@ -179,6 +179,58 @@
             "name": "opcua not a list",
             "ops": [{ "set": "opcua", "value": { "node": "i=1" } }],
             "errors": ["opcua must be an array"]
+        },
+        {
+            "name": "shapes: a wind vector and a radar fan",
+            "ops": [
+                {
+                    "set": "shapes",
+                    "value": [
+                        { "id": "wind", "name": "Wind", "kind": "vector", "asset": "wx", "height": 2, "heading": "{wx.windDeg} + 180", "length": "{wx.windMs} * 5", "color": "#7fd1ff" },
+                        { "id": "radar", "kind": "fan", "position": [10, -20], "height": 8, "heading": "90", "tilt": "-5", "radius": 60, "across": 120, "up": 0 }
+                    ]
+                }
+            ],
+            "errors": []
+        },
+        {
+            "name": "shapes with errors",
+            "ops": [
+                {
+                    "set": "shapes",
+                    "value": [
+                        { "id": "a", "kind": "cloud", "position": [0, 0] },
+                        { "id": "b", "kind": "vector" },
+                        { "id": "c", "kind": "fan", "position": [0, 0], "radius": 0, "across": 400, "up": -1, "color": "red" },
+                        { "id": "d", "kind": "vector", "asset": "ghost", "length": "{wx.windMs} *", "heading": "windDeg", "tilt": 3 },
+                        { "id": "d", "kind": "vector", "position": [0, 0], "length": "{nobody.windMs}", "height": "high" },
+                        { "name": "no id" },
+                        "x"
+                    ]
+                }
+            ],
+            "errors": [
+                "Shape a: kind must be vector or fan",
+                "Shape b: needs an asset or a position",
+                "A shape has no id",
+                "Shape b: a vector needs a length",
+                "Shape c: across must be more than 0° and at most 360°",
+                "Shape c: color must be a #rrggbb colour",
+                "Shape c: radius must be more than 0",
+                "Shape c: up and down must be 0° to 180°",
+                "Shape d: height must be a number",
+                "Shape d: unknown asset ghost",
+                "Shape d: heading uses unknown name windDeg",
+                "Shape d: tilt: must be text",
+                "Shape d: length: unexpected end",
+                "Duplicate shape id d",
+                "Shape d: length refers to unknown asset nobody"
+            ]
+        },
+        {
+            "name": "shapes not a list",
+            "ops": [{ "set": "shapes", "value": { "id": "a" } }],
+            "errors": ["shapes must be an array"]
         }
     ]
 }
