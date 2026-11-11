@@ -15,7 +15,8 @@ export type ListName =
     | 'rules'
     | 'scenarios'
     | 'kpis'
-    | 'panels';
+    | 'panels'
+    | 'shapes';
 export type Item = Record<string, unknown>;
 export type Node = Record<string, unknown>;
 
@@ -28,6 +29,7 @@ export const LISTS: { list: ListName; title: string; noun: string }[] = [
     { list: 'scenarios', title: 'Scenarios', noun: 'scenario' },
     { list: 'kpis', title: 'KPIs', noun: 'KPI' },
     { list: 'panels', title: 'Panels', noun: 'panel' },
+    { list: 'shapes', title: 'Shapes', noun: 'shape' },
 ];
 
 export type Widget =
@@ -359,6 +361,16 @@ export function newItem(def: TwinDefinition, list: ListName): Item {
             return { label: 'New figure', value: '0' };
         case 'panels':
             return { title: 'New panel', items: [] };
+        case 'shapes':
+            return {
+                id: id('arrow'),
+                name: 'New arrow',
+                kind: 'vector',
+                position: [0, 0],
+                height: 5,
+                heading: '0',
+                length: '20',
+            };
         case 'assets': {
             const main = def.assets.find((a) => a.kind === 'bus' && !a.fedBy);
             return {

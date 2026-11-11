@@ -1180,6 +1180,169 @@
                 }
             }
         },
+        "shapes": {
+            "type": "array",
+            "x-message": "shapes must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "A shape has no id",
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "x-message": "A shape has no id",
+                        "title": "Id"
+                    }
+                },
+                "if": {
+                    "required": ["id"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["kind"],
+                    "properties": {
+                        "name": {
+                            "title": "Name",
+                            "x-form": "text"
+                        },
+                        "kind": {
+                            "enum": ["vector", "fan"],
+                            "title": "Kind",
+                            "description": "A vector is an arrow, such as the wind; a fan is a sweep of directions out to a radius, such as a radar's or a camera's.",
+                            "x-form": "select",
+                            "x-message": "Shape {0:id}: kind must be vector or fan"
+                        },
+                        "asset": {
+                            "title": "At asset",
+                            "description": "It starts at the top of this asset.",
+                            "x-form": "asset"
+                        },
+                        "position": {
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "items": {
+                                "type": "number"
+                            },
+                            "title": "Position",
+                            "description": "Metres east and north of the origin, if it isn't at an asset.",
+                            "x-form": "point",
+                            "x-message": "Shape {0:id}: position must be [east, north]"
+                        },
+                        "height": {
+                            "type": "number",
+                            "title": "Height (m)",
+                            "description": "Above the ground, or above the asset's top.",
+                            "x-form": "number",
+                            "x-message": "Shape {0:id}: height must be a number"
+                        },
+                        "heading": {
+                            "title": "Heading (°)",
+                            "description": "Which way it points, clockwise from north: a number, or an expression such as {wx.windDeg} + 180.",
+                            "x-form": "expr"
+                        },
+                        "tilt": {
+                            "title": "Tilt (°)",
+                            "description": "How far above the level it points; negative points down.",
+                            "x-form": "expr"
+                        },
+                        "length": {
+                            "title": "Length (m)",
+                            "description": "How long the arrow is: a number, or an expression such as {wx.windMs} * 5.",
+                            "x-form": "expr",
+                            "x-when": {
+                                "kind": ["vector"]
+                            }
+                        },
+                        "radius": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "title": "Radius (m)",
+                            "description": "How far out the fan reaches.",
+                            "x-form": "number",
+                            "x-when": {
+                                "kind": ["fan"]
+                            },
+                            "x-message": "Shape {0:id}: radius must be more than 0"
+                        },
+                        "across": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 360,
+                            "title": "Across (°)",
+                            "description": "How wide the fan sweeps, from side to side.",
+                            "x-form": "number",
+                            "x-when": {
+                                "kind": ["fan"]
+                            },
+                            "x-message": "Shape {0:id}: across must be more than 0° and at most 360°"
+                        },
+                        "up": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 180,
+                            "title": "Up and down (°)",
+                            "description": "How tall the fan is; 0 for a flat fan.",
+                            "x-form": "number",
+                            "x-when": {
+                                "kind": ["fan"]
+                            },
+                            "x-message": "Shape {0:id}: up and down must be 0° to 180°"
+                        },
+                        "color": {
+                            "type": "string",
+                            "pattern": "^#[0-9a-fA-F]{6}$",
+                            "title": "Colour",
+                            "x-form": "color",
+                            "x-message": "Shape {0:id}: color must be a #rrggbb colour"
+                        }
+                    },
+                    "x-messages": {
+                        "anyOf": "Shape {0:id}: needs an asset or a position"
+                    },
+                    "anyOf": [
+                        {
+                            "required": ["asset"]
+                        },
+                        {
+                            "required": ["position"]
+                        }
+                    ],
+                    "if": {
+                        "required": ["kind"],
+                        "properties": {
+                            "kind": {
+                                "const": "vector"
+                            }
+                        }
+                    },
+                    "then": {
+                        "x-message": "Shape {0:id}: a vector needs a length",
+                        "required": ["length"]
+                    },
+                    "else": {
+                        "if": {
+                            "required": ["kind"],
+                            "properties": {
+                                "kind": {
+                                    "const": "fan"
+                                }
+                            }
+                        },
+                        "then": {
+                            "x-message": "Shape {0:id}: a fan needs a radius",
+                            "required": ["radius"]
+                        }
+                    }
+                }
+            }
+        },
         "terrain": {
             "type": "object",
             "x-message": "Terrain needs a url",

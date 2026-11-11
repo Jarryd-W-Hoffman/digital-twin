@@ -199,6 +199,37 @@ final readonly class TwinDefinitionValidator
             }
         }
 
+        // Shapes: where they stand, and expressions that read other assets by
+        // reference, as figures do.
+        $shapes = [];
+
+        foreach ($this->objects($definition['shapes'] ?? null) as $shape) {
+            $id = $shape['id'] ?? null;
+
+            if (! $this->isText($id)) {
+                continue;
+            }
+
+            /** @var string $id */
+            $owner = 'Shape '.$id;
+
+            if (in_array($id, $shapes, true)) {
+                $errors[] = 'Duplicate shape id '.$id;
+            }
+
+            $shapes[] = $id;
+
+            if (array_key_exists('asset', $shape) && ! array_key_exists($this->describe($shape, 'asset'), $byId)) {
+                $errors[] = sprintf('%s: unknown asset %s', $owner, $this->describe($shape, 'asset'));
+            }
+
+            foreach (['heading', 'tilt', 'length'] as $key) {
+                if (array_key_exists($key, $shape)) {
+                    $this->checkExpression($errors, sprintf('%s: %s', $owner, $key), $shape[$key], [], $refs);
+                }
+            }
+        }
+
         foreach ($refs as [$owner, $asset]) {
             if (! array_key_exists($asset, $byId)) {
                 $errors[] = sprintf('%s refers to unknown asset %s', $owner, $asset);

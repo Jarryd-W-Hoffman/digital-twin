@@ -45,6 +45,8 @@ export const METRICS: Record<AssetKind, MetricDef[]> = {
         m('ambientC', 'Ambient', '°C', 1),
         m('irradiance', 'Irradiance', 'W/m²'),
         m('cloud', 'Cloud cover', '', 2),
+        m('windMs', 'Wind speed', 'm/s', 1),
+        m('windDeg', 'Wind from', '°'),
     ],
     grid: [STATE, m('powerKw', 'Import', 'kW'), m('voltageV', 'Voltage', 'V')],
     solar: [

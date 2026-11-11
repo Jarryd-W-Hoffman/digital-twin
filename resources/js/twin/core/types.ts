@@ -328,6 +328,36 @@ export interface TwinDefinition {
     kpis?: ReadoutDef[];
     /** Added to the site summary in the inspector. */
     panels?: PanelDef[];
+    /** Arrows and fans drawn in the scene, which can follow readings. */
+    shapes?: ShapeDef[];
+}
+
+/**
+ * An arrow (vector) or a sweep of directions out to a radius (fan), at an
+ * asset or a point. Heading, tilt and length are expressions over
+ * `{asset.metric}`, so they can follow readings, such as the wind.
+ */
+export interface ShapeDef {
+    id: string;
+    name?: string;
+    kind: 'vector' | 'fan';
+    asset?: string;
+    position?: Point;
+    /** Above the ground, or above the asset's top. */
+    height?: number;
+    /** Degrees clockwise from north. */
+    heading?: string;
+    /** Degrees above the level. */
+    tilt?: string;
+    /** A vector's length, in metres. */
+    length?: string;
+    /** A fan's reach, in metres. */
+    radius?: number;
+    /** A fan's sweep from side to side, in degrees. */
+    across?: number;
+    /** A fan's sweep up and down, in degrees; 0 for a flat fan. */
+    up?: number;
+    color?: string;
 }
 
 /** Numeric state codes stored in each asset's `state` metric. */
