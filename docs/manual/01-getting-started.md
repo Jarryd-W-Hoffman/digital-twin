@@ -59,7 +59,8 @@ The twin page is covered in [Twins and the viewer](06-twins-and-the-viewer.md).
 1. Open **Pilot sites**, then **Northshore Cold Chain Hub**. The camera flies down from orbit to the site.
 2. Choose **Chiller 2** in the list on the left. The inspector on the right shows its readings and what it's connected to.
 3. Choose **What-if** at the top of the inspector, pick **Refrigeration board trips**, and choose **Run forecast** to see what would happen. See [Alerts, time travel and what-if](07-alerts-time-and-what-if.md).
-4. Back on the project page, upload a model to the **Library**, then add it to **Harbour Depot** from its **Layout** panel. See [Layout and versions](08-layout-and-versions.md).
+4. Choose **Sight** above the scene, then **Dome**, and click the yard south of the dispatch hall. Everything a mast there could see turns green, and what the hall hides turns red. See [See what can be seen](06-twins-and-the-viewer.md#see-what-can-be-seen).
+5. Back on the project page, upload a model to the **Library**, then add it to **Harbour Depot** from its **Layout** panel. See [Layout and versions](08-layout-and-versions.md).
 
 ## See also
 

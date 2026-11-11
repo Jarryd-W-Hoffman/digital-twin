@@ -11,7 +11,7 @@ Behind every twin is a **definition**: one JSON file that describes the site: it
 Only editors can change a definition.
 
 1. On the twin page, choose **Definition** in the top bar. The panel opens on the right.
-2. Choose a tab for the list you want: **Zones**, **Assets**, **Routes**, **Types**, **Rules**, **Scenarios**, **KPIs** or **Panels**.
+2. Choose a tab for the list you want: **Zones**, **Assets**, **Routes**, **Types**, **Rules**, **Scenarios**, **KPIs**, **Panels** or **Shapes**.
 3. Choose an item in the list to edit it, or **Add zone** (**Add asset**, and so on) for a new one.
 4. Change the form. It shows only the fields that apply: a vehicle gets a route, a custom asset a type, a chiller the stores it cools. Lists inside an item, such as a route's stops or a type's metrics, are edited in place. Where a field refers to something else, such as a zone, a route or a rule's metric, it offers what the definition has.
 5. Choose **Save**. Everything you changed, on every tab, is saved as one version, with a note naming the lists that changed, such as **Edited zones and assets**.
@@ -75,6 +75,7 @@ flowchart TD
     D --> L["models, tilesets<br/>uploads and their placement"]
     D --> M["telemetry<br/>MQTT topics onto metrics"]
     D --> K["kpis, panels<br/>figures for the top bar and site summary"]
+    D --> V["shapes<br/>arrows and fans in the scene"]
     D --> G["terrain<br/>the ground"]
     A -->|fedBy| A
     A -->|cools| A
@@ -95,6 +96,7 @@ flowchart TD
 | `models`, `tilesets` | Uploads shown in the twin, and their placement. Written by the Layout panel                            |
 | `telemetry`          | MQTT topics mapped onto metrics. Written by the Layout panel                                           |
 | `kpis`, `panels`     | The figures in the top bar, and extra panels in the site summary                                       |
+| `shapes`             | Arrows and fans drawn in the scene, which can follow readings                                          |
 | `terrain`            | The ground the site stands on. Written by the Layout panel                                             |
 
 The built-in kinds of asset are `site`, `weather`, `grid`, `solar`, `battery`, `genset`, `bus`, `chiller`, `coldstore`, `building`, `charger`, `vehicle` and `custom`. Every twin needs one main `bus` (the main board) with no `fedBy`; power flows from it through each asset's `fedBy`. The [Northshore definition](../../public/samples/northshore.json) uses every feature, and [Harbour Depot](../../public/samples/harbour-depot.json) is close to the minimum.
@@ -279,6 +281,40 @@ Up to eight fit. Without `kpis`, the top bar shows site load, solar, grid, batte
 ```
 
 ![Northshore's Fire protection panel: the ring main pressure charted, with the tank level, the jockey pump's power and the pressure in hand below.](../images/panel.png)
+
+## Shapes
+
+Shapes are drawn in the scene for everyone who can see the twin. There are two kinds:
+
+- A **vector** is an arrow, such as the wind, a flow or a crane's reach.
+- A **fan** is a sweep of directions out to a radius, such as what a camera, radar or sprinkler covers.
+
+A shape stands on top of an `asset` or at a `position`, raised by its `height`. Its `heading` (degrees clockwise from north), `tilt` (degrees above the level) and, for a vector, `length` (metres) are expressions over `{asset.metric}`, as KPIs are. So a shape can follow readings, or just be a number in quotes:
+
+```jsonc
+"shapes": [
+  { "id": "wind", "name": "Wind", "kind": "vector", "asset": "wx", "height": 2,
+    "heading": "{wx.windDeg} + 180", "length": "{wx.windMs} * 6" },
+  { "id": "yard-camera", "name": "Yard camera", "kind": "fan", "position": [10, -112], "height": 9.5,
+    "heading": "215", "tilt": "-20", "radius": 70, "across": 70, "up": 40 }
+]
+```
+
+![Northshore's wind arrow on the weather mast, pointing downwind, and the yard camera's fan over the truck apron.](../images/shapes.png)
+
+A fan's `radius` is how far it reaches; `across` is how wide it sweeps, in degrees (360 goes all the way round); and `up` is how tall it is, in degrees (0, the default, gives a flat fan). `color` is a `#rrggbb` colour; vectors are light blue and fans gold by default. A shape whose readings are missing isn't drawn. Every frame, a shape works out where it points from that moment's readings:
+
+```mermaid
+flowchart LR
+    V["Readings<br/>{wx.windDeg} = 225<br/>{wx.windMs} = 4"] --> E["Expressions<br/>heading: {wx.windDeg} + 180<br/>length: {wx.windMs} * 6"]
+    E --> P["Pose<br/>heading 45° (north-east)<br/>tilt 0°, length 24 m"]
+    O["Where it stands<br/>the top of the weather mast, + 2 m"] --> D[Drawn in the scene]
+    P --> D
+```
+
+Headings wrap past north (405° is 45°), tilts stop at straight up or down, and lengths at nothing. Replaying the last day or forecasting moves the shapes too, since they follow whatever readings the scene is showing.
+
+A weather station reports the wind as `windMs` (metres a second) and `windDeg` (degrees the wind comes from, clockwise from north), so `{wx.windDeg} + 180` points the arrow downwind.
 
 ## Terrain
 

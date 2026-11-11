@@ -59,6 +59,7 @@ Below the list:
 - **Measure** opens the measuring tools; see [Measure in the scene](#measure-in-the-scene).
 - **Section** cuts the site open to see inside; see [Cut the site open](#cut-the-site-open).
 - **Sight** shows what can be seen from a point; see [See what can be seen](#see-what-can-be-seen).
+- Arrows and fans, such as Northshore's wind arrow, are the twin's **shapes**; see [Shapes](12-twin-definitions.md#shapes).
 
 ![Pulled back to the whole Earth with Globe.](../images/globe.png)
 
@@ -116,7 +117,22 @@ Measuring works inside a section, so you can open up a model and then measure wh
 
 **Line of sight** says whether one point can see another. Click where the observer stands, then what they should see. **Eye height** and **Target height** raise the two ends above where you clicked; they start at a standing person's eye and a target 1.5 m up. The line is green as far as it's seen, and red past whatever blocks it, and the panel says how far away that is. The next click starts a new line.
 
-Everything in the scene blocks the view: the ground and terrain, asset blocks, models, tilesets and scans. A surface facing away from a sensor counts as hidden. Like measurements, sight lines aren't saved, and anyone who can see the twin can use them. **Done** puts the tools away.
+Everything in the scene blocks the view: the ground and terrain, asset blocks, models, tilesets and scans. A surface facing away from a sensor counts as hidden. This is how each point in the scene is judged:
+
+```mermaid
+flowchart TD
+    P[A point in the scene] --> R{Within the sensor's range?}
+    R -- no --> U[Left as it is]
+    R -- yes --> S{Inside its shape?<br/>cone, rectangle or dome}
+    S -- no --> U
+    S -- yes --> F{Does its surface face the sensor?}
+    F -- no --> H[Red: hidden]
+    F -- yes --> B{Is anything nearer the sensor<br/>in the same direction?}
+    B -- yes --> H
+    B -- no --> G[Green: seen]
+```
+
+The viewshed is worked out on your computer's graphics card, like a shadow with the sensor as the light, so it updates as you drag the sliders. Like measurements, sight lines aren't saved, and anyone who can see the twin can use them. **Done** puts the tools away.
 
 ### The inspector (right)
 
