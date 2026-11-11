@@ -114,6 +114,16 @@ final class Project extends Model
     }
 
     /**
+     * Where the project's alerts are sent.
+     *
+     * @return HasMany<NotificationChannel, $this>
+     */
+    public function notificationChannels(): HasMany
+    {
+        return $this->hasMany(NotificationChannel::class);
+    }
+
+    /**
      * @return HasMany<OpcUaServer, $this>
      */
     public function opcUaServers(): HasMany

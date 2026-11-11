@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use App\Enums\AlertSeverity;
+use App\Jobs\DeliverAlertNotification;
 use App\Models\Alert;
+use App\Models\NotificationChannel;
+use Illuminate\Support\Facades\Queue;
 
 /**
  * @return array<string, mixed>
@@ -98,4 +101,18 @@ it("needs the twin's gateway token", function (): void {
     gatewayTwin();
 
     $this->withToken('mgw_wrong')->postJson(route('gateway.alerts.store'), ['open' => []])->assertUnauthorized();
+});
+
+it("tells the project's channels of each alert raised and cleared", function (): void {
+    Queue::fake();
+    [$twin, $token] = gatewayTwin();
+    NotificationChannel::factory()->for($twin->project)->create();
+
+    $this->withToken($token)->postJson(route('gateway.alerts.store'), ['open' => [openAlert()]])->assertOk();
+    $this->withToken($token)->postJson(route('gateway.alerts.store'), ['open' => [openAlert()]])->assertOk();
+    $this->withToken($token)->postJson(route('gateway.alerts.store'), ['open' => []])->assertOk();
+
+    $alert = Alert::query()->sole();
+    expect($alert->notifications()->pluck('event')->map->value->all())->toBe(['raised', 'cleared']);
+    Queue::assertPushed(DeliverAlertNotification::class, 2);
 });

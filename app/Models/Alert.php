@@ -8,10 +8,12 @@ use App\Enums\AlertSeverity;
 use Carbon\CarbonInterface;
 use Database\Factories\AlertFactory;
 use Illuminate\Database\Eloquent\Attributes\WithoutTimestamps;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One alert a twin's gateway raised: a rule breached on an asset, from when
@@ -31,6 +33,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string|null $acknowledged_by
  * @property-read Twin $twin
  * @property-read User|null $acknowledger
+ * @property-read Collection<int, AlertNotification> $notifications
  */
 #[WithoutTimestamps]
 final class Alert extends Model
@@ -66,6 +69,16 @@ final class Alert extends Model
     public function twin(): BelongsTo
     {
         return $this->belongsTo(Twin::class);
+    }
+
+    /**
+     * Who was told, or held back from being told, of its raising and clearing.
+     *
+     * @return HasMany<AlertNotification, $this>
+     */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(AlertNotification::class);
     }
 
     /**
