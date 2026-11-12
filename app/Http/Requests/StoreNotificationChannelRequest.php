@@ -17,8 +17,8 @@ use InvalidArgumentException;
 
 /**
  * A new channel for a project's alerts: up to 20 email addresses, or a
- * webhook URL that's allowed to be reached, with what it takes and when it
- * keeps quiet.
+ * webhook URL that's allowed to be reached, with what it takes, whether it
+ * waits for alerts to go unacknowledged, and when it keeps quiet.
  */
 final class StoreNotificationChannelRequest extends FormRequest
 {
@@ -36,6 +36,7 @@ final class StoreNotificationChannelRequest extends FormRequest
             'target' => ['required', 'string', 'max:2000'],
             'min_severity' => ['required', Rule::enum(AlertSeverity::class)],
             'notify_cleared' => ['required', 'boolean'],
+            'escalate_after_minutes' => ['nullable', 'integer', 'min:1', 'max:1440'],
             'quiet_from' => ['nullable', 'date_format:H:i', 'required_with:quiet_until', 'different:quiet_until'],
             'quiet_until' => ['nullable', 'date_format:H:i', 'required_with:quiet_from'],
             'timezone' => ['required', 'timezone:all'],
@@ -75,7 +76,7 @@ final class StoreNotificationChannelRequest extends FormRequest
     }
 
     /**
-     * @return array{name: string, kind: NotificationChannelKind, target: string, min_severity: AlertSeverity, notify_cleared: bool, quiet_from: string|null, quiet_until: string|null, timezone: string}
+     * @return array{name: string, kind: NotificationChannelKind, target: string, min_severity: AlertSeverity, notify_cleared: bool, escalate_after_minutes: int|null, quiet_from: string|null, quiet_until: string|null, timezone: string}
      */
     public function channel(): array
     {
@@ -85,6 +86,7 @@ final class StoreNotificationChannelRequest extends FormRequest
             'target' => $this->string('target')->trim()->value(),
             'min_severity' => AlertSeverity::from($this->string('min_severity')->value()),
             'notify_cleared' => $this->boolean('notify_cleared'),
+            'escalate_after_minutes' => $this->filled('escalate_after_minutes') ? $this->integer('escalate_after_minutes') : null,
             'quiet_from' => $this->filled('quiet_from') ? $this->string('quiet_from')->value() : null,
             'quiet_until' => $this->filled('quiet_until') ? $this->string('quiet_until')->value() : null,
             'timezone' => $this->string('timezone')->value(),

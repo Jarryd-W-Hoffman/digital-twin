@@ -19,7 +19,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Somewhere a project's alerts are sent: a list of email addresses, or a
  * webhook (plain, Slack or Teams). It takes alerts of at least a severity,
  * optionally their clearing too, and outside its quiet hours only critical
- * ones.
+ * ones. An escalation channel is told of an alert only once it has gone
+ * unacknowledged for its delay, and of its clearing only if it was told.
  *
  * @property-read string $id
  * @property-read string $project_id
@@ -29,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string|null $secret
  * @property-read AlertSeverity $min_severity
  * @property-read bool $notify_cleared
+ * @property-read int|null $escalate_after_minutes
  * @property-read string|null $quiet_from
  * @property-read string|null $quiet_until
  * @property-read string $timezone
@@ -59,6 +61,7 @@ final class NotificationChannel extends Model
             'secret' => 'encrypted',
             'min_severity' => AlertSeverity::class,
             'notify_cleared' => 'boolean',
+            'escalate_after_minutes' => 'integer',
             'quiet_from' => 'string',
             'quiet_until' => 'string',
             'timezone' => 'string',
@@ -78,13 +81,27 @@ final class NotificationChannel extends Model
     }
 
     /**
-     * Whether this channel is told about an alert of a severity being raised
-     * or cleared at a moment: null when it isn't for this channel at all,
-     * Quiet when its quiet hours hold it back, otherwise Queued.
+     * Whether it's told only of alerts nobody has acknowledged in time.
+     */
+    public function escalates(): bool
+    {
+        return $this->escalate_after_minutes !== null;
+    }
+
+    /**
+     * Whether this channel is told about an alert of a severity being raised,
+     * escalated or cleared at a moment: null when it isn't for this channel
+     * at all, Quiet when its quiet hours hold it back, otherwise Queued. An
+     * escalation channel takes escalations rather than raises; whether it
+     * was told, and so hears of the clearing, is for the caller to know.
      */
     public function decide(AlertSeverity $severity, AlertEvent $event, CarbonInterface $at): ?AlertNotificationStatus
     {
         if (! $severity->atLeast($this->min_severity)) {
+            return null;
+        }
+
+        if ($event === ($this->escalates() ? AlertEvent::Raised : AlertEvent::Escalated)) {
             return null;
         }
 

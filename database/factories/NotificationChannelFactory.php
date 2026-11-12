@@ -44,6 +44,14 @@ final class NotificationChannelFactory extends Factory
     }
 
     /**
+     * Told only of alerts still unacknowledged after a number of minutes.
+     */
+    public function escalation(int $minutes = 15): self
+    {
+        return $this->state(['escalate_after_minutes' => $minutes]);
+    }
+
+    /**
      * Quiet between two times of day, in a time zone.
      */
     public function quiet(string $from = '22:00', string $until = '07:00', string $timezone = 'UTC'): self

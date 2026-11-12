@@ -74,6 +74,7 @@ final readonly class SendAlertNotification
     {
         $mark = match (true) {
             $message->event === AlertEvent::Cleared => ':white_check_mark:',
+            $message->event === AlertEvent::Escalated => ':rotating_light:',
             $message->severity === AlertSeverity::Critical => ':red_circle:',
             $message->severity === AlertSeverity::Warning => ':large_orange_circle:',
             default => ':large_blue_circle:',
@@ -99,7 +100,11 @@ final readonly class SendAlertNotification
                     'type' => 'AdaptiveCard',
                     'version' => '1.4',
                     'body' => [
-                        ['type' => 'TextBlock', 'text' => $message->subject(), 'weight' => 'Bolder', 'wrap' => true, 'color' => $message->event === AlertEvent::Cleared ? 'Good' : ($message->severity === AlertSeverity::Critical ? 'Attention' : 'Warning')],
+                        ['type' => 'TextBlock', 'text' => $message->subject(), 'weight' => 'Bolder', 'wrap' => true, 'color' => match (true) {
+                            $message->event === AlertEvent::Cleared => 'Good',
+                            $message->event === AlertEvent::Escalated, $message->severity === AlertSeverity::Critical => 'Attention',
+                            default => 'Warning',
+                        }],
                         ['type' => 'TextBlock', 'text' => $message->project.' · '.$message->timing(), 'isSubtle' => true, 'wrap' => true],
                     ],
                     'actions' => [['type' => 'Action.OpenUrl', 'title' => __('Open the alert log'), 'url' => $message->url]],

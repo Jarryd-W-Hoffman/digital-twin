@@ -128,6 +128,7 @@ final readonly class ProjectController
                 'target' => $user->can('update', $project) ? $channel->displayTarget() : null,
                 'minSeverity' => $channel->min_severity->value,
                 'notifyCleared' => $channel->notify_cleared,
+                'escalateAfterMinutes' => $channel->escalate_after_minutes,
                 'quietFrom' => $channel->quiet_from,
                 'quietUntil' => $channel->quiet_until,
                 'timezone' => $channel->timezone,

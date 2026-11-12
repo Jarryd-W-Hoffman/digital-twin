@@ -20,6 +20,19 @@ it('takes alerts of at least its severity, and their clearing if it wants', func
         ->and($channel->decide(AlertSeverity::Critical, AlertEvent::Cleared, $noon))->toBeNull();
 });
 
+it('takes escalations, not raises, when it escalates', function (): void {
+    $noon = CarbonImmutable::parse('2026-11-12 12:00', 'UTC');
+    $first = NotificationChannel::factory()->make();
+    $later = NotificationChannel::factory()->escalation(15)->make();
+
+    expect($first->escalates())->toBeFalse()
+        ->and($first->decide(AlertSeverity::Warning, AlertEvent::Escalated, $noon))->toBeNull()
+        ->and($later->escalates())->toBeTrue()
+        ->and($later->decide(AlertSeverity::Warning, AlertEvent::Raised, $noon))->toBeNull()
+        ->and($later->decide(AlertSeverity::Warning, AlertEvent::Escalated, $noon))->toBe(AlertNotificationStatus::Queued)
+        ->and($later->decide(AlertSeverity::Warning, AlertEvent::Cleared, $noon))->toBe(AlertNotificationStatus::Queued);
+});
+
 it('keeps quiet overnight in its own time zone, except for critical alerts', function (): void {
     $channel = NotificationChannel::factory()->quiet('22:00', '07:00', 'Pacific/Auckland')->make(['min_severity' => AlertSeverity::Info]);
     // 23:30 in Auckland (UTC+13 in November), then 07:00 there, then midday.

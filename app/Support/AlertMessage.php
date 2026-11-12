@@ -11,8 +11,9 @@ use App\Models\NotificationChannel;
 use Carbon\CarbonInterface;
 
 /**
- * What a notification says, whichever channel carries it: an alert raised
- * or cleared on a twin, with a link to the twin's alert log.
+ * What a notification says, whichever channel carries it: an alert raised,
+ * still unacknowledged, or cleared on a twin, with a link to the twin's
+ * alert log.
  */
 final readonly class AlertMessage
 {
@@ -80,9 +81,13 @@ final readonly class AlertMessage
      */
     public function subject(): string
     {
-        return $this->event === AlertEvent::Cleared
-            ? __('Cleared: :message (:twin)', ['message' => $this->message, 'twin' => $this->twin])
-            : __(':severity: :message (:twin)', ['severity' => ucfirst($this->severity->value), 'message' => $this->message, 'twin' => $this->twin]);
+        $replace = ['severity' => ucfirst($this->severity->value), 'message' => $this->message, 'twin' => $this->twin];
+
+        return match ($this->event) {
+            AlertEvent::Cleared => __('Cleared: :message (:twin)', $replace),
+            AlertEvent::Escalated => __('Not acknowledged: :severity: :message (:twin)', $replace),
+            AlertEvent::Raised => __(':severity: :message (:twin)', $replace),
+        };
     }
 
     /**
@@ -92,8 +97,12 @@ final readonly class AlertMessage
     {
         $raised = __('Raised :time UTC', ['time' => $this->raisedAt->copy()->utc()->format('Y-m-d H:i')]);
 
-        return $this->clearedAt instanceof CarbonInterface
-            ? $raised.', '.__('cleared after :duration', ['duration' => $this->raisedAt->diffForHumans($this->clearedAt, syntax: CarbonInterface::DIFF_ABSOLUTE)])
+        if ($this->clearedAt instanceof CarbonInterface) {
+            return $raised.', '.__('cleared after :duration', ['duration' => $this->raisedAt->diffForHumans($this->clearedAt, syntax: CarbonInterface::DIFF_ABSOLUTE)]);
+        }
+
+        return $this->event === AlertEvent::Escalated
+            ? $raised.', '.__('still open and not acknowledged after :duration', ['duration' => $this->raisedAt->diffForHumans(now(), syntax: CarbonInterface::DIFF_ABSOLUTE)])
             : $raised;
     }
 
