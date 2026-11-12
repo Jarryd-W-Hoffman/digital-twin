@@ -688,6 +688,105 @@ test('screenshots', async ({ page, context }) => {
 
         await page.getByRole('button', { name: 'Layout', exact: true }).click();
         await shot(gatewayPanel, 'gateway-online');
+
+        // The gateway raises alerts while nobody watches, and logs them: a
+        // short excursion that has cleared, then one still open, acknowledged.
+        const storeAt = (value: number, ttlS: number) =>
+            fetch(`http://127.0.0.1:${GATEWAY_PORT}/ingest`, {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    asset: 'store',
+                    metric: 'tempC',
+                    value,
+                    ttlS,
+                }),
+            });
+        const twinUrl = page.url();
+
+        // Alerts go to the project's channels: the on-call team by email,
+        // quiet overnight except for critical alerts, and the operations
+        // manager when nobody acknowledges one within 15 minutes.
+        await page.getByRole('link', { name: /^Back to / }).click();
+        const channels = page.getByRole('region', {
+            name: 'Alert notifications',
+        });
+        const addChannel = async (
+            name: string,
+            target: string,
+            severity: string,
+            quiet?: [string, string],
+            escalateAfter?: string,
+        ) => {
+            const form = channels.getByRole('form', {
+                name: 'Add a notification channel',
+            });
+            await form.getByLabel('Channel name').fill(name);
+            await form.getByLabel('Email addresses').fill(target);
+            await form
+                .getByLabel('Send', { exact: true })
+                .selectOption(severity);
+            await form
+                .getByLabel('Quiet from (optional)')
+                .fill(quiet?.[0] ?? '');
+            await form.getByLabel('Quiet until').fill(quiet?.[1] ?? '');
+            await form.getByLabel('Time zone').fill('Pacific/Auckland');
+            if (escalateAfter) {
+                await form
+                    .getByLabel('When', { exact: true })
+                    .selectOption('escalate');
+                await form.getByLabel('Minutes to wait').fill(escalateAfter);
+            }
+            await form.getByRole('button', { name: 'Add channel' }).click();
+            await expect(
+                channels
+                    .getByRole('list', { name: 'Notification channels' })
+                    .getByText(name, { exact: true }),
+            ).toBeVisible();
+        };
+        await addChannel(
+            'Depot on-call',
+            'oncall@example.com, depot.lead@example.com',
+            'warning',
+            ['01:00', '05:00'],
+        );
+        await addChannel(
+            'Operations manager',
+            'ops@example.com',
+            'warning',
+            undefined,
+            '15',
+        );
+        await expect(page.getByText('Operations manager added.')).toBeHidden({
+            timeout: 15_000,
+        });
+        await shot(channels, 'notification-channels');
+        await page.goto(twinUrl);
+
+        const alertList = page.getByRole('list', { name: 'Alerts' });
+        const logShows = async (text: string, count: number) =>
+            expect(async () => {
+                await page.goto(`${twinUrl}/alerts`);
+                await expect(
+                    alertList.getByRole('listitem').filter({ hasText: text }),
+                ).toHaveCount(count, { timeout: 2000 });
+            }).toPass({ timeout: 90_000 });
+        await storeAt(7.4, 600);
+        await logShows('Open', 1);
+        await storeAt(1.2, 600);
+        await logShows('cleared', 1);
+        await storeAt(8.1, 86_400);
+        await logShows('Open', 1);
+        await alertList
+            .getByRole('listitem')
+            .filter({ hasText: 'Open' })
+            .getByRole('button', { name: 'Acknowledge' })
+            .click();
+        await expect(alertList).toContainText('Acknowledged by Test User');
+        await shot(page, 'alert-log');
+        await storeAt(1.2, 600);
+        await logShows('Open', 0);
+        await page.goto(twinUrl);
     });
 
     await test.step('a BIM model, the definition editor and drawing', async () => {

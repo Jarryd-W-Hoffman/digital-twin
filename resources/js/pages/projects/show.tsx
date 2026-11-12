@@ -7,6 +7,8 @@ import LibraryItem from '@/components/library-item';
 import type { LibraryAsset } from '@/components/library-item';
 import ProjectDevices from '@/components/project-devices';
 import type { ProjectDevice, ProjectMqtt } from '@/components/project-devices';
+import ProjectNotificationChannels from '@/components/project-notification-channels';
+import type { ProjectNotificationChannel } from '@/components/project-notification-channels';
 import ProjectOpcUaServers from '@/components/project-opcua-servers';
 import type { ProjectOpcUaServer } from '@/components/project-opcua-servers';
 import { Button } from '@/components/ui/button';
@@ -44,6 +46,7 @@ export default function ShowProject({
     assets,
     devices,
     opcuaServers,
+    notificationChannels,
     mqtt,
     directUploads,
     can,
@@ -53,6 +56,7 @@ export default function ShowProject({
     assets: LibraryAsset[];
     devices: ProjectDevice[];
     opcuaServers: ProjectOpcUaServer[];
+    notificationChannels: ProjectNotificationChannel[];
     mqtt: ProjectMqtt;
     directUploads: boolean;
     can: { update: boolean };
@@ -383,6 +387,12 @@ export default function ShowProject({
                 <ProjectOpcUaServers
                     projectId={project.id}
                     servers={opcuaServers}
+                    canUpdate={can.update}
+                />
+
+                <ProjectNotificationChannels
+                    projectId={project.id}
+                    channels={notificationChannels}
                     canUpdate={can.update}
                 />
             </div>

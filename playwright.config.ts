@@ -23,7 +23,16 @@ export default defineConfig({
       command:
         'touch database/e2e.sqlite && php artisan migrate:fresh --seed --force -q && ' +
         'cd public && php -d upload_max_filesize=64M -d post_max_size=64M -S 127.0.0.1:8199 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php',
-      env: { DB_DATABASE: resolve('database/e2e.sqlite'), APP_URL: 'http://127.0.0.1:8199', SESSION_DRIVER: 'file', CACHE_STORE: 'file' },
+      // Notifications are delivered as they're queued, and may reach a receiver on this machine.
+      env: {
+        DB_DATABASE: resolve('database/e2e.sqlite'),
+        APP_URL: 'http://127.0.0.1:8199',
+        SESSION_DRIVER: 'file',
+        CACHE_STORE: 'file',
+        MERIDIAN_NOTIFICATIONS_QUEUE: 'sync',
+        MAIL_MAILER: 'array',
+        MERIDIAN_ALLOW_PRIVATE_WEBHOOKS: 'true',
+      },
       url: 'http://127.0.0.1:8199/up',
       reuseExistingServer: false,
       timeout: 120_000,

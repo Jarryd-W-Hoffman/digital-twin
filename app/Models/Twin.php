@@ -93,6 +93,24 @@ final class Twin extends Model
     }
 
     /**
+     * @return HasMany<Alert, $this>
+     */
+    public function alerts(): HasMany
+    {
+        return $this->hasMany(Alert::class);
+    }
+
+    /**
+     * The alerts that haven't cleared: at most one per rule and asset.
+     *
+     * @return HasMany<Alert, $this>
+     */
+    public function openAlerts(): HasMany
+    {
+        return $this->alerts()->whereNull('cleared_at');
+    }
+
+    /**
      * @return HasMany<OpcUaWrite, $this>
      */
     public function opcUaWrites(): HasMany
