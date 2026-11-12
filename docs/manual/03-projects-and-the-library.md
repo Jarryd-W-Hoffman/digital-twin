@@ -16,6 +16,7 @@ Only editors (owners and admins) can create projects. The project page shows:
 - **Library**: uploads any of the project's twins can show.
 - **Devices**: sensors and controllers allowed to publish readings; see [Devices and MQTT](10-devices-and-mqtt.md).
 - **OPC UA servers**: PLCs and SCADA systems the twins' gateways read from; see [OPC UA](11-opc-ua.md).
+- **Alert notifications**: where the twins' alerts are sent, by email, Slack, Teams or webhook; see [Who is told](07-alerts-time-and-what-if.md#who-is-told).
 
 ## What you can upload
 

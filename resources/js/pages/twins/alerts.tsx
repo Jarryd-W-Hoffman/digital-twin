@@ -19,7 +19,20 @@ type LoggedAlert = {
     clearedAt: string | null;
     acknowledgedAt: string | null;
     acknowledgedBy: string | null;
+    notifications: {
+        channel: string;
+        event: 'raised' | 'escalated' | 'cleared';
+        status: 'queued' | 'sent' | 'failed' | 'quiet';
+        error: string | null;
+    }[];
 };
+
+const STATUS = {
+    queued: 'sending',
+    sent: 'sent',
+    failed: 'failed',
+    quiet: 'held for quiet hours',
+} as const;
 
 type Props = {
     twin: { id: string; name: string };
@@ -142,6 +155,17 @@ export default function TwinAlerts({
                                         {alert.asset} · rule {alert.rule} ·
                                         value {Number(alert.value.toFixed(2))}
                                     </span>
+                                    {alert.notifications.length > 0 && (
+                                        <span className="text-sm text-muted-foreground">
+                                            Told:{' '}
+                                            {alert.notifications
+                                                .map(
+                                                    (n) =>
+                                                        `${n.channel} (${n.event === 'raised' ? '' : `${n.event}, `}${STATUS[n.status]}${n.error ? `: ${n.error}` : ''})`,
+                                                )
+                                                .join(', ')}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="shrink-0 text-sm">
                                     {alert.acknowledgedAt ? (

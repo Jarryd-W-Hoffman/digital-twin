@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\OrganisationRole;
 use App\Models\Device;
+use App\Models\NotificationChannel;
 use App\Models\OpcUaServer;
 use App\Models\Project;
 use App\Models\ProjectAsset;
@@ -68,6 +69,7 @@ it('shows a project with its twins, library and abilities', function (Organisati
     Device::factory()->create();
     $plc = OpcUaServer::factory()->for($twin->project)->secured()->create(['name' => 'Plant PLC']);
     OpcUaServer::factory()->create();
+    $channel = NotificationChannel::factory()->for($twin->project)->quiet()->escalation(30)->create(['name' => 'Night shift', 'last_error' => 'Mailbox full']);
 
     $this->actingAs($user)->get(route('projects.show', $twin->project))
         ->assertOk()
@@ -83,6 +85,20 @@ it('shows a project with its twins, library and abilities', function (Organisati
             ->where('assets.0.crs', null)
             ->where('devices', [['id' => $device->id, 'name' => 'Probe', 'username' => $device->mqttUsername(), 'lastSeenAt' => $device->last_seen_at?->toIso8601String()]])
             ->where('opcuaServers', [['id' => $plc->id, 'name' => 'Plant PLC', 'endpoint' => 'opc.tcp://plc.local:4840', 'securityMode' => 'signAndEncrypt', 'securityPolicy' => 'Basic256Sha256', 'username' => 'meridian']])
+            ->where('notificationChannels', [[
+                'id' => $channel->id,
+                'name' => 'Night shift',
+                'kind' => 'email',
+                'target' => $update ? 'ops@example.com' : null,
+                'minSeverity' => 'warning',
+                'notifyCleared' => true,
+                'escalateAfterMinutes' => 30,
+                'quietFrom' => '22:00',
+                'quietUntil' => '07:00',
+                'timezone' => 'UTC',
+                'lastSentAt' => null,
+                'lastError' => 'Mailbox full',
+            ]])
             ->where('mqtt', ['brokerUrl' => 'mqtt://localhost:1883', 'topicPrefix' => $twin->project->topicPrefix()])
             ->where('directUploads', false)
             ->where('can.update', $update));

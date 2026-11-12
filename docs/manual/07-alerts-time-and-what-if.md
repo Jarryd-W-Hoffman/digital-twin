@@ -46,20 +46,106 @@ flowchart LR
     U["Operators"] -->|Acknowledge| CP
 ```
 
-![The alert log for Harbour Depot: the store above its limit, open and acknowledged by Test User, and an earlier excursion that has cleared, waiting to be acknowledged.](../images/alert-log.png)
+![The alert log for Harbour Depot: the store above its limit, open and acknowledged by Test User, and an earlier excursion that has cleared, waiting to be acknowledged. Under each, the channels that were told.](../images/alert-log.png)
 
 Open it from **Alert log** on the Alerts tab, or go to the twin's address followed by `/alerts`. Each entry shows:
 
 - its **severity**, and **Open** while it hasn't cleared;
 - its message, when it was raised and when it cleared, and how long it lasted;
 - the asset and rule it came from, and the value when it was raised;
-- who **acknowledged** it, and when.
+- who **acknowledged** it, and when;
+- who was **told**, through which [channels](#who-is-told), and how it went.
 
 Choose **Open** at the top to see only what hasn't cleared, and **Older** and **Newer** to page back through the log, 50 at a time.
 
 Anyone who can see the twin can read the log. Operators, admins and owners can **Acknowledge** an alert there or from the Alerts tab; the first person to acknowledge it is kept.
 
 The times in the log are real times, when Meridian heard from the gateway, not the twin's site time. A twin without a gateway still raises alerts in your browser while it's open, but they aren't logged.
+
+### Who is told
+
+Alerts the gateway raises are also sent to the project's **notification channels**, so the cold store drifting at 3 a.m. reaches someone who can do something about it. Editors set channels up under **Alert notifications** on the [project page](03-projects-and-the-library.md); every twin in the project with a gateway uses them.
+
+```mermaid
+flowchart LR
+    G["Gateway<br/>alert raised or cleared"] --> CP["Meridian<br/>the alert log"]
+    CP --> D{"Each channel:<br/>severity high enough?<br/>a clear, and wanted?<br/>quiet hours?"}
+    D -->|"send"| Q["Queued delivery<br/>3 tries over 5 minutes"]
+    CP -->|"still unacknowledged<br/>after the delay"| D
+    D -->|"quiet, not critical"| H["Held, and noted<br/>in the log"]
+    Q --> E["Email"]
+    Q --> S["Slack"]
+    Q --> T["Teams"]
+    Q --> W["Signed webhook"]
+```
+
+![Alert notifications on the project page: the depot's on-call team by email for warnings and critical alerts, quiet overnight in Auckland, and the operations manager when nobody acknowledges one within 15 minutes.](../images/notification-channels.png)
+
+Each channel has:
+
+| Setting | What it does |
+| --- | --- |
+| **Send by** | **Email** to up to 20 addresses; **Slack**, **Microsoft Teams** or a plain **Webhook** to a URL |
+| **Send** | **Everything**, **Warnings and critical**, or **Critical only** |
+| **When** | **As soon as it's raised**, or **If nobody acknowledges it in time**, after a number of **Minutes to wait** (up to a day) |
+| **Also say when an alert clears** | Sends a second message when it clears, with how long it lasted |
+| **Quiet from / until** and **Time zone** | Hours when only critical alerts are sent, such as 22:00 to 07:00. They may run past midnight |
+
+#### Escalation
+
+A channel set to **If nobody acknowledges it in time** is an escalation channel: it's told of an alert only when it's still open and nobody has acknowledged it after its wait. That lets a project build a chain, for example:
+
+| Channel | When |
+| --- | --- |
+| On-call team | As soon as it's raised |
+| Shift manager | If nobody acknowledges it in 15 minutes |
+| Operations director | If nobody acknowledges it in 60 minutes, critical only |
+
+Meridian checks every minute, and tells each escalation channel about each alert once. Acknowledging the alert, in the alert log or the twin's Alerts tab, stops it going any further; so does its clearing. An escalation channel is told an alert has cleared only if it was told about the alert. During its quiet hours an escalation channel waits: a warning still unacknowledged when they end is sent then.
+
+```
+every minute, for each escalation channel:
+    for each alert in its project:
+        open, not acknowledged, raised at least <wait> minutes ago,
+        severity at least the channel's, not yet escalated to it
+        → quiet hours and not critical: try again next minute
+        → otherwise: record it, and send "Not acknowledged: …"
+```
+
+Choose **Send test** to send a made-up alert straight away; the page says whether it got there. Each channel shows when it last sent, or why its last attempt failed.
+
+Every message names the alert, the twin and project, its severity, when it was raised (and cleared), and links to the alert log. The log lists, under each alert, who was **told**: each channel, and whether it was a raise, an **escalation** or a clear, and whether its message was **sent**, is still **sending**, **failed** (with the reason), or was **held for quiet hours**.
+
+**Slack:** create an app with an [incoming webhook](https://api.slack.com/messaging/webhooks) for the channel, and paste its `https://hooks.slack.com/…` URL.
+
+**Teams:** in the Teams channel, add the **Workflows** template "Post to a channel when a webhook request is received", and paste the URL it gives you. Messages arrive as Adaptive Cards.
+
+**Webhook:** Meridian posts the alert as JSON to your URL:
+
+```json
+{
+  "event": "alert.raised",
+  "alert": { "id": "…", "severity": "critical", "message": "Seafood store is above its temperature limit",
+             "asset": "store", "rule": "store-too-warm", "value": 8.1,
+             "raisedAt": "2026-11-12T03:04:00+00:00", "clearedAt": null },
+  "twin": "Harbour Depot", "project": "Pilot sites", "url": "https://meridian.example.com/twins/…/alerts"
+}
+```
+
+`event` is `alert.raised`, `alert.escalated`, `alert.cleared` or `test`. When you add a webhook, the page shows its **signing secret** once: copy it then. Each request carries `X-Meridian-Signature: sha256=` and the HMAC-SHA256 of the body with the secret, so your receiver can check the request came from Meridian:
+
+```
+on request:
+    expected = "sha256=" + hex(hmac_sha256(secret, raw request body))
+    if not constant_time_equal(expected, header "X-Meridian-Signature"):
+        answer 401 and stop
+    handle the JSON body
+    answer 2xx within 10 seconds
+```
+
+Answer with a 2xx status; anything else, a redirect or no answer within 10 seconds counts as a failure, and Meridian tries again after 10 seconds and then a minute before giving up. Webhook URLs must start with `https://` and may not point at private or internal addresses (Slack and Teams URLs must be on their own domains), so a channel can't be used to reach into the network Meridian runs in.
+
+> Notifications come from the gateway's alerts, so a twin needs a gateway to send any. Opening a twin without one raises alerts only in your browser.
 
 ![The refrigeration board trip applied live, coloured by temperature: a beacon over the tripped board, de-energised chillers, both stores warming, and alerts on the timeline.](../images/cascade.png)
 
@@ -107,6 +193,9 @@ The results show:
 
 - **Forecast first, then decide.** "If Chiller 2's bearing goes, how long have we got?" is a two-click question.
 - **Run a gateway for anything that matters.** Without one, nobody is told about an alert unless they have the twin open.
+- **Give every project a channel, and send it a test.** A channel that has never sent shows **Nothing sent yet**; one that's failing says why.
+- **Keep quiet hours for warnings.** Critical alerts always get through, so the night shift is only woken when it matters.
+- **Escalate rather than copy everyone.** Send alerts to the people on call, and let an escalation channel bring in a manager only when nobody responds.
 - **Use replay after an incident.** Find the first alert, choose **Replay from here**, and step forward at 60× to see the order things happened in.
 
 ## See also

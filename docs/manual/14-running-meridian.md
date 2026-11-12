@@ -131,6 +131,12 @@ Elsewhere, run `npm run gateway` from a copy of the code with these set:
 | `OPCUA_PKI_DIR`                     | Where it keeps its OPC UA certificate and the servers' it trusts; see [Secured servers](11-opc-ua.md#secured-servers) |
 | `OPCUA_ACCEPT_UNKNOWN_CERTIFICATES` | `1` to trust an OPC UA server's certificate the first time it's seen                                                  |
 
+## Alert notifications
+
+Notifications are delivered by the queue worker, so it must run for alerts to reach anyone, and escalations are checked by the scheduler every minute (in Docker, `supervisor` runs both). Email goes through Laravel's mailer: set `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` and `MAIL_FROM_ADDRESS` in `.env`. With the default `log` mailer, emails are only written to the log. `MERIDIAN_NOTIFICATIONS_QUEUE` names another queue connection for deliveries, if they shouldn't wait behind other work.
+
+Webhooks may only reach public `https://` addresses. For development, with a receiver on the same machine, `MERIDIAN_ALLOW_PRIVATE_WEBHOOKS=true` allows private addresses and plain `http://`; never set it in production.
+
 ## Readings and history
 
 Readings are kept for `MERIDIAN_READINGS_RETENTION_DAYS` (365 by default). On TimescaleDB they're stored in day chunks, compressed after a week, and old chunks are dropped automatically. On plain Postgres or SQLite, the scheduler trims them each day, so make sure the scheduler runs.

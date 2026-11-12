@@ -8,6 +8,7 @@ use App\Actions\CreateProject;
 use App\Actions\DeleteProject;
 use App\Http\Requests\StoreProjectRequest;
 use App\Models\Device;
+use App\Models\NotificationChannel;
 use App\Models\OpcUaServer;
 use App\Models\Project;
 use App\Models\ProjectAsset;
@@ -119,6 +120,21 @@ final readonly class ProjectController
                 'topicPrefix' => $project->topicPrefix(),
             ],
             'directUploads' => DirectUploads::enabled(),
+            // Everyone sees where alerts go by name; only editors see the addresses.
+            'notificationChannels' => $project->notificationChannels()->orderBy('name')->get()->map(fn (NotificationChannel $channel): array => [
+                'id' => $channel->id,
+                'name' => $channel->name,
+                'kind' => $channel->kind->value,
+                'target' => $user->can('update', $project) ? $channel->displayTarget() : null,
+                'minSeverity' => $channel->min_severity->value,
+                'notifyCleared' => $channel->notify_cleared,
+                'escalateAfterMinutes' => $channel->escalate_after_minutes,
+                'quietFrom' => $channel->quiet_from,
+                'quietUntil' => $channel->quiet_until,
+                'timezone' => $channel->timezone,
+                'lastSentAt' => $channel->last_sent_at?->toIso8601String(),
+                'lastError' => $channel->last_error,
+            ]),
             'can' => [
                 'update' => $user->can('update', $project),
             ],
