@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrganisationRole;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Event;
@@ -147,6 +148,24 @@ it('may delete user account', function (): void {
     expect($user->fresh())->toBeNull();
 
     $this->assertGuest();
+});
+
+it("keeps the account, signed in, when it is an organisation's only owner", function (): void {
+    [$user, $organisation] = member();
+    $organisation->memberships()->create(['user_id' => User::factory()->create()->id, 'role' => OrganisationRole::Viewer]);
+
+    $response = $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->delete(route('user.destroy'), [
+            'password' => 'password',
+        ]);
+
+    $response->assertRedirectToRoute('user-profile.edit')
+        ->assertSessionHasErrors('account');
+
+    expect($user->fresh())->not->toBeNull();
+
+    $this->assertAuthenticatedAs($user);
 });
 
 it('requires password to delete account', function (): void {

@@ -13,11 +13,20 @@ const sample = JSON.parse(readFileSync('public/samples/harbour-depot.json', 'utf
 
 /** A stand-in for the Laravel app's GET /api/gateway/definition. */
 function controlPlane() {
-  const state = { version: 1, name: sample.name, seenUrls: [] as (string | undefined)[], fail: false };
+  const state = { version: 1, name: sample.name, seenUrls: [] as (string | undefined)[], fail: false, always: true, alerts: [] as { open: { rule: string }[] }[] };
   const server: Server = createServer((req, res) => {
     state.seenUrls.push(req.headers['x-gateway-url'] as string | undefined);
     if (state.fail) {
       res.writeHead(500).end();
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/api/gateway/alerts' && req.headers.authorization === `Bearer ${TOKEN}`) {
+      let body = '';
+      req.on('data', (chunk: Buffer) => (body += chunk.toString()));
+      req.on('end', () => {
+        state.alerts.push(JSON.parse(body) as { open: { rule: string }[] });
+        res.writeHead(204).end();
+      });
       return;
     }
     if (req.url !== '/api/gateway/definition' || req.headers.authorization !== `Bearer ${TOKEN}`) {
@@ -30,7 +39,10 @@ function controlPlane() {
       return;
     }
     res.writeHead(200, { 'content-type': 'application/json', etag });
-    res.end(JSON.stringify({ twin: { id: TWIN }, version: state.version, definition: { ...sample, name: state.name } }));
+    // A rule that always holds while `always` is on, so the gateway has an alert to report.
+    const always = { id: 'always', name: 'Always', severity: 'info', kind: 'bus', when: '1', message: '{asset} is watched' };
+    const rules = [...(sample as unknown as { rules: unknown[] }).rules, ...(state.always ? [always] : [])];
+    res.end(JSON.stringify({ twin: { id: TWIN }, version: state.version, definition: { ...sample, name: state.name, rules } }));
   });
   return { state, server };
 }
@@ -134,6 +146,17 @@ describe('gateway with a control plane', () => {
       });
     expect((await post('wrong')).status).toBe(401);
     expect((await post(TOKEN)).status).toBe(202);
+  });
+
+  it('tells the control plane which alerts are open, and again on a new version', async () => {
+    const reported = () => cp.state.alerts.at(-1)?.open.map((a) => a.rule) ?? [];
+    await expect.poll(reported, { timeout: 5000 }).toContain('always');
+    cp.state.always = false;
+    cp.state.version = 3;
+    await expect.poll(reported, { timeout: 5000 }).not.toContain('always');
+    const health = (await (await fetch(`http://127.0.0.1:${gw.port}/health`)).json()) as { alerts: { open: number; sent: number } };
+    expect(health.alerts.open).toBe(0);
+    expect(health.alerts.sent).toBeGreaterThan(1);
   });
 
   it('fails to start with a token the control plane refuses', async () => {

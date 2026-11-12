@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import { mkdirSync, openSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 
 /**
@@ -19,6 +21,29 @@ type Debug = {
 };
 
 const PORT = 8797;
+const RECEIVER_PORT = 8796;
+
+type Delivery = { event: string; signature: string; body: string; json: { alert: { message: string } } };
+
+/** A webhook receiver on this machine, keeping what it's sent. */
+function receiver(): { server: Server; deliveries: Delivery[] } {
+  const deliveries: Delivery[] = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: Buffer) => (body += chunk.toString()));
+    req.on('end', () => {
+      deliveries.push({
+        event: String(req.headers['x-meridian-event']),
+        signature: String(req.headers['x-meridian-signature']),
+        body,
+        json: JSON.parse(body) as Delivery['json'],
+      });
+      res.writeHead(204).end();
+    });
+  });
+  server.listen(RECEIVER_PORT, '127.0.0.1');
+  return { server, deliveries };
+}
 const state = (page: Page) => page.evaluate(() => {
   const s = (window as unknown as Debug).__twin.getState();
   return { kind: s.sourceKind, status: s.status, canOperate: s.canOperate, freezer: s.live?.values['freezer.tempC'] };
@@ -51,6 +76,7 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
   expect(token).toMatch(/^mgw_/);
 
   let gateway: ChildProcess | undefined;
+  const hook = receiver();
   mkdirSync('test-results', { recursive: true });
   const log = openSync('test-results/gateway.log', 'w');
   try {
@@ -87,6 +113,62 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
     expect(ingest.status).toBe(202);
     await expect.poll(async () => (await state(owner)).freezer, { timeout: 30_000 }).toBe(-11.5);
 
+    // A webhook channel on the project hears of the twin's alerts, signed.
+    const twinUrl = owner.url();
+    await owner.getByRole('link', { name: /^Back to / }).click();
+    const channelForm = owner.getByRole('form', { name: 'Add a notification channel' });
+    await channelForm.getByLabel('Channel name').fill('Receiver');
+    await channelForm.getByLabel('Send by').selectOption('webhook');
+    await channelForm.getByLabel('Webhook URL').fill(`http://127.0.0.1:${RECEIVER_PORT}/hook`);
+    await channelForm.getByLabel('Send', { exact: true }).selectOption('info');
+    await channelForm.getByRole('button', { name: 'Add channel' }).click();
+    const channel = owner.getByRole('list', { name: 'Notification channels' }).getByRole('listitem').filter({ hasText: 'Receiver' });
+    const secret = await channel.getByLabel('Signing secret').innerText();
+    expect(secret).toMatch(/^whsec_/);
+    await channel.getByRole('button', { name: 'Send test' }).click();
+    await expect(owner.getByText('Test sent to Receiver.')).toBeVisible();
+    await expect(channel).toContainText('Last sent');
+    const signed = (d: Delivery) => d.signature === `sha256=${createHmac('sha256', secret).update(d.body).digest('hex')}`;
+    expect(hook.deliveries.map((d) => [d.event, signed(d)])).toEqual([['test', true]]);
+    await owner.goto(twinUrl);
+
+    // The gateway raises alerts itself and logs them in the control plane,
+    // where acknowledging one records who did it.
+    const reading = (value: number) =>
+      fetch(`http://127.0.0.1:${PORT}/ingest`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+        body: JSON.stringify({ asset: 'fire-tank', metric: 'levelPct', value, ttlS: 86_400 }),
+      });
+    expect((await reading(40)).status).toBe(202);
+    const logged = owner.getByRole('list', { name: 'Alerts' }).getByRole('listitem').filter({ hasText: 'Fire water tank is below 60%' }).first();
+    await expect(async () => {
+      await owner.goto(`${twinUrl}/alerts`);
+      await expect(logged).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 60_000 });
+    await expect(logged).toContainText('Open');
+    await expect(logged).toContainText('Told: Receiver (sent)');
+    const raised = hook.deliveries.find((d) => d.event === 'alert.raised' && d.json.alert.message === 'Fire water tank is below 60%');
+        expect(raised && signed(raised)).toBe(true);
+    await owner.goto(twinUrl);
+    await expect.poll(() => state(owner), { timeout: 60_000 }).toMatchObject({ kind: 'gateway', status: 'online' });
+    await owner.getByRole('tab', { name: 'Alerts' }).click();
+    const inScene = owner.locator('.alert-item', { hasText: 'Fire water tank is below 60%' });
+    await inScene.getByRole('button', { name: 'Acknowledge' }).click();
+    await expect(inScene).toContainText('Acknowledged by Test User', { timeout: 30_000 });
+    await owner.getByRole('link', { name: 'Alert log' }).click();
+    await expect(logged).toContainText('Acknowledged by Test User');
+    expect((await reading(90)).status).toBe(202);
+    await expect(async () => {
+      await owner.reload();
+      await expect(logged).toContainText('cleared', { timeout: 2000 });
+    }).toPass({ timeout: 60_000 });
+    await expect(logged).toContainText('Receiver (cleared, sent)');
+    expect(hook.deliveries.filter((d) => d.event === 'alert.cleared' && d.json.alert.message === 'Fire water tank is below 60%')).toHaveLength(1);
+    await owner.goto(twinUrl);
+    await expect(owner.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
+
+
     // A viewer follows the same gateway, and may only watch.
     const viewer = await logIn(browser, 'viewer@example.com');
     await expect(viewer.getByRole('radio', { name: 'Live' })).toBeChecked({ timeout: 30_000 });
@@ -96,6 +178,7 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
     await viewer.close();
   } finally {
     gateway?.kill();
+    hook.server.close();
   }
 
   // Revoking cuts the gateway off and takes the switch away.

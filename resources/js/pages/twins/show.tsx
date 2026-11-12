@@ -1,4 +1,4 @@
-import { Head, Link, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { DefinitionEditor } from '@/components/definition-editor';
 import type { GatewayStatus } from '@/components/gateway-panel';
@@ -9,10 +9,14 @@ import {
     type TwinAssetSummary,
     type TwinVersionSummary,
 } from '@/components/twin-editor';
+import { TwinSettings } from '@/components/twin-settings';
 import { show as showProject } from '@/routes/projects';
+import { index as alertLog } from '@/routes/twins/alerts';
+import { store as acknowledgeAlert } from '@/routes/twins/alerts/acknowledgement';
 import { index as twinReadings } from '@/routes/twins/readings';
 import type { TwinDefinition } from '@/twin/core/types';
 import {
+    alertKey,
     runDefinition,
     runGateway,
     stopTwin,
@@ -20,6 +24,14 @@ import {
     type Recorded,
 } from '@/twin/state/store';
 import { Viewer } from '@/twin/ui/Viewer';
+
+type ServerAlert = {
+    id: string;
+    rule: string;
+    asset: string;
+    acknowledgedBy: string | null;
+    acknowledgedAt: string | null;
+};
 
 type Props = {
     twin: { id: string; name: string; description: string | null };
@@ -36,6 +48,8 @@ type Props = {
     types: LibraryTypeSummary[];
     gateway: GatewayStatus;
     opcuaWrites: OpcUaWrites;
+    /** The alerts the gateway says are open; null without a gateway. */
+    alerts: ServerAlert[] | null;
     can: { update: boolean; operate: boolean; manageTypes: boolean };
 };
 
@@ -49,11 +63,12 @@ export default function ShowTwin({
     types,
     gateway,
     opcuaWrites,
+    alerts,
     can,
 }: Props) {
-    const [editing, setEditing] = useState<'layout' | 'definition' | null>(
-        null,
-    );
+    const [editing, setEditing] = useState<
+        'layout' | 'definition' | 'settings' | null
+    >(null);
     // Follow the gateway when one is connected, unless the user picks the simulator.
     const [preferSimulator, setPreferSimulator] = useState(false);
     const live =
@@ -62,7 +77,7 @@ export default function ShowTwin({
     const gatewayUrl = gateway?.online ? gateway.url : null;
 
     // The gateway's status comes and goes; tickets are refreshed with it.
-    usePoll(15_000, { only: ['gateway'] });
+    usePoll(15_000, { only: ['gateway', 'alerts'] });
     const ticket = useRef(gateway?.ticket ?? null);
     useEffect(() => {
         if (gateway?.ticket) ticket.current = gateway.ticket;
@@ -95,6 +110,46 @@ export default function ShowTwin({
             },
         });
     }, [twin.id]);
+
+    // While following the gateway, the Alerts tab shares acknowledgements
+    // through the control plane's alert log.
+    useEffect(() => {
+        if (alerts === null) {
+            useTwin.setState({ serverAlerts: null });
+            return;
+        }
+        const byKey = new Map(
+            alerts.map((a) => [alertKey(a.rule, a.asset), a]),
+        );
+        useTwin.setState({
+            serverAlerts: {
+                open: live
+                    ? Object.fromEntries(
+                          [...byKey].map(([key, a]) => [
+                              key,
+                              { acknowledgedBy: a.acknowledgedBy },
+                          ]),
+                      )
+                    : {},
+                acknowledge: live
+                    ? (ruleId, assetId) => {
+                          const alert = byKey.get(alertKey(ruleId, assetId));
+                          if (alert)
+                              router.post(
+                                  acknowledgeAlert.url([twin.id, alert.id]),
+                                  {},
+                                  {
+                                      preserveScroll: true,
+                                      preserveState: true,
+                                      only: ['alerts'],
+                                  },
+                              );
+                      }
+                    : undefined,
+                logUrl: alertLog.url(twin.id),
+            },
+        });
+    }, [alerts, live, twin.id]);
 
     useEffect(() => stopTwin, []);
 
@@ -149,6 +204,7 @@ export default function ShowTwin({
                                 [
                                     ['layout', 'Layout'],
                                     ['definition', 'Definition'],
+                                    ['settings', 'Settings'],
                                 ] as const
                             ).map(([panel, label]) => (
                                 <button
@@ -181,6 +237,12 @@ export default function ShowTwin({
                         topicPrefix={project.topicPrefix}
                         opcuaServers={project.opcuaServers}
                         opcuaWrites={opcuaWrites}
+                        onClose={() => setEditing(null)}
+                    />
+                )}
+                {editing === 'settings' && (
+                    <TwinSettings
+                        twin={twin}
                         onClose={() => setEditing(null)}
                     />
                 )}

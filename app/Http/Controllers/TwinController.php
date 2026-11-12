@@ -10,6 +10,7 @@ use App\Actions\IssueGatewayTicket;
 use App\Enums\ProjectAssetStatus;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
+use App\Models\Alert;
 use App\Models\AssetType;
 use App\Models\OpcUaWrite;
 use App\Models\ProjectAsset;
@@ -141,6 +142,16 @@ final readonly class TwinController
                         'error' => $write->error,
                     ]),
             ],
+            // What the gateway says is open, for acknowledging from the scene.
+            'alerts' => $twin->gateway_token_hash === null ? null : $twin->openAlerts()
+                ->with('acknowledger:id,name')->latest('raised_at')->limit(100)->get()
+                ->map(fn (Alert $alert): array => [
+                    'id' => $alert->id,
+                    'rule' => $alert->rule,
+                    'asset' => $alert->asset,
+                    'acknowledgedBy' => $alert->acknowledger?->name,
+                    'acknowledgedAt' => $alert->acknowledged_at?->toIso8601String(),
+                ]),
             'gateway' => $twin->gateway_token_hash === null ? null : [
                 'online' => $online,
                 'url' => $online ? $twin->gateway_url : null,

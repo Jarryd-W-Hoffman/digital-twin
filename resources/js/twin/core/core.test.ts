@@ -127,6 +127,20 @@ describe('rules', () => {
         expect(alert!.ackedAt).toBe(5);
     });
 
+    it('lists what is open, and can forget what has cleared', () => {
+        for (const remember of [true, false]) {
+            const e = createRuleEngine(baseDef([{ ...rule, forS: 0 }]), {
+                remember,
+            });
+            e.evaluate({ t: 0, values: { 'room.tempC': 9 } });
+            expect(e.open().map((a) => a.ruleId)).toEqual(['hot']);
+            e.evaluate({ t: 1, values: { 'room.tempC': 2 } });
+            e.evaluate({ t: 2, values: { 'room.tempC': 9 } });
+            expect(e.open().map((a) => a.raisedAt)).toEqual([2]);
+            expect(e.alerts()).toHaveLength(remember ? 2 : 1);
+        }
+    });
+
     it('ignores frames without the metric', () => {
         const e = createRuleEngine(baseDef([rule]));
         expect(e.evaluate({ t: 0, values: {} }).raised).toHaveLength(0);

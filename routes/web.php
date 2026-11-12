@@ -11,11 +11,15 @@ use App\Http\Controllers\ProjectAssetFileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDeviceController;
 use App\Http\Controllers\ProjectDevicePasswordController;
+use App\Http\Controllers\ProjectNotificationChannelController;
+use App\Http\Controllers\ProjectNotificationChannelTestController;
 use App\Http\Controllers\ProjectOpcUaServerController;
 use App\Http\Controllers\ProjectUploadCompletionController;
 use App\Http\Controllers\ProjectUploadController;
 use App\Http\Controllers\ProjectUploadPartController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\TwinAlertAcknowledgementController;
+use App\Http\Controllers\TwinAlertController;
 use App\Http\Controllers\TwinAssetController;
 use App\Http\Controllers\TwinController;
 use App\Http\Controllers\TwinGatewayTokenController;
@@ -55,6 +59,9 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('projects/{project}/devices/{device}/password', [ProjectDevicePasswordController::class, 'store'])->scopeBindings()->name('projects.devices.password.store');
     Route::post('projects/{project}/opcua-servers', [ProjectOpcUaServerController::class, 'store'])->name('projects.opcua-servers.store');
     Route::delete('projects/{project}/opcua-servers/{opcUaServer}', [ProjectOpcUaServerController::class, 'destroy'])->scopeBindings()->name('projects.opcua-servers.destroy');
+    Route::post('projects/{project}/notification-channels', [ProjectNotificationChannelController::class, 'store'])->name('projects.notification-channels.store');
+    Route::delete('projects/{project}/notification-channels/{notificationChannel}', [ProjectNotificationChannelController::class, 'destroy'])->scopeBindings()->name('projects.notification-channels.destroy');
+    Route::post('projects/{project}/notification-channels/{notificationChannel}/test', [ProjectNotificationChannelTestController::class, 'store'])->scopeBindings()->middleware('throttle:10,1')->name('projects.notification-channels.test');
     Route::post('projects/{project}/uploads', [ProjectUploadController::class, 'store'])->name('projects.uploads.store');
     Route::post('projects/{project}/uploads/{asset}/parts', [ProjectUploadPartController::class, 'store'])->scopeBindings()->name('projects.uploads.parts');
     Route::post('projects/{project}/uploads/{asset}/complete', [ProjectUploadCompletionController::class, 'store'])->scopeBindings()->name('projects.uploads.complete');
@@ -77,6 +84,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'store'])->name('twins.gateway-token.store');
     Route::delete('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'destroy'])->name('twins.gateway-token.destroy');
     Route::put('twins/{twin}/opcua-writes', [TwinOpcUaWritesController::class, 'update'])->name('twins.opcua-writes.update');
+    Route::get('twins/{twin}/alerts', [TwinAlertController::class, 'index'])->name('twins.alerts.index');
+    Route::post('twins/{twin}/alerts/{alert}/acknowledgement', [TwinAlertAcknowledgementController::class, 'store'])->scopeBindings()->name('twins.alerts.acknowledgement.store');
 
     // Organisations...
     Route::post('organisations', [OrganisationController::class, 'store'])->name('organisations.store');

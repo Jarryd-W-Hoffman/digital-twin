@@ -19,6 +19,11 @@ declare module '@inertiajs/core' {
                 username: string;
                 password: string;
             };
+            /** A new webhook channel's signing secret. */
+            channelSecret?: {
+                channelId: string;
+                secret: string;
+            };
         };
         sharedPageProps: {
             name: string;

@@ -88,4 +88,15 @@ return [
         'extensions' => ['json', 'b3dm', 'i3dm', 'pnts', 'cmpt', 'glb', 'gltf', 'bin', 'subtree', 'png', 'jpg', 'jpeg', 'webp', 'ktx2'],
     ],
 
+    /*
+    | Alert notifications. Webhooks may not reach private or reserved
+    | addresses, or use plain http, unless allow_private_webhooks is on: only
+    | for development and tests, where the receiver runs on the same machine.
+    */
+    'notifications' => [
+        'allow_private_webhooks' => (bool) env('MERIDIAN_ALLOW_PRIVATE_WEBHOOKS', false),
+        // The queue connection deliveries go on; empty for the default one.
+        'connection' => (string) env('MERIDIAN_NOTIFICATIONS_QUEUE', ''),
+    ],
+
 ];

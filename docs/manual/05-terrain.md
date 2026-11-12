@@ -20,6 +20,7 @@ flowchart LR
 - The converter that turns [point clouds](04-point-clouds.md) into tiles also does terrain. Each zoom level is a mesh that keeps the ground's shape to within a fraction of the DEM's cell size, so flat ground costs almost nothing and detail goes where the ground changes.
 - Heights are used as the DEM gives them, usually metres above sea level.
 - A twin has **one** terrain. Choosing another replaces it.
+- Terrain is **hillshaded**: lit from the north-west, as on a map, so slopes facing north-west are lighter and those facing south-east darker, whatever the time of day. Flat ground keeps its colour.
 
 ## Upload a DEM
 

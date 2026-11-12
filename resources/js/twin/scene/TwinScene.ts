@@ -92,6 +92,7 @@ import {
     temperatureColor,
 } from './colors.ts';
 import { Gizmo } from './Gizmo.ts';
+import { hillshade } from './hillshade.ts';
 import { Measure } from './Measure.ts';
 import { Shapes } from './Shapes.ts';
 import { Sight } from './Sight.ts';
@@ -439,6 +440,7 @@ export class TwinScene {
             if (this.viewer.isDestroyed()) return;
             this.viewer.terrainProvider = provider;
             this.viewer.scene.globe.depthTestAgainstTerrain = true;
+            this.viewer.scene.globe.material = hillshade();
             const [origin] = await sampleTerrainMostDetailed(provider, [
                 Cartographic.fromDegrees(this.origin.lon, this.origin.lat),
             ]);
@@ -449,9 +451,13 @@ export class TwinScene {
         }
     }
 
-    /** Test hook: whether terrain loaded, and the ground height at the origin. */
-    terrain(): { loaded: boolean; ground: number } {
-        return { loaded: this.terrainLoaded, ground: this.ground };
+    /** Test hook: whether terrain loaded, the ground height at the origin, and whether it's hillshaded. */
+    terrain(): { loaded: boolean; ground: number; shaded: boolean } {
+        return {
+            loaded: this.terrainLoaded,
+            ground: this.ground,
+            shaded: this.viewer.scene.globe.material !== undefined,
+        };
     }
 
     /** Where a screen position meets the ground, in metres from the origin. */

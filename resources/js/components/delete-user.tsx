@@ -48,10 +48,11 @@ export default function DeleteUser() {
                             Are you sure you want to delete your account?
                         </DialogTitle>
                         <DialogDescription>
-                            Once your account is deleted, all of its resources
-                            and data will also be permanently deleted. Please
-                            enter your password to confirm you would like to
-                            permanently delete your account.
+                            Once your account is deleted, it can't be recovered.
+                            An organisation you're the only member of is deleted
+                            with it, with its projects and twins. If you're an
+                            organisation's only owner, make another member an
+                            owner first. Enter your password to confirm.
                         </DialogDescription>
 
                         <Form
@@ -82,6 +83,7 @@ export default function DeleteUser() {
                                         />
 
                                         <InputError message={errors.password} />
+                                        <InputError message={errors.account} />
                                     </div>
 
                                     <DialogFooter className="gap-2">

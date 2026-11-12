@@ -34,14 +34,23 @@ interface Binding {
 
 export interface RuleEngine {
     evaluate(frame: Frame): { raised: Alert[]; cleared: Alert[] };
-    /** Every alert ever raised, oldest first. */
+    /** Every alert ever raised, oldest first (only open ones, without `remember`). */
     alerts(): Alert[];
+    /** The alerts open now. */
+    open(): Alert[];
     acknowledge(alertId: string, at: number): void;
 }
 
 const holds = (v: number) => !Number.isNaN(v) && v !== 0;
 
-export function createRuleEngine(def: TwinDefinition): RuleEngine {
+/**
+ * `remember: false` keeps only open alerts, for something that runs for
+ * months, such as a gateway.
+ */
+export function createRuleEngine(
+    def: TwinDefinition,
+    { remember = true }: { remember?: boolean } = {},
+): RuleEngine {
     const types = compileTypes(def);
     const bindings: Binding[] = [];
     for (const rule of def.rules) {
@@ -121,6 +130,7 @@ export function createRuleEngine(def: TwinDefinition): RuleEngine {
                     if (now.cleared) {
                         b.alert.clearedAt = frame.t;
                         cleared.push(b.alert);
+                        if (!remember) all.splice(all.indexOf(b.alert), 1);
                         b.alert = undefined;
                         b.breachedSince = undefined;
                     }
@@ -152,6 +162,7 @@ export function createRuleEngine(def: TwinDefinition): RuleEngine {
             return { raised, cleared };
         },
         alerts: () => all,
+        open: () => bindings.flatMap((b) => (b.alert ? [b.alert] : [])),
         acknowledge(alertId, at) {
             const alert = all.find((a) => a.id === alertId);
             if (alert && alert.ackedAt === undefined) alert.ackedAt = at;
