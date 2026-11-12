@@ -21,7 +21,7 @@ type LoggedAlert = {
     acknowledgedBy: string | null;
     notifications: {
         channel: string;
-        event: 'raised' | 'cleared';
+        event: 'raised' | 'escalated' | 'cleared';
         status: 'queued' | 'sent' | 'failed' | 'quiet';
         error: string | null;
     }[];
@@ -161,7 +161,7 @@ export default function TwinAlerts({
                                             {alert.notifications
                                                 .map(
                                                     (n) =>
-                                                        `${n.channel} (${n.event === 'cleared' ? 'cleared, ' : ''}${STATUS[n.status]}${n.error ? `: ${n.error}` : ''})`,
+                                                        `${n.channel} (${n.event === 'raised' ? '' : `${n.event}, `}${STATUS[n.status]}${n.error ? `: ${n.error}` : ''})`,
                                                 )
                                                 .join(', ')}
                                         </span>

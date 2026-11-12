@@ -69,7 +69,7 @@ it('shows a project with its twins, library and abilities', function (Organisati
     Device::factory()->create();
     $plc = OpcUaServer::factory()->for($twin->project)->secured()->create(['name' => 'Plant PLC']);
     OpcUaServer::factory()->create();
-    $channel = NotificationChannel::factory()->for($twin->project)->quiet()->create(['name' => 'Night shift', 'last_error' => 'Mailbox full']);
+    $channel = NotificationChannel::factory()->for($twin->project)->quiet()->escalation(30)->create(['name' => 'Night shift', 'last_error' => 'Mailbox full']);
 
     $this->actingAs($user)->get(route('projects.show', $twin->project))
         ->assertOk()
@@ -92,6 +92,7 @@ it('shows a project with its twins, library and abilities', function (Organisati
                 'target' => $update ? 'ops@example.com' : null,
                 'minSeverity' => 'warning',
                 'notifyCleared' => true,
+                'escalateAfterMinutes' => 30,
                 'quietFrom' => '22:00',
                 'quietUntil' => '07:00',
                 'timezone' => 'UTC',

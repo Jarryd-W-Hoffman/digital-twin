@@ -22,6 +22,8 @@ export type ProjectNotificationChannel = {
     target: string | null;
     minSeverity: Severity;
     notifyCleared: boolean;
+    /** Told only of alerts still unacknowledged this long; null when told at once. */
+    escalateAfterMinutes: number | null;
     quietFrom: string | null;
     quietUntil: string | null;
     timezone: string;
@@ -76,6 +78,7 @@ const browserTimezone = () => {
  * Where the project's alerts are sent when a twin's gateway raises or
  * clears them: email, Slack, Teams or a signed webhook, each with the
  * severities it takes and hours it keeps quiet for all but critical alerts.
+ * An escalation channel hears only of alerts nobody acknowledged in time.
  */
 export default function ProjectNotificationChannels({
     projectId,
@@ -92,6 +95,7 @@ export default function ProjectNotificationChannels({
         target: '',
         min_severity: 'warning' as Severity,
         notify_cleared: true,
+        escalate_after_minutes: '',
         quiet_from: '',
         quiet_until: '',
         timezone: browserTimezone(),
@@ -121,7 +125,8 @@ export default function ProjectNotificationChannels({
                 <p className="text-sm text-muted-foreground">
                     Where alerts from this project's twins are sent while a
                     gateway runs them. During a channel's quiet hours, only
-                    critical alerts get through.
+                    critical alerts get through. An escalation channel is told
+                    only when nobody acknowledges an alert in time.
                 </p>
             </div>
 
@@ -220,6 +225,57 @@ export default function ProjectNotificationChannels({
                         />
                         Also say when an alert clears
                     </label>
+                    <div className="grid gap-2">
+                        <Label htmlFor="channel-when">When</Label>
+                        <select
+                            id="channel-when"
+                            className={selectClass}
+                            value={
+                                form.data.escalate_after_minutes === ''
+                                    ? 'raised'
+                                    : 'escalate'
+                            }
+                            onChange={(e) =>
+                                form.setData(
+                                    'escalate_after_minutes',
+                                    e.target.value === 'raised' ? '' : '15',
+                                )
+                            }
+                        >
+                            <option value="raised">
+                                As soon as it's raised
+                            </option>
+                            <option value="escalate">
+                                If nobody acknowledges it in time
+                            </option>
+                        </select>
+                    </div>
+                    {form.data.escalate_after_minutes !== '' ? (
+                        <div className="grid gap-2">
+                            <Label htmlFor="channel-escalate">
+                                Minutes to wait
+                            </Label>
+                            <Input
+                                id="channel-escalate"
+                                type="number"
+                                required
+                                min={1}
+                                max={1440}
+                                value={form.data.escalate_after_minutes}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'escalate_after_minutes',
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            <InputError
+                                message={form.errors.escalate_after_minutes}
+                            />
+                        </div>
+                    ) : (
+                        <span />
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                         <div className="grid gap-2">
                             <Label htmlFor="channel-quiet-from">
@@ -308,6 +364,10 @@ export default function ProjectNotificationChannels({
                                             {SEVERITIES[
                                                 channel.minSeverity
                                             ].toLowerCase()}
+                                            {channel.escalateAfterMinutes !==
+                                            null
+                                                ? ` not acknowledged after ${channel.escalateAfterMinutes} min`
+                                                : ''}
                                             {channel.notifyCleared
                                                 ? ', and when they clear'
                                                 : ''}

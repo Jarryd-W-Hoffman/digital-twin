@@ -133,7 +133,7 @@ Elsewhere, run `npm run gateway` from a copy of the code with these set:
 
 ## Alert notifications
 
-Notifications are delivered by the queue worker, so it must run for alerts to reach anyone (in Docker, `supervisor` runs it). Email goes through Laravel's mailer: set `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` and `MAIL_FROM_ADDRESS` in `.env`. With the default `log` mailer, emails are only written to the log. `MERIDIAN_NOTIFICATIONS_QUEUE` names another queue connection for deliveries, if they shouldn't wait behind other work.
+Notifications are delivered by the queue worker, so it must run for alerts to reach anyone, and escalations are checked by the scheduler every minute (in Docker, `supervisor` runs both). Email goes through Laravel's mailer: set `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` and `MAIL_FROM_ADDRESS` in `.env`. With the default `log` mailer, emails are only written to the log. `MERIDIAN_NOTIFICATIONS_QUEUE` names another queue connection for deliveries, if they shouldn't wait behind other work.
 
 Webhooks may only reach public `https://` addresses. For development, with a receiver on the same machine, `MERIDIAN_ALLOW_PRIVATE_WEBHOOKS=true` allows private addresses and plain `http://`; never set it in production.
 

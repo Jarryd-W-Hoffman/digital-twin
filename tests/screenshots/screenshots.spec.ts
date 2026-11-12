@@ -705,7 +705,8 @@ test('screenshots', async ({ page, context }) => {
         const twinUrl = page.url();
 
         // Alerts go to the project's channels: the on-call team by email,
-        // quiet overnight except for critical alerts.
+        // quiet overnight except for critical alerts, and the operations
+        // manager when nobody acknowledges one within 15 minutes.
         await page.getByRole('link', { name: /^Back to / }).click();
         const channels = page.getByRole('region', {
             name: 'Alert notifications',
@@ -715,6 +716,7 @@ test('screenshots', async ({ page, context }) => {
             target: string,
             severity: string,
             quiet?: [string, string],
+            escalateAfter?: string,
         ) => {
             const form = channels.getByRole('form', {
                 name: 'Add a notification channel',
@@ -729,6 +731,12 @@ test('screenshots', async ({ page, context }) => {
                 .fill(quiet?.[0] ?? '');
             await form.getByLabel('Quiet until').fill(quiet?.[1] ?? '');
             await form.getByLabel('Time zone').fill('Pacific/Auckland');
+            if (escalateAfter) {
+                await form
+                    .getByLabel('When', { exact: true })
+                    .selectOption('escalate');
+                await form.getByLabel('Minutes to wait').fill(escalateAfter);
+            }
             await form.getByRole('button', { name: 'Add channel' }).click();
             await expect(
                 channels
@@ -742,7 +750,13 @@ test('screenshots', async ({ page, context }) => {
             'warning',
             ['01:00', '05:00'],
         );
-        await addChannel('Operations manager', 'ops@example.com', 'critical');
+        await addChannel(
+            'Operations manager',
+            'ops@example.com',
+            'warning',
+            undefined,
+            '15',
+        );
         await expect(page.getByText('Operations manager added.')).toBeHidden({
             timeout: 15_000,
         });

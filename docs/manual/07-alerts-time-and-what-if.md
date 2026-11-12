@@ -71,6 +71,7 @@ flowchart LR
     G["Gateway<br/>alert raised or cleared"] --> CP["Meridian<br/>the alert log"]
     CP --> D{"Each channel:<br/>severity high enough?<br/>a clear, and wanted?<br/>quiet hours?"}
     D -->|"send"| Q["Queued delivery<br/>3 tries over 5 minutes"]
+    CP -->|"still unacknowledged<br/>after the delay"| D
     D -->|"quiet, not critical"| H["Held, and noted<br/>in the log"]
     Q --> E["Email"]
     Q --> S["Slack"]
@@ -78,7 +79,7 @@ flowchart LR
     Q --> W["Signed webhook"]
 ```
 
-![Alert notifications on the project page: the depot's on-call team by email for warnings and critical alerts, quiet overnight in Auckland, and the operations manager for critical alerts only.](../images/notification-channels.png)
+![Alert notifications on the project page: the depot's on-call team by email for warnings and critical alerts, quiet overnight in Auckland, and the operations manager when nobody acknowledges one within 15 minutes.](../images/notification-channels.png)
 
 Each channel has:
 
@@ -86,12 +87,34 @@ Each channel has:
 | --- | --- |
 | **Send by** | **Email** to up to 20 addresses; **Slack**, **Microsoft Teams** or a plain **Webhook** to a URL |
 | **Send** | **Everything**, **Warnings and critical**, or **Critical only** |
+| **When** | **As soon as it's raised**, or **If nobody acknowledges it in time**, after a number of **Minutes to wait** (up to a day) |
 | **Also say when an alert clears** | Sends a second message when it clears, with how long it lasted |
 | **Quiet from / until** and **Time zone** | Hours when only critical alerts are sent, such as 22:00 to 07:00. They may run past midnight |
 
+#### Escalation
+
+A channel set to **If nobody acknowledges it in time** is an escalation channel: it's told of an alert only when it's still open and nobody has acknowledged it after its wait. That lets a project build a chain, for example:
+
+| Channel | When |
+| --- | --- |
+| On-call team | As soon as it's raised |
+| Shift manager | If nobody acknowledges it in 15 minutes |
+| Operations director | If nobody acknowledges it in 60 minutes, critical only |
+
+Meridian checks every minute, and tells each escalation channel about each alert once. Acknowledging the alert, in the alert log or the twin's Alerts tab, stops it going any further; so does its clearing. An escalation channel is told an alert has cleared only if it was told about the alert. During its quiet hours an escalation channel waits: a warning still unacknowledged when they end is sent then.
+
+```
+every minute, for each escalation channel:
+    for each alert in its project:
+        open, not acknowledged, raised at least <wait> minutes ago,
+        severity at least the channel's, not yet escalated to it
+        → quiet hours and not critical: try again next minute
+        → otherwise: record it, and send "Not acknowledged: …"
+```
+
 Choose **Send test** to send a made-up alert straight away; the page says whether it got there. Each channel shows when it last sent, or why its last attempt failed.
 
-Every message names the alert, the twin and project, its severity, when it was raised (and cleared), and links to the alert log. The log lists, under each alert, who was **told**: each channel, and whether its message was **sent**, is still **sending**, **failed** (with the reason), or was **held for quiet hours**.
+Every message names the alert, the twin and project, its severity, when it was raised (and cleared), and links to the alert log. The log lists, under each alert, who was **told**: each channel, and whether it was a raise, an **escalation** or a clear, and whether its message was **sent**, is still **sending**, **failed** (with the reason), or was **held for quiet hours**.
 
 **Slack:** create an app with an [incoming webhook](https://api.slack.com/messaging/webhooks) for the channel, and paste its `https://hooks.slack.com/…` URL.
 
@@ -109,7 +132,7 @@ Every message names the alert, the twin and project, its severity, when it was r
 }
 ```
 
-`event` is `alert.raised`, `alert.cleared` or `test`. When you add a webhook, the page shows its **signing secret** once: copy it then. Each request carries `X-Meridian-Signature: sha256=` and the HMAC-SHA256 of the body with the secret, so your receiver can check the request came from Meridian:
+`event` is `alert.raised`, `alert.escalated`, `alert.cleared` or `test`. When you add a webhook, the page shows its **signing secret** once: copy it then. Each request carries `X-Meridian-Signature: sha256=` and the HMAC-SHA256 of the body with the secret, so your receiver can check the request came from Meridian:
 
 ```
 on request:
@@ -172,6 +195,7 @@ The results show:
 - **Run a gateway for anything that matters.** Without one, nobody is told about an alert unless they have the twin open.
 - **Give every project a channel, and send it a test.** A channel that has never sent shows **Nothing sent yet**; one that's failing says why.
 - **Keep quiet hours for warnings.** Critical alerts always get through, so the night shift is only woken when it matters.
+- **Escalate rather than copy everyone.** Send alerts to the people on call, and let an escalation channel bring in a manager only when nobody responds.
 - **Use replay after an incident.** Find the first alert, choose **Replay from here**, and step forward at 60× to see the order things happened in.
 
 ## See also

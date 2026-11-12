@@ -136,3 +136,21 @@ it('describes a test without a twin', function (): void {
         ->and($message->url)->toBe(route('projects.show', $channel->project))
         ->and(new AlertMail($message)->render())->toContain('Open the project');
 });
+
+it('says an escalated alert is still waiting for someone', function (): void {
+    Http::fake();
+    $this->freezeSecond();
+    $alert = alertOn('warning');
+    $slack = NotificationChannel::factory()->for($alert->twin->project)->webhook(NotificationChannelKind::Slack, 'https://hooks.slack.com/services/x')->create();
+    $teams = NotificationChannel::factory()->for($alert->twin->project)->webhook(NotificationChannelKind::Teams, 'https://x.webhook.office.com/x')->create();
+    $message = AlertMessage::about($alert, AlertEvent::Escalated);
+
+    resolve(SendAlertNotification::class)->handle($slack, $message);
+    resolve(SendAlertNotification::class)->handle($teams, $message);
+
+    expect($message->subject())->toBe('Not acknowledged: Warning: Seafood store is above its temperature limit (Harbour Depot)')
+        ->and($message->timing())->toEndWith('still open and not acknowledged after 12 minutes')
+        ->and($message->payload()['event'])->toBe('alert.escalated');
+    Http::assertSent(fn (Request $request): bool => str_starts_with((string) ($request->data()['text'] ?? ''), ':rotating_light: *Not acknowledged'));
+    Http::assertSent(fn (Request $request): bool => ($request->data()['attachments'][0]['content']['body'][0]['color'] ?? null) === 'Attention');
+});

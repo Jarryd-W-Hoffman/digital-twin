@@ -23,6 +23,7 @@ function channelForm(array $overrides = []): array
         'target' => "ops@example.com,\noncall@example.com",
         'min_severity' => 'warning',
         'notify_cleared' => true,
+        'escalate_after_minutes' => '',
         'quiet_from' => '',
         'quiet_until' => '',
         'timezone' => 'Pacific/Auckland',
@@ -46,6 +47,7 @@ it('adds an email channel', function (): void {
         ->and($channel->quiet_from)->toBe('22:00')
         ->and($channel->quiet_until)->toBe('06:30')
         ->and($channel->timezone)->toBe('Pacific/Auckland')
+        ->and($channel->escalate_after_minutes)->toBeNull()
         ->and($channel->secret)->toBeNull();
 });
 
@@ -58,6 +60,7 @@ it('adds a webhook with a signing secret, shown once', function (): void {
         'target' => ' https://93.184.216.34/meridian ',
         'min_severity' => 'critical',
         'notify_cleared' => false,
+        'escalate_after_minutes' => '15',
     ]))->assertSessionHasNoErrors();
 
     $channel = $project->notificationChannels()->sole();
@@ -65,6 +68,7 @@ it('adds a webhook with a signing secret, shown once', function (): void {
     expect($channel->target)->toBe('https://93.184.216.34/meridian')
         ->and($channel->secret)->toStartWith('whsec_')
         ->and($channel->notify_cleared)->toBeFalse()
+        ->and($channel->escalate_after_minutes)->toBe(15)
         ->and($channel->quiet_from)->toBeNull();
 });
 
@@ -86,6 +90,7 @@ it("refuses channels it can't or mustn't send to", function (array $form, string
     'half the quiet hours' => [['quiet_from' => '22:00'], 'quiet_until', 'The quiet until field is required when quiet from is present.'],
     'no time zone' => [['timezone' => 'Mars/Olympus'], 'timezone', 'The timezone field must be a valid timezone.'],
     'an unknown kind' => [['kind' => 'pager'], 'kind', 'The selected kind is invalid.'],
+    'a day too long to wait' => [['escalate_after_minutes' => 1441], 'escalate_after_minutes', 'The escalate after minutes field must not be greater than 1440.'],
 ]);
 
 it('keeps operators and viewers from managing channels', function (OrganisationRole $role): void {
