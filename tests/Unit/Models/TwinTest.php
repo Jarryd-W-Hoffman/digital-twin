@@ -6,7 +6,7 @@ use App\Models\Twin;
 
 test('to array', function (): void {
     expect(array_keys(Twin::factory()->create()->refresh()->toArray()))
-        ->toBe(['id', 'organisation_id', 'name', 'description', 'created_at', 'updated_at', 'gateway_url', 'gateway_seen_at', 'project_id', 'gateway_mqtt', 'gateway_opcua', 'opcua_writes']);
+        ->toBe(['id', 'organisation_id', 'name', 'description', 'created_at', 'updated_at', 'gateway_url', 'gateway_seen_at', 'project_id', 'gateway_mqtt', 'gateway_opcua', 'opcua_writes', 'opening_view_id']);
 });
 
 it('never serialises its gateway token hash', function (): void {

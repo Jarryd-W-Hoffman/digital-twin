@@ -1473,6 +1473,62 @@
     font-size: 12px;
     color: var(--ink-2);
 }
+/* Saved views. */
+.twin-root .view-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.twin-root .view-row {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.twin-root .view-open {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    border: none;
+    padding: 2px 0;
+    background: none;
+}
+.twin-root .view-name {
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+.twin-root .view-open:hover .view-name {
+    text-decoration: underline;
+}
+.twin-root .view-badge {
+    color: var(--accent);
+    font-weight: 600;
+}
+.twin-root .view-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 4px;
+}
+.twin-root .view-actions button {
+    padding: 0 4px;
+    font-size: 11px;
+}
+.twin-root .view-rename {
+    display: flex;
+    gap: 4px;
+}
+.twin-root .view-rename input {
+    flex: 1;
+    min-width: 0;
+}
 /* Gateway token, shown once after issuing. */
 .twin-root .gateway-status {
     margin: 0;

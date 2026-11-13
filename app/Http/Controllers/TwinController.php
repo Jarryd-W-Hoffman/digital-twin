@@ -16,11 +16,13 @@ use App\Models\Issue;
 use App\Models\IssueComment;
 use App\Models\OpcUaWrite;
 use App\Models\ProjectAsset;
+use App\Models\SavedView;
 use App\Models\Twin;
 use App\Models\TwinVersion;
 use App\Models\User;
 use App\Support\SampleTwins;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -171,6 +173,13 @@ final readonly class TwinController
                     'updatedAt' => $issue->updated_at->toIso8601String(),
                 ]),
             'issue' => fn (): ?array => $this->issue($twin, $user, $request->query('issue')),
+            // The views this user can see: theirs and the shared ones.
+            'views' => fn () => $twin->savedViews()->with('author:id,name')
+                ->where(fn (Builder $query): Builder => $query->where('shared', true)->orWhere('author_id', $user->id))
+                ->orderByDesc('shared')->latest('updated_at')->limit(200)->get()
+                ->map(fn (SavedView $view): array => $this->savedView($view->setRelation('twin', $twin), $twin, $user)),
+            // Where to open: the view in the link (`?view=`), else the twin's opening view.
+            'startView' => fn (): ?array => $this->startView($twin, $request->query('view')),
             'gateway' => $twin->gateway_token_hash === null ? null : [
                 'online' => $online,
                 'url' => $online ? $twin->gateway_url : null,
@@ -208,6 +217,42 @@ final readonly class TwinController
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Twin deleted.')]);
 
         return to_route('projects.show', $twin->project_id);
+    }
+
+    /**
+     * A saved view for the Views panel, with what the user may do with it.
+     *
+     * @return array<string, mixed>
+     */
+    private function savedView(SavedView $view, Twin $twin, User $user): array
+    {
+        return [
+            'id' => $view->id,
+            'name' => $view->name,
+            'author' => $view->author?->name,
+            'mine' => $view->author_id === $user->id,
+            'shared' => $view->shared,
+            'opening' => $twin->opening_view_id === $view->id,
+            'state' => $view->state,
+            'can' => [
+                'update' => $user->can('update', $view),
+                'delete' => $user->can('delete', $view),
+                'share' => $user->can('share', $view),
+            ],
+        ];
+    }
+
+    /**
+     * The view a twin opens at: the one linked, shared or not, if it's one of
+     * the twin's; else the twin's opening view.
+     *
+     * @return array{id: string, state: array<string, mixed>}|null
+     */
+    private function startView(Twin $twin, mixed $id): ?array
+    {
+        $view = (is_string($id) && Str::isUuid($id) ? $twin->savedViews()->find($id) : null) ?? $twin->openingView;
+
+        return $view instanceof SavedView ? ['id' => $view->id, 'state' => $view->state] : null;
     }
 
     /**

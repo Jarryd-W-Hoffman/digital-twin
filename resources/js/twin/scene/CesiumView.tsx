@@ -178,8 +178,10 @@ export default function CesiumView() {
         });
         // Inspection hook for the end-to-end tests; it only exposes what the page already shows.
         (window as unknown as { __scene?: TwinScene }).__scene = scene;
+        useTwin.setState({ readCamera: () => scene.pins.cameraView() });
         return () => {
             unsubscribe();
+            useTwin.setState({ readCamera: null });
             scene.destroy();
         };
     }, [def]);

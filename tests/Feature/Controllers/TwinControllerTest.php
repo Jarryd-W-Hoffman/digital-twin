@@ -13,6 +13,7 @@ use App\Models\OpcUaServer;
 use App\Models\OpcUaWrite;
 use App\Models\Project;
 use App\Models\ProjectAsset;
+use App\Models\SavedView;
 use App\Models\Twin;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -391,3 +392,55 @@ it("opens no issue for an id that isn't one of the twin's", function (string $id
     $this->actingAs($user)->get(route('twins.show', [$twin, 'issue' => $id === 'elsewhere' ? $elsewhere->id : $id]))
         ->assertInertia(fn ($page) => $page->where('issue', null));
 })->with(['elsewhere', 'not-a-uuid']);
+
+it('passes the views someone can see: theirs and the shared ones, with what they may do', function (OrganisationRole $role, bool $edits): void {
+    [$user, $organisation] = member($role);
+    $twin = twinIn($organisation);
+    $mine = SavedView::factory()->for($twin)->create(['author_id' => $user->id, 'name' => 'Mine', 'updated_at' => now()->subHour()]);
+    $shared = SavedView::factory()->for($twin)->shared()->create(['name' => 'Night shift']);
+    SavedView::factory()->for($twin)->create(['name' => "Someone else's"]);
+    SavedView::factory()->shared()->create();
+    $twin->update(['opening_view_id' => $shared->id]);
+
+    $this->actingAs($user)->get(route('twins.show', $twin))
+        ->assertInertia(fn ($page) => $page
+            ->has('views', 2)
+            ->where('views.0', [
+                'id' => $shared->id,
+                'name' => 'Night shift',
+                'author' => $shared->author?->name,
+                'mine' => false,
+                'shared' => true,
+                'opening' => true,
+                'state' => $shared->state,
+                'can' => ['update' => $edits, 'delete' => $edits, 'share' => $edits],
+            ])
+            ->where('views.1.id', $mine->id)
+            ->where('views.1.mine', true)
+            ->where('views.1.opening', false)
+            ->where('views.1.can', ['update' => true, 'delete' => true, 'share' => $edits]));
+})->with([
+    [OrganisationRole::Owner, true],
+    [OrganisationRole::Viewer, false],
+]);
+
+it('opens at a linked view, even one not shared, else at the opening view', function (): void {
+    [$user, $organisation] = member(OrganisationRole::Viewer);
+    $twin = twinIn($organisation);
+    $opening = SavedView::factory()->for($twin)->shared()->create();
+    $linked = SavedView::factory()->for($twin)->create(['state' => [...$opening->state, 'colorBy' => 'power']]);
+    $elsewhere = SavedView::factory()->create();
+
+    $this->actingAs($user)->get(route('twins.show', $twin))
+        ->assertInertia(fn ($page) => $page->where('startView', null));
+
+    $twin->update(['opening_view_id' => $opening->id]);
+
+    $this->actingAs($user)->get(route('twins.show', [$twin, 'view' => $linked->id]))
+        ->assertInertia(fn ($page) => $page->where('startView', ['id' => $linked->id, 'state' => $linked->state]));
+
+    foreach ([null, $elsewhere->id, 'not-a-uuid'] as $id) {
+        $this->actingAs($user)->get(route('twins.show', [$twin, 'view' => $id]))
+            ->assertInertia(fn ($page) => $page->where('startView', ['id' => $opening->id, 'state' => $opening->state]));
+    }
+});

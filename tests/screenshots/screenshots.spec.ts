@@ -609,6 +609,43 @@ test('screenshots', async ({ page, context }) => {
         await issues.getByRole('button', { name: 'Hide issues' }).click();
     });
 
+    await test.step('saved views and links', async () => {
+        await page.getByRole('radio', { name: 'Temp' }).click();
+        await page.getByRole('button', { name: 'Views' }).click();
+        const views = page.getByRole('complementary', { name: 'Views' });
+        await views.getByLabel('Name').fill('Store temperatures');
+        await views.getByRole('button', { name: 'Save view' }).click();
+        const row = views.getByRole('listitem', {
+            name: 'Store temperatures',
+        });
+        await row.getByRole('button', { name: 'Share' }).click();
+        await views
+            .getByRole('region', { name: 'Shared views' })
+            .getByRole('listitem', { name: 'Store temperatures' })
+            .getByRole('button', { name: 'Open twin here' })
+            .click();
+        await expect(row.getByText('Opens the twin')).toBeVisible({
+            timeout: 30_000,
+        });
+        await page.getByRole('radio', { name: 'Status' }).click();
+        await views.getByLabel('Name').fill('My walk round');
+        await views.getByRole('button', { name: 'Save view' }).click();
+        await expect(
+            views.getByRole('listitem', { name: 'My walk round' }),
+        ).toBeVisible({ timeout: 30_000 });
+        await views
+            .getByRole('button', { name: 'Copy link to what you see' })
+            .click();
+        await page.waitForTimeout(1000);
+        await shot(page, 'views');
+        // Later steps expect the twin to open at the whole site.
+        await row.getByRole('button', { name: 'Open at whole site' }).click();
+        await expect(row.getByText('Opens the twin')).toHaveCount(0, {
+            timeout: 30_000,
+        });
+        await views.getByRole('button', { name: 'Hide views' }).click();
+    });
+
     await test.step('telemetry, the gateway and recorded history', async () => {
         await page.getByRole('button', { name: 'Layout', exact: true }).click();
         const telemetry = editor.getByRole('region', { name: 'Telemetry' });

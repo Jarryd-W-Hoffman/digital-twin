@@ -38,6 +38,7 @@ From left to right:
 - **The version chip** (`v4`): the version you're looking at. Every saved change adds one; see [Layout and versions](08-layout-and-versions.md).
 - **Simulator / Live**: shown while a [gateway](09-gateways-and-live-data.md) is running the twin. **Live** follows the gateway; **Simulator** runs the model in your browser instead.
 - **Issues**: opens the [Issues panel](#issues-in-the-scene), with how many are open. Everyone who can see the twin has it.
+- **Views**: opens the [Views panel](#saved-views-and-links), to save how the twin looks or copy a link to it. Everyone who can see the twin has it.
 - **Layout** (editors only): opens the [Layout panel](08-layout-and-versions.md).
 - **Definition** (editors only): opens the [definition editor](12-twin-definitions.md#edit-a-definition), for zones, assets and everything else in the twin.
 - **Settings** (editors only): renames, describes or deletes the twin; see [Rename or delete a twin](#rename-or-delete-a-twin).
@@ -231,6 +232,57 @@ and deleted with their comment, their issue or the twin
 ```
 
 Issues belong to the twin, not to a version: saving a new version or restoring an old one leaves them where they are.
+
+## Saved views and links
+
+A view is how the twin looks to you: where the camera is, what the scene is coloured by, the basemap, which layers are on, any [section cut](#cut-the-site-open) and the selected asset. Save one to come back to it, or send a link that opens the twin looking just like that: "the chiller at night, coloured by temperature, with the roof cut away".
+
+![The Views panel: saving the current view, a link to it, a shared view that opens the twin and one of your own.](../images/views.png)
+
+- **Save a view**: choose **Views** in the top bar, give it a **Name** and choose **Save view**. It's yours alone, under **Yours**, until an editor shares it.
+- **Open a view** by choosing its name. The camera flies there and the colouring, layers, basemap, section and selection change to match.
+- **Copy link to what you see** puts a link to the twin as it looks now on your clipboard, and shows it in case your browser won't copy. Nothing is saved: the view travels in the link (`?look=…`).
+- **Copy link** on a saved view copies a shorter link (`?view=…`). It works for anyone in the organisation who has it, even while the view is still yours alone.
+- **Rename**, or **Update** to save what's on screen over the view.
+- **Share** a view so it shows under **Shared** for everyone; **Stop sharing** takes it back.
+- **Open twin here** makes the twin open at that view, for everyone, instead of the whole site. It shares the view too. **Open at whole site** goes back.
+- **Delete** removes the view. A link to it then opens the twin as usual.
+
+Links open for people in the organisation only; anyone else signs in first and is turned away. A link to an [issue](#issues-in-the-scene) opens at the issue's view instead.
+
+Who can do what:
+
+|                                                                | Owner | Admin | Operator | Viewer |
+| -------------------------------------------------------------- | :---: | :---: | :------: | :----: |
+| Save views, copy links, and rename, update or delete their own |   ✓   |   ✓   |    ✓     |   ✓    |
+| Share views, and change or delete shared ones                  |   ✓   |   ✓   |          |        |
+| Choose the view the twin opens at                              |   ✓   |   ✓   |          |        |
+
+Where the twin opens:
+
+```
+on opening a twin:
+    if the link has ?issue=  -> fly to that issue's view
+    elif it has ?look=       -> the view carried in the link
+    elif it has ?view=       -> that saved view, if it's one of this twin's
+    elif the twin has an opening view -> that one
+    else                     -> the whole site
+```
+
+What's kept for each view:
+
+```
+saved view of the twin
+    name, who saved it, shared or not
+    camera: longitude, latitude, height, heading, pitch and roll
+    colour by: status, temperature or power
+    basemap: bundled, OpenStreetMap or custom
+    layers: labels, energy flows, zones and routes, neighbouring buildings, sun shadows
+    section: the cut above and the cut across, or none
+    selected: the asset's id, or none
+```
+
+Views keep the time of day out: the simulator starts afresh each time it opens, and a gateway shows what is happening now. Like issues, views belong to the twin, not to a version.
 
 ## Without signing in
 
