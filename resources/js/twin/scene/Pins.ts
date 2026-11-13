@@ -43,8 +43,10 @@ export class Pins {
         this.pins = pins;
         this.active = active;
         this.draft = draft;
-        this.source.entities.suspendEvents();
+        // Cleared before suspending: a pin removed and re-added under the same
+        // id while suspended cancels out, and Cesium keeps drawing the old one.
         this.source.entities.removeAll();
+        this.source.entities.suspendEvents();
         if (draft)
             this.source.entities.add({
                 position: Cartesian3.fromDegrees(...draft),
