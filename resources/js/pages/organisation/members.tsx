@@ -22,12 +22,12 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'Members', href: index() }];
 const selectClass = 'h-9 rounded-md border bg-transparent px-2 text-sm';
 
 export default function Members({
-    organisation,
+    currentOrganisation: organisation,
     members,
     roles,
     canManage,
 }: {
-    organisation: { id: string; name: string };
+    currentOrganisation: { id: string; name: string };
     members: Member[];
     roles: { value: OrganisationRole; label: string }[];
     canManage: boolean;

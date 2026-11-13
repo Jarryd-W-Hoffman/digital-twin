@@ -1,10 +1,11 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import {
     BookOpen,
     Boxes,
     FolderKanban,
     Globe,
     KeyRound,
+    ScrollText,
     Users,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
@@ -23,6 +24,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard, demo } from '@/routes';
 import { index as apiTokens } from '@/routes/organisation/api-tokens';
+import { index as audit } from '@/routes/organisation/audit';
 import { index as members } from '@/routes/organisation/members';
 import { index as types } from '@/routes/organisation/types';
 import { index as projects } from '@/routes/projects';
@@ -57,6 +59,13 @@ const mainNavItems: NavItem[] = [
     },
 ];
 
+/** Only admins and owners can read the audit log. */
+const auditNavItem: NavItem = {
+    title: 'Audit log',
+    href: audit(),
+    icon: ScrollText,
+};
+
 const footerNavItems: NavItem[] = [
     {
         title: 'Sample twins',
@@ -66,6 +75,12 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+    const role = usePage().props.organisation?.current?.role;
+    const items =
+        role === 'owner' || role === 'admin'
+            ? [...mainNavItems, auditNavItem]
+            : mainNavItems;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -82,7 +97,7 @@ export function AppSidebar() {
 
             <SidebarContent>
                 <OrganisationSwitcher />
-                <NavMain items={mainNavItems} />
+                <NavMain items={items} />
             </SidebarContent>
 
             <SidebarFooter>

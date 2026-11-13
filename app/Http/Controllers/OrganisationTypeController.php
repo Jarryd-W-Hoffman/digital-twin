@@ -30,7 +30,7 @@ final readonly class OrganisationTypeController
         Gate::authorize('view', $organisation);
 
         return Inertia::render('organisation/types', [
-            'organisation' => ['id' => $organisation->id, 'name' => $organisation->name],
+            'currentOrganisation' => ['id' => $organisation->id, 'name' => $organisation->name],
             'types' => $organisation->assetTypes()->with('user:id,name')->orderBy('name')->get()
                 ->map(function (AssetType $type) use ($validator): array {
                     $definition = $type->definition;

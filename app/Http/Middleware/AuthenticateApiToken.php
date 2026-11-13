@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Actions\RecordAuditEvent;
 use App\Models\ApiToken;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Context;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -47,6 +49,7 @@ final readonly class AuthenticateApiToken
         }
 
         $request->attributes->set('apiToken', $token);
+        Context::addHidden(RecordAuditEvent::API_TOKEN, $token->name);
 
         return $next($request);
     }

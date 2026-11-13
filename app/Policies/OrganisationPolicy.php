@@ -36,4 +36,13 @@ final readonly class OrganisationPolicy
     {
         return $user->roleIn($organisation)?->canManageMembers() ?? false;
     }
+
+    /**
+     * Reading the audit log, which names everyone and everything: the people
+     * who manage members.
+     */
+    public function viewAudit(User $user, Organisation $organisation): bool
+    {
+        return $user->roleIn($organisation)?->canManageMembers() ?? false;
+    }
 }

@@ -20,6 +20,7 @@ Everything in Meridian belongs to an **organisation**: its projects, twins, uplo
 | Import, save and delete types in the type library                               |   ✓   |   ✓   |          |        |
 | Add members and change roles                                                    |   ✓   |   ✓   |          |        |
 | Make and revoke [API tokens](15-the-api.md)                                     |   ✓   |   ✓   |          |        |
+| Read the [audit log](#the-audit-log)                                            |   ✓   |   ✓   |          |        |
 
 - **Viewers** see everything but change nothing: the inspector's controls are disabled for them, and the twin ignores their commands.
 - An organisation always keeps **at least one owner**. Demoting or removing the last owner is refused.
@@ -74,10 +75,43 @@ In the twin's **Layout** panel, the **Types** section lists the twin's own types
 
 **Delete** takes a type out of the library. Twins that use it keep their copy.
 
+## The audit log
+
+The **audit log** keeps who did what in the organisation, so that months later you can still answer *who removed that device?* or *when did OPC UA writes get turned on, and by whom?* Owners and admins read it: choose **Audit log** in the sidebar.
+
+![The audit log for Northshore Logistics: who did what, newest first, with the project and twin it happened in and the details kept with it.](../images/audit-log.png)
+
+Each entry gives **when** it happened, **who** did it, from which address, and **what**: the action, what it was done to, the project and twin it happened in, and details such as a role changed *from* and *to*. Choose an area under **Show** to see only that part, and **Older** and **Newer** to page through, 50 at a time.
+
+| Area                                   | What's kept                                                                                                                       |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Members and API tokens                 | Members added, roles changed, members removed; API tokens made (with their access and expiry) and revoked                         |
+| Projects, uploads and types            | Projects created and deleted; uploads added to and deleted from a library; types saved to and deleted from the type library       |
+| Twins and versions                     | Twins created, renamed or described, and deleted; versions saved, with their note; the opening view changed                       |
+| Gateways, devices, OPC UA and channels | Gateway tokens issued and revoked; devices added, their passwords reset, deleted; OPC UA servers added and deleted, and writes turned on or off; notification channels added and deleted |
+| Alerts and issues                      | Alerts acknowledged; issues raised, assigned (to whom, and by when), closed, reopened and deleted                                  |
+
+```mermaid
+flowchart LR
+    P["A person<br/>on the web"] --> A["Action<br/>(add member, delete twin, …)"]
+    T["An API token"] --> A
+    S["The scheduler<br/>or the seeder"] --> A
+    A --> L["Audit log<br/>who · what · where · when"]
+    L --> W["Audit log page<br/>admins and owners"]
+    L --> API["GET /api/v1/audit<br/>for a SIEM"]
+```
+
+- **Who** is the signed-in person, an API token by its name (such as **Maintenance system (API)**), or **Meridian** when nothing was signed in, as when the scheduler or a setup script did it.
+- **Names are kept as they were.** An entry still reads right after its project, twin or person has been deleted or renamed: *Deleted a twin: Harbour Depot* stays, and a rename keeps what it *was*.
+- **Nothing secret is kept.** Tokens, device passwords and webhook secrets never reach the log, only that they were made or reset.
+- Entries are kept for **two years**, then removed (`MERIDIAN_AUDIT_RETENTION_DAYS`, see [Running Meridian](14-running-meridian.md)). Readings and OPC UA writes have records of their own: the [recorded history](10-devices-and-mqtt.md#see-what-was-recorded) and the twin's [OPC UA writes](11-opc-ua.md#write-setpoints).
+- A token can read the log too, to send it to a security system: see [The API](15-the-api.md#the-audit-log).
+
 ## Tips
 
 - **Give people the smallest role that works.** A control room that only needs to watch and respond to alerts can be operators; people who only need to look can be viewers.
 - **Keep shared equipment in the library.** Save a type from the twin where you got it right, and other twins can take it from there.
+- **Check the audit log after a surprise.** If a device stops reporting or a twin looks different, the log says who last changed it and when.
 - **Use separate organisations for separate clients.** Nothing is shared between organisations, so a consultant can keep each client's sites apart and switch between them.
 
 ## See also

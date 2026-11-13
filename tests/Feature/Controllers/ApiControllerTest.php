@@ -3,8 +3,11 @@
 declare(strict_types=1);
 
 use App\Actions\RecordReadings;
+use App\Enums\ApiTokenAccess;
+use App\Enums\AuditAction;
 use App\Models\Alert;
 use App\Models\ApiToken;
+use App\Models\AuditEvent;
 use App\Models\Issue;
 use App\Models\IssueComment;
 use App\Models\Organisation;
@@ -280,4 +283,41 @@ it("lists a twin's issues, open by default, and shows one with its comments", fu
         ->assertHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     $this->withToken(API_TOKEN)->get(route('api.v1.twins.issues.comments.photo', [$twin, $issue, $words]))->assertNotFound();
     $this->withToken(API_TOKEN)->getJson(route('api.v1.twins.issues.show', [twinIn($organisation), $issue]))->assertNotFound();
+});
+
+it("gives the organisation's audit log, newest first, by cursor", function (): void {
+    [$organisation] = apiOrganisation();
+    $old = AuditEvent::factory()->for($organisation)->create(['created_at' => now()->subDays(2), 'action' => AuditAction::ProjectCreated]);
+    $new = AuditEvent::factory()->for($organisation)->create(['action' => AuditAction::MemberAdded]);
+    AuditEvent::factory()->create();
+
+    $this->withToken(API_TOKEN)->getJson(route('api.v1.audit.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $new->id)
+        ->assertJsonPath('data.1.id', $old->id)
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('links.next', null);
+
+    $this->withToken(API_TOKEN)->getJson(route('api.v1.audit.index', ['since' => now()->subDay()->toIso8601String()]))
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.action', 'member.added');
+
+    $this->withToken(API_TOKEN)->getJson(route('api.v1.audit.index', ['area' => 'projects']))
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $old->id);
+
+    $this->withToken(API_TOKEN)->getJson(route('api.v1.audit.index', ['since' => 'yesterday-ish']))->assertUnprocessable()->assertJsonValidationErrors('since');
+});
+
+it('records what a token does under its own name', function (): void {
+    [$organisation] = apiOrganisation(['name' => 'Maintenance system', 'access' => ApiTokenAccess::Write]);
+    $twin = twinIn($organisation);
+    $alert = Alert::factory()->for($twin)->create();
+
+    $this->withToken(API_TOKEN)->postJson(route('api.v1.twins.alerts.acknowledgement.store', [$twin, $alert]))->assertSuccessful();
+
+    expect(AuditEvent::query()->sole())
+        ->action->toBe(AuditAction::AlertAcknowledged)
+        ->actor_id->toBeNull()
+        ->actorLabel()->toBe('Maintenance system (API)');
 });

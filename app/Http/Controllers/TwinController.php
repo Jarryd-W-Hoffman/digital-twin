@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateTwin;
 use App\Actions\DeleteTwin;
 use App\Actions\IssueGatewayTicket;
+use App\Actions\UpdateTwin;
 use App\Enums\ProjectAssetStatus;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
@@ -202,14 +203,11 @@ final readonly class TwinController
         ]);
     }
 
-    public function update(UpdateTwinRequest $request, Twin $twin): RedirectResponse
+    public function update(UpdateTwinRequest $request, Twin $twin, UpdateTwin $action): RedirectResponse
     {
         Gate::authorize('update', $twin);
 
-        $twin->update([
-            'name' => $request->string('name')->value(),
-            'description' => $request->filled('description') ? $request->string('description')->value() : null,
-        ]);
+        $action->handle($twin, $request->string('name')->value(), $request->filled('description') ? $request->string('description')->value() : null);
 
         return to_route('twins.show', $twin);
     }

@@ -71,6 +71,13 @@ return [
     ],
 
     /*
+    | How long an organisation's audit log is kept, in days.
+    */
+    'audit' => [
+        'retention_days' => (int) env('MERIDIAN_AUDIT_RETENTION_DAYS', 730),
+    ],
+
+    /*
     | Devices and gateways log in to the MQTT broker, which asks the control
     | plane through mosquitto-go-auth's HTTP backend. The broker sends the
     | secret in the URLs it calls; without one, those URLs answer 404. The

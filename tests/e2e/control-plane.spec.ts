@@ -263,6 +263,7 @@ test('an owner makes an API token, is shown it once, reads twins and raises an i
   await logIn(page, 'test@example.com');
   await page.getByRole('link', { name: 'API', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'API' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Audit log' })).toBeVisible();
 
   await page.getByLabel('Name').fill('Maintenance system');
   await page.getByLabel('Access').selectOption({ label: 'Read and write' });
@@ -306,6 +307,23 @@ test('an owner makes an API token, is shown it once, reads twins and raises an i
   const panel = page.getByRole('complementary', { name: 'Issues' });
   await expect(panel.getByText('Work order 4471: door seal')).toBeVisible({ timeout: 30_000 });
   await expect(panel.getByText(/Maintenance system \(API\)/).first()).toBeVisible();
+
+  await page.goto('/dashboard');
+  await page.getByRole('link', { name: 'Audit log' }).click();
+  const log = page.getByRole('table', { name: 'Audit log' });
+  await expect(log.getByRole('row').nth(1)).toContainText('Revoked an API token: Maintenance system');
+  await expect(log.getByRole('row', { name: /Maintenance system \(API\).*Raised an issue: #\d+ Work order 4471: door seal/ })).toContainText('Harbour Depot');
+  await expect(log.getByRole('row', { name: /Test User.*Made an API token: Maintenance system/ })).toContainText('access: write');
+  await page.getByLabel('Show').selectOption({ label: 'Alerts and issues' });
+  await expect(log.getByText('Made an API token')).toHaveCount(0);
+  await expect(log.getByText(/Raised an issue: #\d+ Work order 4471/)).toBeVisible();
+});
+
+test('only admins and owners see the audit log', async ({ page }) => {
+  await logIn(page, 'operator@example.com');
+  await expect(page.getByRole('link', { name: 'Members' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Audit log' })).toHaveCount(0);
+  expect((await page.request.get('/organisation/audit')).status()).toBe(403);
 });
 
 test('a point cloud waits for the converter, shows why it failed, and can be retried with an EPSG code', async ({ page }) => {

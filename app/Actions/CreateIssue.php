@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Enums\IssueEvent;
 use App\Models\Alert;
 use App\Models\ApiToken;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  */
 final readonly class CreateIssue
 {
-    public function __construct(private AddIssueComment $comments, private NotifyIssue $notify)
+    public function __construct(private AddIssueComment $comments, private NotifyIssue $notify, private RecordAuditEvent $audit)
     {
         //
     }
@@ -48,6 +49,8 @@ final readonly class CreateIssue
                 'alert_id' => $alert?->id,
             ]);
             $issue->setRelation('twin', $twin);
+
+            $this->audit->handle(AuditAction::IssueRaised, $twin, sprintf('#%d %s', $issue->number, $title));
 
             if ($body !== null || $photo instanceof UploadedFile) {
                 $this->comments->handle($issue, $author, $body, $photo);

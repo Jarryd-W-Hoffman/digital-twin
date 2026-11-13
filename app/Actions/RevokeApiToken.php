@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Models\ApiToken;
 
 /**
@@ -11,8 +12,12 @@ use App\Models\ApiToken;
  */
 final readonly class RevokeApiToken
 {
+    public function __construct(private RecordAuditEvent $audit) {}
+
     public function handle(ApiToken $token): void
     {
         $token->delete();
+
+        $this->audit->handle(AuditAction::ApiTokenRevoked, $token->organisation, $token->name);
     }
 }

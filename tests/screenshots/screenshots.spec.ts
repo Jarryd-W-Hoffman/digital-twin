@@ -1183,6 +1183,11 @@ test('screenshots', async ({ page, context }) => {
             page.getByRole('status', { name: 'New token' }).getByLabel('Token'),
         ).toHaveValue(/^mrd_/);
         await shot(page, 'api-tokens');
+        await page.goto('/organisation/audit');
+        await expect(
+            page.getByRole('table', { name: 'Audit log' }),
+        ).toContainText('Made an API token: Maintenance system');
+        await shot(page, 'audit-log');
         await page.goto('/settings/two-factor');
         await page.getByLabel('Password', { exact: true }).fill('password');
         await page.getByRole('button', { name: 'Confirm password' }).click();

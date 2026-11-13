@@ -26,7 +26,7 @@ final readonly class OrganisationMemberController
         Gate::authorize('view', $organisation);
 
         return Inertia::render('organisation/members', [
-            'organisation' => ['id' => $organisation->id, 'name' => $organisation->name],
+            'currentOrganisation' => ['id' => $organisation->id, 'name' => $organisation->name],
             'members' => $organisation->memberships()->with('user:id,name,email')->oldest()->get()
                 ->map(fn (Membership $membership): array => [
                     'id' => $membership->id,

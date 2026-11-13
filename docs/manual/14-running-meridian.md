@@ -141,6 +141,8 @@ Webhooks may only reach public `https://` addresses. For development, with a rec
 
 Readings are kept for `MERIDIAN_READINGS_RETENTION_DAYS` (365 by default). On TimescaleDB they're stored in day chunks, compressed after a week, and old chunks are dropped automatically. On plain Postgres or SQLite, the scheduler trims them each day, so make sure the scheduler runs.
 
+The [audit log](02-organisations-and-members.md#the-audit-log) is kept for `MERIDIAN_AUDIT_RETENTION_DAYS` (730 by default), and the scheduler removes older entries each day.
+
 ## Basemaps
 
 The default basemap is bundled with Meridian and makes no outside requests. To offer your own tiles in the **Basemap** menu, set `VITE_BASEMAP_URL` (a `{z}/{x}/{y}` address) and `VITE_BASEMAP_ATTRIBUTION`, then rebuild with `npm run build`.
