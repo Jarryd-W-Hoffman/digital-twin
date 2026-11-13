@@ -1169,6 +1169,13 @@ test('screenshots', async ({ page, context }) => {
         await page.goto('/organisation/types');
         await expect(page.getByText('Jockey pump')).toBeVisible();
         await shot(page, 'types');
+        await page.goto('/organisation/api-tokens');
+        await page.getByLabel('Name').fill('Maintenance system');
+        await page.getByRole('button', { name: 'Make token' }).click();
+        await expect(
+            page.getByRole('status', { name: 'New token' }).getByLabel('Token'),
+        ).toHaveValue(/^mrd_/);
+        await shot(page, 'api-tokens');
         await page.goto('/settings/two-factor');
         await page.getByLabel('Password', { exact: true }).fill('password');
         await page.getByRole('button', { name: 'Confirm password' }).click();

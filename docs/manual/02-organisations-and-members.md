@@ -19,6 +19,7 @@ Everything in Meridian belongs to an **organisation**: its projects, twins, uplo
 | Issue gateway tokens, add devices, map telemetry                                |   ✓   |   ✓   |          |        |
 | Import, save and delete types in the type library                               |   ✓   |   ✓   |          |        |
 | Add members and change roles                                                    |   ✓   |   ✓   |          |        |
+| Make and revoke [API tokens](15-the-api.md)                                     |   ✓   |   ✓   |          |        |
 
 - **Viewers** see everything but change nothing: the inspector's controls are disabled for them, and the twin ignores their commands.
 - An organisation always keeps **at least one owner**. Demoting or removing the last owner is refused.

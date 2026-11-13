@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\OrganisationApiTokenController;
 use App\Http\Controllers\OrganisationController;
 use App\Http\Controllers\OrganisationMemberController;
 use App\Http\Controllers\OrganisationTypeController;
@@ -114,6 +115,9 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('organisation/members', [OrganisationMemberController::class, 'store'])->name('organisation.members.store');
     Route::patch('organisation/members/{membership}', [OrganisationMemberController::class, 'update'])->name('organisation.members.update');
     Route::delete('organisation/members/{membership}', [OrganisationMemberController::class, 'destroy'])->name('organisation.members.destroy');
+    Route::get('organisation/api-tokens', [OrganisationApiTokenController::class, 'index'])->name('organisation.api-tokens.index');
+    Route::post('organisation/api-tokens', [OrganisationApiTokenController::class, 'store'])->middleware('throttle:20,1')->name('organisation.api-tokens.store');
+    Route::delete('organisation/api-tokens/{apiToken}', [OrganisationApiTokenController::class, 'destroy'])->name('organisation.api-tokens.destroy');
     Route::get('organisation/types', [OrganisationTypeController::class, 'index'])->name('organisation.types.index');
     Route::post('organisation/types', [OrganisationTypeController::class, 'store'])->name('organisation.types.store');
     Route::get('organisation/types/{type}', [OrganisationTypeController::class, 'show'])->name('organisation.types.show');

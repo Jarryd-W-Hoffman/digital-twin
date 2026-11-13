@@ -27,4 +27,13 @@ final readonly class OrganisationPolicy
     {
         return $user->roleIn($organisation)?->canEditTwins() ?? false;
     }
+
+    /**
+     * Making and revoking API tokens, which read everything the organisation
+     * holds: the people who manage its members.
+     */
+    public function manageApiTokens(User $user, Organisation $organisation): bool
+    {
+        return $user->roleIn($organisation)?->canManageMembers() ?? false;
+    }
 }

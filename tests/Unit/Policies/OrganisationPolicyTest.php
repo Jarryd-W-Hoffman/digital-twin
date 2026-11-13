@@ -11,7 +11,8 @@ it('lets members see and managers manage', function (OrganisationRole $role, boo
 
     expect(new OrganisationPolicy()->view($user, $organisation))->toBeTrue()
         ->and(new OrganisationPolicy()->manageMembers($user, $organisation))->toBe($manage)
-        ->and(new OrganisationPolicy()->manageTypes($user, $organisation))->toBe($manage);
+        ->and(new OrganisationPolicy()->manageTypes($user, $organisation))->toBe($manage)
+        ->and(new OrganisationPolicy()->manageApiTokens($user, $organisation))->toBe($manage);
 })->with([
     [OrganisationRole::Owner, true],
     [OrganisationRole::Admin, true],
@@ -25,5 +26,6 @@ it('gives outsiders nothing', function (): void {
 
     expect(new OrganisationPolicy()->view($outsider, $organisation))->toBeFalse()
         ->and(new OrganisationPolicy()->manageMembers($outsider, $organisation))->toBeFalse()
-        ->and(new OrganisationPolicy()->manageTypes($outsider, $organisation))->toBeFalse();
+        ->and(new OrganisationPolicy()->manageTypes($outsider, $organisation))->toBeFalse()
+        ->and(new OrganisationPolicy()->manageApiTokens($outsider, $organisation))->toBeFalse();
 });

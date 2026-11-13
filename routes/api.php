@@ -2,12 +2,20 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\ApiIssuePhotoController;
+use App\Http\Controllers\ApiProjectController;
+use App\Http\Controllers\ApiTokenController;
+use App\Http\Controllers\ApiTwinAlertController;
+use App\Http\Controllers\ApiTwinController;
+use App\Http\Controllers\ApiTwinIssueController;
+use App\Http\Controllers\ApiTwinReadingController;
 use App\Http\Controllers\GatewayAlertController;
 use App\Http\Controllers\GatewayDefinitionController;
 use App\Http\Controllers\GatewayOpcUaWriteController;
 use App\Http\Controllers\GatewayReadingController;
 use App\Http\Controllers\MqttAclController;
 use App\Http\Controllers\MqttUserController;
+use App\Http\Middleware\AuthenticateApiToken;
 use App\Http\Middleware\AuthenticateBroker;
 use App\Http\Middleware\AuthenticateGateway;
 use Illuminate\Support\Facades\Route;
@@ -34,4 +42,20 @@ Route::middleware(AuthenticateBroker::class)->prefix('mqtt/{secret}')->name('mqt
         ->middleware('throttle:mqtt-logins')
         ->name('user.store');
     Route::post('acl', [MqttAclController::class, 'store'])->name('acl.store');
+});
+
+// Other systems read an organisation's data with one of its API tokens.
+Route::middleware([AuthenticateApiToken::class, 'throttle:api'])->prefix('v1')->name('api.v1.')->group(function (): void {
+    Route::get('token', [ApiTokenController::class, 'show'])->name('token.show');
+    Route::get('projects', [ApiProjectController::class, 'index'])->name('projects.index');
+    Route::get('projects/{project}', [ApiProjectController::class, 'show'])->name('projects.show');
+    Route::get('twins', [ApiTwinController::class, 'index'])->name('twins.index');
+    Route::get('twins/{twin}', [ApiTwinController::class, 'show'])->name('twins.show');
+    Route::get('twins/{twin}/readings', [ApiTwinReadingController::class, 'index'])->name('twins.readings.index');
+    Route::get('twins/{twin}/alerts', [ApiTwinAlertController::class, 'index'])->name('twins.alerts.index');
+    Route::get('twins/{twin}/issues', [ApiTwinIssueController::class, 'index'])->name('twins.issues.index');
+    Route::scopeBindings()->group(function (): void {
+        Route::get('twins/{twin}/issues/{issue}', [ApiTwinIssueController::class, 'show'])->name('twins.issues.show');
+        Route::get('twins/{twin}/issues/{issue}/comments/{comment}/photo', [ApiIssuePhotoController::class, 'show'])->name('twins.issues.comments.photo');
+    });
 });

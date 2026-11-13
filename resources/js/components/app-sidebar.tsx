@@ -1,5 +1,12 @@
 import { Link } from '@inertiajs/react';
-import { BookOpen, Boxes, FolderKanban, Globe, Users } from 'lucide-react';
+import {
+    BookOpen,
+    Boxes,
+    FolderKanban,
+    Globe,
+    KeyRound,
+    Users,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -15,6 +22,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard, demo } from '@/routes';
+import { index as apiTokens } from '@/routes/organisation/api-tokens';
 import { index as members } from '@/routes/organisation/members';
 import { index as types } from '@/routes/organisation/types';
 import { index as projects } from '@/routes/projects';
@@ -41,6 +49,11 @@ const mainNavItems: NavItem[] = [
         title: 'Members',
         href: members(),
         icon: Users,
+    },
+    {
+        title: 'API',
+        href: apiTokens(),
+        icon: KeyRound,
     },
 ];
 

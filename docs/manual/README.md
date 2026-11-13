@@ -22,6 +22,7 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 | 🧾  | [Twin definitions](12-twin-definitions.md)                       | The definition editor, drawing in the scene, binding assets to model elements, shapes, and what's in the JSON                                       |
 | 🔐  | [Your account](13-your-account.md)                               | Profile, password, two-factor authentication, passkeys and appearance                                                                               |
 | 🛠️  | [Running Meridian](14-running-meridian.md)                       | The Docker stack, workers, the broker, configuration and upgrading                                                                                  |
+| 🔑  | [The API](15-the-api.md)                                         | API tokens, and reading projects, twins, readings, alerts and issues from other systems                                                             |
 
 ## Conventions
 

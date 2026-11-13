@@ -259,6 +259,41 @@ test('an owner adds a device, is shown its broker login once, and can reset or d
   await expect(login).toHaveCount(0);
 });
 
+test('an owner makes an API token, is shown it once, reads twins with it, and revokes it', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  await page.getByRole('link', { name: 'API', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'API' })).toBeVisible();
+
+  await page.getByLabel('Name').fill('Maintenance system');
+  await page.getByLabel('Expires').selectOption({ label: 'In 30 days' });
+  await page.getByRole('button', { name: 'Make token' }).click();
+  const issued = page.getByRole('status', { name: 'New token' });
+  await expect(issued.getByLabel('Token')).toHaveValue(/^mrd_[A-Za-z0-9]{48}$/);
+  const token = await issued.getByLabel('Token').inputValue();
+  await expect(issued.getByText(`curl -H "Authorization: Bearer ${token}" `)).toBeVisible();
+  const row = page.getByRole('row', { name: /Maintenance system/ });
+  await expect(row.getByText(`mrd_…${token.slice(-4)}`)).toBeVisible();
+  await expect(row.getByRole('cell', { name: 'Never', exact: true })).toBeVisible();
+
+  const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+  const twins = await page.request.get('/api/v1/twins', { headers });
+  expect(twins.status()).toBe(200);
+  const list = (await twins.json()) as { data: { id: string; name: string }[] };
+  const depot = list.data.find((twin) => twin.name === 'Harbour Depot');
+  expect(depot).toBeDefined();
+  const twin = (await (await page.request.get(`/api/v1/twins/${depot!.id}`, { headers })).json()) as { data: { assets: { id: string }[] } };
+  expect(twin.data.assets.map((asset) => asset.id)).toContain('store');
+
+  await page.reload();
+  await expect(issued).toHaveCount(0);
+  await expect(row.getByRole('cell', { name: 'Never', exact: true })).toHaveCount(0);
+
+  page.once('dialog', (dialog) => void dialog.accept());
+  await row.getByRole('button', { name: 'Revoke' }).click();
+  await expect(page.getByText('No tokens yet.')).toBeVisible();
+  expect((await page.request.get('/api/v1/twins', { headers })).status()).toBe(401);
+});
+
 test('a point cloud waits for the converter, shows why it failed, and can be retried with an EPSG code', async ({ page }) => {
   await logIn(page, 'test@example.com');
 

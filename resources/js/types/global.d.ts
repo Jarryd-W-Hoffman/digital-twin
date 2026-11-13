@@ -19,6 +19,11 @@ declare module '@inertiajs/core' {
                 username: string;
                 password: string;
             };
+            /** A new API token, shown once. */
+            apiToken?: {
+                tokenId: string;
+                token: string;
+            };
             /** A new webhook channel's signing secret. */
             channelSecret?: {
                 channelId: string;

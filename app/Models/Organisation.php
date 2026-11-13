@@ -41,6 +41,16 @@ final class Organisation extends Model
     }
 
     /**
+     * The keys other systems use to reach it through the API.
+     *
+     * @return HasMany<ApiToken, $this>
+     */
+    public function apiTokens(): HasMany
+    {
+        return $this->hasMany(ApiToken::class);
+    }
+
+    /**
      * @return HasMany<Membership, $this>
      */
     public function memberships(): HasMany
