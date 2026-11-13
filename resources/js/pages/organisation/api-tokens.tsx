@@ -95,7 +95,7 @@ export default function ApiTokens({
             <div className="flex max-w-3xl flex-col gap-8 p-4 md:p-6">
                 <Heading
                     title="API"
-                    description={`Tokens let other systems, such as a maintenance system or a BI tool, read ${organisation.name}'s projects, twins, readings, alerts and issues.`}
+                    description={`Tokens let other systems, such as a maintenance system or a BI tool, read ${organisation.name}'s projects, twins, readings, alerts and issues. Tokens that may write also raise, comment on and close issues, and acknowledge alerts, signed with the token's name.`}
                 />
 
                 {shown && issued && (

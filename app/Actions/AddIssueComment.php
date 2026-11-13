@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Models\ApiToken;
 use App\Models\Issue;
 use App\Models\IssueComment;
 use App\Models\User;
+use App\Support\Actor;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -16,7 +18,7 @@ use Illuminate\Support\Str;
  */
 final readonly class AddIssueComment
 {
-    public function handle(Issue $issue, User $author, ?string $body, ?UploadedFile $photo = null): IssueComment
+    public function handle(Issue $issue, User|ApiToken $author, ?string $body, ?UploadedFile $photo = null): IssueComment
     {
         $path = null;
 
@@ -26,7 +28,8 @@ final readonly class AddIssueComment
         }
 
         $comment = $issue->comments()->create([
-            'author_id' => $author->id,
+            'author_id' => Actor::columns($author)[0],
+            'author_api' => Actor::columns($author)[1],
             'body' => $body,
             'photo' => $path ?: null,
         ]);

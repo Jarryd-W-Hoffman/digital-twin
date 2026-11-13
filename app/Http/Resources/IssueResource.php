@@ -7,6 +7,7 @@ namespace App\Http\Resources;
 use App\Models\Issue;
 use App\Models\IssueComment;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
@@ -30,7 +31,7 @@ final class IssueResource extends JsonResource
             'number' => $issue->number,
             'title' => $issue->title,
             'at' => ['lon' => $issue->lon, 'lat' => $issue->lat, 'height' => $issue->height],
-            'author' => $issue->author?->name,
+            'author' => $issue->authorName(),
             'assignee' => $issue->assignee?->name,
             'dueOn' => $issue->due_on?->format('Y-m-d'),
             'overdue' => $issue->isOverdue(),
@@ -38,15 +39,11 @@ final class IssueResource extends JsonResource
             'createdAt' => $issue->created_at->toIso8601String(),
             'updatedAt' => $issue->updated_at->toIso8601String(),
             'closedAt' => $issue->closed_at?->toIso8601String(),
-            'closedBy' => $issue->closer?->name,
+            'closedBy' => $issue->closerName(),
             'url' => route('twins.show', [$issue->twin_id, 'issue' => $issue->id]),
-            'comments' => $this->whenLoaded('comments', fn (): array => $issue->comments->map(fn (IssueComment $comment): array => [
-                'id' => $comment->id,
-                'author' => $comment->author?->name,
-                'body' => $comment->body,
-                'photo' => $comment->photo === null ? null : route('api.v1.twins.issues.comments.photo', [$issue->twin_id, $issue->id, $comment->id]),
-                'createdAt' => $comment->created_at->toIso8601String(),
-            ])->all()),
+            'comments' => $this->whenLoaded('comments', fn (): AnonymousResourceCollection => IssueCommentResource::collection(
+                $issue->comments->each(fn (IssueComment $comment): IssueComment => $comment->setRelation('issue', $issue)),
+            )),
         ];
     }
 }

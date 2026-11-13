@@ -6,6 +6,7 @@ namespace App\Support;
 
 use App\Enums\IssueEvent;
 use App\Mail\IssueMail;
+use App\Models\ApiToken;
 use App\Models\Issue;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -30,7 +31,7 @@ final readonly class IssueMessage implements ChannelMessage
         public string $url,
     ) {}
 
-    public static function about(Issue $issue, IssueEvent $event, ?User $by): self
+    public static function about(Issue $issue, IssueEvent $event, User|ApiToken|null $by): self
     {
         $twin = $issue->twin;
 
@@ -41,7 +42,7 @@ final readonly class IssueMessage implements ChannelMessage
             title: $issue->title,
             twin: $twin->name,
             project: $twin->project->name,
-            by: $by?->name,
+            by: $by === null ? null : Actor::name($by),
             assignee: $issue->assignee?->name,
             dueOn: $issue->due_on,
             alertId: $issue->alert_id,

@@ -13,6 +13,6 @@ final readonly class ReopenIssue
 {
     public function handle(Issue $issue): void
     {
-        $issue->update(['closed_at' => null, 'closed_by' => null]);
+        $issue->update(['closed_at' => null, 'closed_by' => null, 'closed_by_api' => null]);
     }
 }

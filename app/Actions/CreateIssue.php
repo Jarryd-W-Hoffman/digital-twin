@@ -6,9 +6,11 @@ namespace App\Actions;
 
 use App\Enums\IssueEvent;
 use App\Models\Alert;
+use App\Models\ApiToken;
 use App\Models\Issue;
 use App\Models\Twin;
 use App\Models\User;
+use App\Support\Actor;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
@@ -29,7 +31,7 @@ final readonly class CreateIssue
      * @param  array{lon: float, lat: float, height: float}  $at
      * @param  array{lon: float, lat: float, height: float, heading: float, pitch: float, roll: float}  $view
      */
-    public function handle(Twin $twin, User $author, string $title, array $at, array $view, ?string $body = null, ?UploadedFile $photo = null, ?Alert $alert = null): Issue
+    public function handle(Twin $twin, User|ApiToken $author, string $title, array $at, array $view, ?string $body = null, ?UploadedFile $photo = null, ?Alert $alert = null): Issue
     {
         $issue = DB::transaction(function () use ($twin, $author, $title, $at, $view, $body, $photo, $alert): Issue {
             Twin::query()->whereKey($twin->id)->lockForUpdate()->first();
@@ -41,7 +43,8 @@ final readonly class CreateIssue
                 'title' => $title,
                 ...$at,
                 'view' => $view,
-                'author_id' => $author->id,
+                'author_id' => Actor::columns($author)[0],
+                'author_api' => Actor::columns($author)[1],
                 'alert_id' => $alert?->id,
             ]);
             $issue->setRelation('twin', $twin);

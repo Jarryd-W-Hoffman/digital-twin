@@ -33,7 +33,7 @@ final class AlertResource extends JsonResource
             'raisedAt' => $alert->raised_at->toIso8601String(),
             'clearedAt' => $alert->cleared_at?->toIso8601String(),
             'acknowledgedAt' => $alert->acknowledged_at?->toIso8601String(),
-            'acknowledgedBy' => $alert->acknowledger?->name,
+            'acknowledgedBy' => $alert->acknowledgerName(),
         ];
     }
 }

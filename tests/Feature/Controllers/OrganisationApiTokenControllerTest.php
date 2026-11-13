@@ -36,7 +36,7 @@ it("lists the organisation's tokens without their secrets", function (Organisati
                 'expired' => true,
                 'lastUsedAt' => now()->subDays(2)->toIso8601String(),
             ])
-            ->where('accessLevels', [['value' => 'read', 'label' => 'Read only']])
+            ->where('accessLevels', [['value' => 'read', 'label' => 'Read only'], ['value' => 'write', 'label' => 'Read and write']])
             ->where('baseUrl', url('/api/v1'))
             ->where('canManage', $manage));
 })->with([[OrganisationRole::Admin, true], [OrganisationRole::Operator, false]]);
@@ -78,7 +78,7 @@ it('flashes the secret that the API then accepts', function (): void {
 it('validates a new token', function (): void {
     [$user] = member(OrganisationRole::Admin);
 
-    $this->actingAs($user)->post(route('organisation.api-tokens.store'), ['name' => str_repeat('x', 101), 'access' => 'write', 'expires_in_days' => 7])
+    $this->actingAs($user)->post(route('organisation.api-tokens.store'), ['name' => str_repeat('x', 101), 'access' => 'admin', 'expires_in_days' => 7])
         ->assertSessionHasErrors(['name', 'access', 'expires_in_days']);
 });
 
