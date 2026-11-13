@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Reports** ([#40]): a notification channel can take the project's report **daily** at 7:00 or **weekly** on Mondays, in its time zone. For each twin it gives the alerts raised, how many were acknowledged and the median time to it, those nobody acknowledged and those still open, the assets that alerted most, and the issues raised, closed, open and overdue (listing the overdue ones). Email gets a table per twin, Slack and Teams a line per twin, and webhooks the figures (`report`). Quiet hours hold a report until they end, and **Send report now** sends one at once. Roadmap item 13 is done.
 - **Writing through the API** ([#39]): a token can have **Read and write** access. With it, another system raises issues (with or without a camera, a first comment and photo, and the alert they follow up), comments on them, closes and reopens them, and acknowledges alerts. What it does is signed with the token's name, such as **Maintenance system (API)**, in the twin, the alert log and the API, and stays after the token is revoked; channels hear about its issues as they do a person's. Read-only tokens get `403`.
 - **The API** ([#38]): **API** in the sidebar, where admins and owners make tokens for other systems (shown once, optionally expiring after 30, 90 or 365 days) and revoke them, and everyone sees when each was last used. A token reads its organisation's projects, twins and their assets, a metric's recorded history, the alert log and issues with their comments and photos as JSON under `/api/v1`, 120 requests a minute. A new user manual chapter, **The API**, covers it. Roadmap item 13, **API and reports**, starts here.
 - **Issues that reach people** ([#37]): an issue's author or an operator assigns it to anyone in the organisation, with a due date; the assignee is emailed, can close it, and finds it under **Mine**, and an issue past its date shows **Overdue**. **Raise issue** on an alert in the alert log opens the twin with the issue pinned on the alert's asset and linked to the alert. Notification channels can take **issue updates** (raised, assigned, closed) by email, Slack, Teams or webhook (`issue.raised`, `issue.assigned`, `issue.closed`), outside their quiet hours. Roadmap item 12 is done.
@@ -233,6 +234,7 @@ Dates are when the change was merged into `main` (UTC).
 [#37]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/37
 [#38]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/38
 [#39]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/39
+[#40]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/40
 [#36]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/36
 [#34]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/34
 [#33]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/33

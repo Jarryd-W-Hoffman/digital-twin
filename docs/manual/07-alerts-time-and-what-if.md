@@ -80,7 +80,7 @@ flowchart LR
     Q --> W["Signed webhook"]
 ```
 
-![Alert notifications on the project page: the depot's on-call team by email for warnings and critical alerts, quiet overnight in Auckland, and the operations manager when nobody acknowledges one within 15 minutes.](../images/notification-channels.png)
+![Alert notifications on the project page: the depot's on-call team by email for warnings and critical alerts, quiet overnight in Auckland, and the operations manager when nobody acknowledges one within 15 minutes, with a weekly report.](../images/notification-channels.png)
 
 Each channel has:
 
@@ -92,6 +92,7 @@ Each channel has:
 | **Also say when an alert clears** | Sends a second message when it clears, with how long it lasted |
 | **Quiet from / until** and **Time zone** | Hours when only critical alerts are sent, such as 22:00 to 07:00. They may run past midnight |
 | **Also issue updates** | Also tells the channel when an [issue](06-twins-and-the-viewer.md#tell-a-channel-about-issues) is raised, assigned or closed, outside its quiet hours |
+| **Reports** | **Daily, at 7:00** or **Weekly, Mondays at 7:00**, in the channel's time zone: a [report](#reports) on the project's twins |
 
 #### Escalation
 
@@ -114,6 +115,25 @@ every minute, for each escalation channel:
         → otherwise: record it, and send "Not acknowledged: …"
 ```
 
+#### Reports
+
+A channel can also take the project's **report**: what happened in each of its twins over the day or the week, for the people who don't watch the alert log.
+
+| For each twin | |
+| --- | --- |
+| **Alerts** | How many were raised, how many critical, how many were acknowledged and the median time it took, how many nobody acknowledged, and how many are open now |
+| **Most alerts** | The three assets that raised most |
+| **Issues** | How many were raised and closed, how many are open, and how many are overdue, with the first five overdue ones listed with who has them |
+
+A daily report covers the 24 hours to 7:00 and arrives then; a weekly one covers Monday to Monday. If 7:00 falls in the channel's quiet hours, the report waits for them to end. A channel added after 7:00 gets its first report the next time one falls due. By email it's a table per twin; in Slack and Teams, a line per twin; a webhook gets the figures as JSON. Choose **Send report now** beside the channel to send the day or week up to now straight away.
+
+```
+every five minutes, for each channel that takes reports:
+    due = the last 7:00 in its time zone (weekly: the last Monday's)
+    not sent for this due time, not added since, and not in quiet hours
+        → send the report on [due − a day or a week, due)
+```
+
 Choose **Send test** to send a made-up alert straight away; the page says whether it got there. Each channel shows when it last sent, or why its last attempt failed.
 
 Every message names the alert, the twin and project, its severity, when it was raised (and cleared), and links to the alert log. The log lists, under each alert, who was **told**: each channel, and whether it was a raise, an **escalation** or a clear, and whether its message was **sent**, is still **sending**, **failed** (with the reason), or was **held for quiet hours**.
@@ -134,7 +154,25 @@ Every message names the alert, the twin and project, its severity, when it was r
 }
 ```
 
-`event` is `alert.raised`, `alert.escalated`, `alert.cleared` or `test`. A channel that takes issue updates also gets `issue.raised`, `issue.assigned` and `issue.closed`:
+`event` is `alert.raised`, `alert.escalated`, `alert.cleared` or `test`, or `report` for a [report](#reports):
+
+```json
+{
+  "event": "report", "every": "weekly",
+  "from": "2026-11-08T18:00:00+00:00", "to": "2026-11-15T18:00:00+00:00",
+  "project": "Pilot sites", "url": "https://meridian.example.com/projects/…",
+  "totals": { "alerts": 5, "critical": 1, "acknowledged": 4, "unacknowledged": 1, "openAlerts": 1,
+              "raisedIssues": 2, "closedIssues": 1, "openIssues": 3, "overdue": 1 },
+  "twins": [ { "name": "Harbour Depot", "url": "…/alerts",
+               "alerts": { "raised": 5, "critical": 1, "warning": 3, "acknowledged": 4,
+                           "medianAckMinutes": 6, "unacknowledged": 1, "open": 1 },
+               "busiest": [ { "asset": "store", "alerts": 3 } ],
+               "issues": { "raised": 2, "closed": 1, "open": 3, "overdue": 1 },
+               "overdue": [ { "number": 4, "title": "Door seal", "assignee": "Ana Fitter",
+                              "dueOn": "2026-11-10", "url": "…" } ] } ]
+}
+```
+ A channel that takes issue updates also gets `issue.raised`, `issue.assigned` and `issue.closed`:
 
 ```json
 {
@@ -208,6 +246,7 @@ The results show:
 - **Run a gateway for anything that matters.** Without one, nobody is told about an alert unless they have the twin open.
 - **Give every project a channel, and send it a test.** A channel that has never sent shows **Nothing sent yet**; one that's failing says why.
 - **Keep quiet hours for warnings.** Critical alerts always get through, so the night shift is only woken when it matters.
+- **Send managers a weekly report.** They see how quickly alerts are acknowledged and what's overdue without being paged for each one.
 - **Escalate rather than copy everyone.** Send alerts to the people on call, and let an escalation channel bring in a manager only when nobody responds.
 - **Use replay after an incident.** Find the first alert, choose **Replay from here**, and step forward at 60× to see the order things happened in.
 

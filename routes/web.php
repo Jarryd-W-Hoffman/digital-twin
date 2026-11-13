@@ -13,6 +13,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDeviceController;
 use App\Http\Controllers\ProjectDevicePasswordController;
 use App\Http\Controllers\ProjectNotificationChannelController;
+use App\Http\Controllers\ProjectNotificationChannelReportController;
 use App\Http\Controllers\ProjectNotificationChannelTestController;
 use App\Http\Controllers\ProjectOpcUaServerController;
 use App\Http\Controllers\ProjectUploadCompletionController;
@@ -70,6 +71,7 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('projects/{project}/notification-channels', [ProjectNotificationChannelController::class, 'store'])->name('projects.notification-channels.store');
     Route::delete('projects/{project}/notification-channels/{notificationChannel}', [ProjectNotificationChannelController::class, 'destroy'])->scopeBindings()->name('projects.notification-channels.destroy');
     Route::post('projects/{project}/notification-channels/{notificationChannel}/test', [ProjectNotificationChannelTestController::class, 'store'])->scopeBindings()->middleware('throttle:10,1')->name('projects.notification-channels.test');
+    Route::post('projects/{project}/notification-channels/{notificationChannel}/report', [ProjectNotificationChannelReportController::class, 'store'])->scopeBindings()->middleware('throttle:10,1')->name('projects.notification-channels.report');
     Route::post('projects/{project}/uploads', [ProjectUploadController::class, 'store'])->name('projects.uploads.store');
     Route::post('projects/{project}/uploads/{asset}/parts', [ProjectUploadPartController::class, 'store'])->scopeBindings()->name('projects.uploads.parts');
     Route::post('projects/{project}/uploads/{asset}/complete', [ProjectUploadCompletionController::class, 'store'])->scopeBindings()->name('projects.uploads.complete');

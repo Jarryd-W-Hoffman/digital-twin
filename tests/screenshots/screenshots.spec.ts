@@ -826,6 +826,7 @@ test('screenshots', async ({ page, context }) => {
             severity: string,
             quiet?: [string, string],
             escalateAfter?: string,
+            report?: string,
         ) => {
             const form = channels.getByRole('form', {
                 name: 'Add a notification channel',
@@ -846,6 +847,11 @@ test('screenshots', async ({ page, context }) => {
                     .selectOption('escalate');
                 await form.getByLabel('Minutes to wait').fill(escalateAfter);
             }
+            if (report) {
+                await form
+                    .getByLabel('Reports')
+                    .selectOption({ label: report });
+            }
             await form.getByRole('button', { name: 'Add channel' }).click();
             await expect(
                 channels
@@ -865,6 +871,7 @@ test('screenshots', async ({ page, context }) => {
             'warning',
             undefined,
             '15',
+            'Weekly, Mondays at 7:00',
         );
         await expect(page.getByText('Operations manager added.')).toBeHidden({
             timeout: 15_000,

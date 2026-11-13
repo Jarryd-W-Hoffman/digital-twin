@@ -6,6 +6,7 @@ namespace Database\Factories;
 
 use App\Enums\AlertSeverity;
 use App\Enums\NotificationChannelKind;
+use App\Enums\ReportFrequency;
 use App\Models\NotificationChannel;
 use App\Models\Project;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -66,5 +67,13 @@ final class NotificationChannelFactory extends Factory
     public function quiet(string $from = '22:00', string $until = '07:00', string $timezone = 'UTC'): self
     {
         return $this->state(['quiet_from' => $from, 'quiet_until' => $until, 'timezone' => $timezone]);
+    }
+
+    /**
+     * Sent the project's report, daily or weekly.
+     */
+    public function reports(ReportFrequency $frequency = ReportFrequency::Daily): self
+    {
+        return $this->state(['report' => $frequency]);
     }
 }
