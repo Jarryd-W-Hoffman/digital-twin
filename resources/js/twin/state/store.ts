@@ -126,6 +126,42 @@ export interface TwinStore {
     /** Bumped to clear the measurement and start again with the same tool. */
     measureClear: number;
     clearMeasurement: () => void;
+    /** Issues pinned in the scene. */
+    pins: Pin[];
+    /** The pin shown as chosen, whose issue is open. */
+    activePin: string | null;
+    /** While true, a click in the scene places a new pin instead of selecting. */
+    pinning: boolean;
+    setPinning: (pinning: boolean) => void;
+    /** Where the new pin was placed, with the camera at the time; kept while it is moved. */
+    placedPin: { at: Vec3; view: CameraView } | null;
+    placePin: (at: Vec3, view: CameraView) => void;
+    clearPlacedPin: () => void;
+    /** The pin last clicked in the scene, bumped on every click. */
+    pickedPin: { id: string; n: number } | null;
+    pickPin: (id: string) => void;
+    /** A camera the scene should fly to, bumped on every request. */
+    cameraRequest: { view: CameraView; n: number } | null;
+    flyTo: (view: CameraView) => void;
+}
+
+/** An issue pinned at a place: longitude and latitude in degrees, height in metres above the ellipsoid. */
+export interface Pin {
+    id: string;
+    number: number;
+    title: string;
+    closed: boolean;
+    at: Vec3;
+}
+
+/** Where a camera was and which way it looked, in degrees and metres. */
+export interface CameraView {
+    lon: number;
+    lat: number;
+    height: number;
+    heading: number;
+    pitch: number;
+    roll: number;
 }
 
 /** A sensor's settings, kept while it's moved or before it's placed. */
@@ -268,6 +304,7 @@ export const useTwin = create<TwinStore>((set, get) => ({
     setSighting: (sighting) =>
         set((s) => ({
             sighting,
+            pinning: sighting ? false : s.pinning,
             measuring: sighting ? null : s.measuring,
             placingLayer: sighting ? null : s.placingLayer,
             movingLayer: sighting ? null : s.movingLayer,
@@ -321,6 +358,7 @@ export const useTwin = create<TwinStore>((set, get) => ({
     setSketch: (sketch) =>
         set((s) => ({
             sketch,
+            pinning: sketch ? false : s.pinning,
             measuring: sketch ? null : s.measuring,
             movingLayer: sketch ? null : s.movingLayer,
             sighting: sketch ? null : s.sighting,
@@ -335,6 +373,7 @@ export const useTwin = create<TwinStore>((set, get) => ({
     setMeasuring: (measuring) =>
         set((s) => ({
             measuring,
+            pinning: measuring ? false : s.pinning,
             measurement: null,
             movingLayer: measuring ? null : s.movingLayer,
             sighting: measuring ? null : s.sighting,
@@ -346,6 +385,29 @@ export const useTwin = create<TwinStore>((set, get) => ({
     measureClear: 0,
     clearMeasurement: () =>
         set((s) => ({ measureClear: s.measureClear + 1, measurement: null })),
+    pins: [],
+    activePin: null,
+    pinning: false,
+    setPinning: (pinning) =>
+        set((s) => ({
+            pinning,
+            measuring: pinning ? null : s.measuring,
+            sighting: pinning ? null : s.sighting,
+            placingLayer: pinning ? null : s.placingLayer,
+            movingLayer: pinning ? null : s.movingLayer,
+            sketch: pinning ? null : s.sketch,
+        })),
+    placedPin: null,
+    placePin: (at, view) => set({ placedPin: { at, view }, pinning: false }),
+    clearPlacedPin: () => set({ placedPin: null, pinning: false }),
+    pickedPin: null,
+    pickPin: (id) =>
+        set((s) => ({ pickedPin: { id, n: (s.pickedPin?.n ?? 0) + 1 } })),
+    cameraRequest: null,
+    flyTo: (view) =>
+        set((s) => ({
+            cameraRequest: { view, n: (s.cameraRequest?.n ?? 0) + 1 },
+        })),
     showGlobe: () => set((s) => ({ globeRequest: s.globeRequest + 1 })),
 
     select: (id, fly = false) =>
@@ -517,6 +579,8 @@ export function runDefinition(
         section: null,
         sketch: null,
         featurePick: null,
+        pinning: false,
+        placedPin: null,
     });
     try {
         startSource(new LocalSource(parseDefinition(def)));
@@ -546,6 +610,8 @@ export function runGateway(
         measuring: null,
         measurement: null,
         section: null,
+        pinning: false,
+        placedPin: null,
     });
     startSource(new GatewaySource(url));
 }
@@ -569,6 +635,11 @@ export function stopTwin(): void {
         measuring: null,
         measurement: null,
         section: null,
+        pins: [],
+        activePin: null,
+        pinning: false,
+        placedPin: null,
+        cameraRequest: null,
     });
 }
 

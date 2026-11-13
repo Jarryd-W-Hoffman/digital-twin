@@ -12,6 +12,8 @@ use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
 use App\Models\Alert;
 use App\Models\AssetType;
+use App\Models\Issue;
+use App\Models\IssueComment;
 use App\Models\OpcUaWrite;
 use App\Models\ProjectAsset;
 use App\Models\Twin;
@@ -19,9 +21,11 @@ use App\Models\TwinVersion;
 use App\Models\User;
 use App\Support\SampleTwins;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -76,7 +80,7 @@ final readonly class TwinController
         return to_route('twins.show', $twin);
     }
 
-    public function show(Twin $twin, #[CurrentUser] User $user, IssueGatewayTicket $tickets): Response
+    public function show(Request $request, Twin $twin, #[CurrentUser] User $user, IssueGatewayTicket $tickets): Response
     {
         Gate::authorize('view', $twin);
 
@@ -152,6 +156,21 @@ final readonly class TwinController
                     'acknowledgedBy' => $alert->acknowledger?->name,
                     'acknowledgedAt' => $alert->acknowledged_at?->toIso8601String(),
                 ]),
+            // The issues pinned in the scene, and the one open in the Issues panel (`?issue=`).
+            'issues' => fn () => $twin->issues()->with('author:id,name')->withCount('comments')
+                ->latest('updated_at')->limit(500)->get()
+                ->map(fn (Issue $issue): array => [
+                    'id' => $issue->id,
+                    'number' => $issue->number,
+                    'title' => $issue->title,
+                    'closed' => $issue->closed_at !== null,
+                    'at' => [$issue->lon, $issue->lat, $issue->height],
+                    'view' => $issue->view,
+                    'author' => $issue->author?->name,
+                    'comments' => $issue->comments_count,
+                    'updatedAt' => $issue->updated_at->toIso8601String(),
+                ]),
+            'issue' => fn (): ?array => $this->issue($twin, $user, $request->query('issue')),
             'gateway' => $twin->gateway_token_hash === null ? null : [
                 'online' => $online,
                 'url' => $online ? $twin->gateway_url : null,
@@ -189,5 +208,45 @@ final readonly class TwinController
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Twin deleted.')]);
 
         return to_route('projects.show', $twin->project_id);
+    }
+
+    /**
+     * An issue with its conversation, for the Issues panel.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function issue(Twin $twin, User $user, mixed $id): ?array
+    {
+        $issue = is_string($id) && Str::isUuid($id)
+            ? $twin->issues()->with(['author:id,name', 'closer:id,name', 'comments' => fn (HasMany $query): HasMany => $query->with('author:id,name')->oldest()->oldest('id')])->find($id)
+            : null;
+
+        if (! $issue instanceof Issue) {
+            return null;
+        }
+
+        $issue->setRelation('twin', $twin);
+        $canModerate = $user->can('update', $twin);
+
+        return [
+            'id' => $issue->id,
+            'number' => $issue->number,
+            'title' => $issue->title,
+            'at' => [$issue->lon, $issue->lat, $issue->height],
+            'view' => $issue->view,
+            'author' => $issue->author?->name,
+            'createdAt' => $issue->created_at->toIso8601String(),
+            'closedAt' => $issue->closed_at?->toIso8601String(),
+            'closedBy' => $issue->closer?->name,
+            'can' => ['close' => $user->can('close', $issue), 'delete' => $user->can('delete', $issue)],
+            'comments' => $issue->comments->map(fn (IssueComment $comment): array => [
+                'id' => $comment->id,
+                'author' => $comment->author?->name,
+                'body' => $comment->body,
+                'photo' => $comment->photo === null ? null : route('twins.issues.comments.photo', [$twin, $issue, $comment], false),
+                'createdAt' => $comment->created_at->toIso8601String(),
+                'canDelete' => $canModerate || $comment->author_id === $user->id,
+            ]),
+        ];
     }
 }

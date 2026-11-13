@@ -23,6 +23,10 @@ use App\Http\Controllers\TwinAlertController;
 use App\Http\Controllers\TwinAssetController;
 use App\Http\Controllers\TwinController;
 use App\Http\Controllers\TwinGatewayTokenController;
+use App\Http\Controllers\TwinIssueClosureController;
+use App\Http\Controllers\TwinIssueCommentController;
+use App\Http\Controllers\TwinIssueController;
+use App\Http\Controllers\TwinIssuePhotoController;
 use App\Http\Controllers\TwinLayerController;
 use App\Http\Controllers\TwinOpcUaWritesController;
 use App\Http\Controllers\TwinReadingController;
@@ -86,6 +90,13 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::put('twins/{twin}/opcua-writes', [TwinOpcUaWritesController::class, 'update'])->name('twins.opcua-writes.update');
     Route::get('twins/{twin}/alerts', [TwinAlertController::class, 'index'])->name('twins.alerts.index');
     Route::post('twins/{twin}/alerts/{alert}/acknowledgement', [TwinAlertAcknowledgementController::class, 'store'])->scopeBindings()->name('twins.alerts.acknowledgement.store');
+    Route::post('twins/{twin}/issues', [TwinIssueController::class, 'store'])->middleware('throttle:30,1')->name('twins.issues.store');
+    Route::delete('twins/{twin}/issues/{issue}', [TwinIssueController::class, 'destroy'])->scopeBindings()->name('twins.issues.destroy');
+    Route::post('twins/{twin}/issues/{issue}/closure', [TwinIssueClosureController::class, 'store'])->scopeBindings()->name('twins.issues.closure.store');
+    Route::delete('twins/{twin}/issues/{issue}/closure', [TwinIssueClosureController::class, 'destroy'])->scopeBindings()->name('twins.issues.closure.destroy');
+    Route::post('twins/{twin}/issues/{issue}/comments', [TwinIssueCommentController::class, 'store'])->scopeBindings()->middleware('throttle:60,1')->name('twins.issues.comments.store');
+    Route::delete('twins/{twin}/issues/{issue}/comments/{comment}', [TwinIssueCommentController::class, 'destroy'])->scopeBindings()->name('twins.issues.comments.destroy');
+    Route::get('twins/{twin}/issues/{issue}/comments/{comment}/photo', [TwinIssuePhotoController::class, 'show'])->scopeBindings()->name('twins.issues.comments.photo');
 
     // Organisations...
     Route::post('organisations', [OrganisationController::class, 'store'])->name('organisations.store');
