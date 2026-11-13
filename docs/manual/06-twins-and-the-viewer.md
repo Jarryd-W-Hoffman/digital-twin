@@ -188,22 +188,42 @@ To raise one:
 3. Give it a **Title**, and optionally a **Note** and a **Photo** (JPEG, PNG or WebP, up to 10 MB). **Move pin** lets you click somewhere else first.
 4. Choose **Raise issue**. It's numbered after the twin's last issue and opens straight away.
 
-![An open issue: its pin, numbered and titled, over the pump skid, and the panel with who raised it, the photo from site and a reply.](../images/issues.png)
+![An open issue: its pin, numbered and titled, over the pump skid, and the panel with who raised it, who it's assigned to and when it's due, the photo from site and a reply.](../images/issues.png)
 
 Each issue is a pin over its spot, drawn on top of everything so one inside a building still shows: orange while open, grey once closed. The open issue's pin is larger and shows its title.
 
 - **Open an issue** by choosing it in the list, which flies the camera to the view it was raised from, or by clicking its pin. **Go to view** flies back to that view.
 - **Share an issue** by copying the page's address while it's open: it ends in `?issue=…`, and opens the twin at that issue and its view for anyone in the organisation.
 - **Comment** with words, a photo or both. Comments and new issues show for everyone within 15 seconds.
-- **Close issue** once it's dealt with, and **Reopen** if it isn't. **Open** and **Closed** in the list switch between them.
+- **Close issue** once it's dealt with, and **Reopen** if it isn't. **Open**, **Mine** and **Closed** in the list switch between the open issues, the open ones assigned to you, and the closed ones.
 - **Delete** removes the issue with its comments and photos. The ✕ on a comment deletes that comment.
+
+### Assign an issue
+
+An open issue shows **Assigned to** and **Due** to whoever raised it and to operators, admins and owners. Pick anyone in the organisation and, if you like, a date, then **Save assignment**; choose **Nobody** or clear the date to take them back. The list shows who has each issue (**For you** when it's yours) and when it's due, and **Overdue** in red once the date has passed while it's still open.
+
+The person you assign gets an email with a link that opens the twin at the issue, unless they assigned it to themselves. Whoever has an issue can close it, even a viewer.
+
+### Raise an issue from an alert
+
+Each alert in the [alert log](07-alerts-time-and-what-if.md#the-alert-log) has **Raise issue**, for anyone who can see the twin. It opens the twin with the Issues panel, flies to the alert's asset and puts the pin on top of it, with the alert's message as the title. Move the pin if the problem is somewhere else, add a note or photo, and choose **Raise issue**. The issue says **From the alert** with a link back to the log, and the alert shows **Issue #n** in place of **Raise issue**.
+
+![Raising an issue from Harbour Depot's alert: the pin on top of the seafood store, the alert's message as the title, and a note being added.](../images/issue-from-alert.png)
+
+If the asset has no place in the scene, such as one fed only by a gateway, click the spot yourself.
+
+### Tell a channel about issues
+
+A project's [notification channels](07-alerts-time-and-what-if.md#who-is-told) can also take **issue updates**: a message when an issue is raised, assigned or closed, by email, Slack, Teams or webhook, with a link to the issue. Tick **Also issue updates** when adding the channel. Issues aren't urgent, so a channel in its quiet hours isn't told of them.
 
 Who can do what:
 
 |                                                      | Owner | Admin | Operator | Viewer |
 | ---------------------------------------------------- | :---: | :---: | :------: | :----: |
 | Raise issues, comment, and close or delete their own |   ✓   |   ✓   |    ✓     |   ✓    |
-| Close and reopen anyone's issue                      |   ✓   |   ✓   |    ✓     |        |
+| Assign their own issues                              |   ✓   |   ✓   |    ✓     |   ✓    |
+| Close an issue assigned to them                      |   ✓   |   ✓   |    ✓     |   ✓    |
+| Assign, close and reopen anyone's issue              |   ✓   |   ✓   |    ✓     |        |
 | Delete anyone's issue or comment                     |   ✓   |   ✓   |          |        |
 
 How an issue goes:
@@ -211,12 +231,24 @@ How an issue goes:
 ```mermaid
 stateDiagram-v2
     [*] --> Open: New issue, a click in the scene, Raise issue
+    [*] --> Open: Raise issue on an alert, pinned on its asset
     Open --> Open: comments and photos
-    Open --> Closed: Close issue (its author or an operator)
+    Open --> Open: assigned, with a due date (the assignee is emailed)
+    Open --> Closed: Close issue (its author, its assignee or an operator)
     Closed --> Open: Reopen
     Open --> [*]: Delete (its author or an editor)
     Closed --> [*]: Delete
 ```
+
+Who hears about it:
+
+```
+issue raised, assigned or closed:
+    for each channel in the project that takes issue updates:
+        in its quiet hours  -> skip
+        otherwise           -> queue a message (tried 3 times)
+when assigned to someone new, by someone else:
+    email them: "Issue #n is yours: <title> (<twin>)"
 
 What's kept for each issue:
 
@@ -226,6 +258,8 @@ issue #n of the twin
     pin:  longitude, latitude, height above the ellipsoid   (where it is)
     view: the camera's longitude, latitude, height, heading, pitch and roll
     closed: when and by whom, or still open
+    assigned to: a member, or nobody; due: a date, or none
+    alert: the alert it was raised from, if any
     comments, oldest first: who, when, words and/or a photo
 photos are kept with the project's files, served only to its organisation,
 and deleted with their comment, their issue or the twin

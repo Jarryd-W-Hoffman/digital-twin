@@ -27,11 +27,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read float $height
  * @property-read array{lon: float, lat: float, height: float, heading: float, pitch: float, roll: float} $view
  * @property-read string|null $author_id
+ * @property-read string|null $assignee_id
+ * @property-read CarbonInterface|null $due_on
+ * @property-read string|null $alert_id
  * @property-read CarbonInterface|null $closed_at
  * @property-read string|null $closed_by
  * @property-read int|null $comments_count
  * @property-read Twin $twin
  * @property-read User|null $author
+ * @property-read User|null $assignee
+ * @property-read Alert|null $alert
  * @property-read User|null $closer
  * @property-read Collection<int, IssueComment> $comments
  * @property-read CarbonInterface $created_at
@@ -59,6 +64,9 @@ final class Issue extends Model
             'height' => 'float',
             'view' => 'array',
             'author_id' => 'string',
+            'assignee_id' => 'string',
+            'due_on' => 'date',
+            'alert_id' => 'string',
             'closed_at' => 'datetime',
             'closed_by' => 'string',
             'created_at' => 'datetime',
@@ -80,6 +88,34 @@ final class Issue extends Model
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');
+    }
+
+    /**
+     * Who is to deal with it.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assignee_id');
+    }
+
+    /**
+     * The alert it was raised from.
+     *
+     * @return BelongsTo<Alert, $this>
+     */
+    public function alert(): BelongsTo
+    {
+        return $this->belongsTo(Alert::class);
+    }
+
+    /**
+     * Whether it's still open past its due date.
+     */
+    public function isOverdue(): bool
+    {
+        return $this->closed_at === null && $this->due_on !== null && $this->due_on->lt(today());
     }
 
     /**

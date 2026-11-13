@@ -23,7 +23,7 @@ type Debug = {
 const PORT = 8797;
 const RECEIVER_PORT = 8796;
 
-type Delivery = { event: string; signature: string; body: string; json: { alert: { message: string } } };
+type Delivery = { event: string; signature: string; body: string; json: { alert: { message: string }; issue: { title: string } } };
 
 /** A webhook receiver on this machine, keeping what it's sent. */
 function receiver(): { server: Server; deliveries: Delivery[] } {
@@ -121,6 +121,7 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
     await channelForm.getByLabel('Send by').selectOption('webhook');
     await channelForm.getByLabel('Webhook URL').fill(`http://127.0.0.1:${RECEIVER_PORT}/hook`);
     await channelForm.getByLabel('Send', { exact: true }).selectOption('info');
+    await channelForm.getByLabel(/Also issue updates/).check();
     await channelForm.getByRole('button', { name: 'Add channel' }).click();
     const channel = owner.getByRole('list', { name: 'Notification channels' }).getByRole('listitem').filter({ hasText: 'Receiver' });
     const secret = await channel.getByLabel('Signing secret').innerText();
@@ -165,6 +166,22 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
     }).toPass({ timeout: 60_000 });
     await expect(logged).toContainText('Receiver (cleared, sent)');
     expect(hook.deliveries.filter((d) => d.event === 'alert.cleared' && d.json.alert.message === 'Fire water tank is below 60%')).toHaveLength(1);
+
+    // An issue follows the alert up, pinned on its asset, and the channel hears of it.
+    await logged.getByRole('link', { name: 'Raise issue' }).click();
+    const issues = owner.getByRole('complementary', { name: 'Issues' });
+    const newIssue = issues.getByRole('region', { name: 'New issue' });
+    await expect(newIssue.getByText('Following up the alert on fire-tank.')).toBeVisible({ timeout: 90_000 });
+    await expect(newIssue.getByLabel('Title')).toHaveValue('Fire water tank is below 60%');
+    await newIssue.getByRole('button', { name: 'Raise issue' }).click();
+    await expect(issues.getByRole('heading', { name: /^#\d+ Fire water tank is below 60%$/ })).toBeVisible({ timeout: 30_000 });
+    await expect(issues.getByText(/From the alert/)).toContainText('on fire-tank');
+    await expect
+      .poll(() => hook.deliveries.filter((d) => d.event === 'issue.raised').map((d) => [d.json.issue.title, signed(d)]), { timeout: 30_000 })
+      .toEqual([['Fire water tank is below 60%', true]]);
+    await owner.goto(`${twinUrl}/alerts`);
+    await expect(logged.getByRole('link', { name: /^Issue #\d+$/ })).toBeVisible();
+    await expect(logged.getByRole('link', { name: 'Raise issue' })).toHaveCount(0);
     await owner.goto(twinUrl);
     await expect(owner.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
 

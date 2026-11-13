@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Enums\AlertEvent;
-use App\Enums\AlertSeverity;
 use App\Enums\NotificationChannelKind;
-use App\Mail\AlertMail;
 use App\Models\NotificationChannel;
-use App\Support\AlertMessage;
+use App\Support\ChannelMessage;
 use App\Support\WebhookGuard;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
@@ -17,32 +14,32 @@ use Illuminate\Support\Facades\Mail;
 use RuntimeException;
 
 /**
- * Carries one message to one channel: an email, a signed JSON webhook, a
- * Slack message or a Teams card. Throws when it doesn't get there, with the
- * reason.
+ * Carries one message, about an alert or an issue, to one channel: an
+ * email, a signed JSON webhook, a Slack message or a Teams card. Throws
+ * when it doesn't get there, with the reason.
  */
-final readonly class SendAlertNotification
+final readonly class SendChannelMessage
 {
     public function __construct(private WebhookGuard $guard) {}
 
-    public function handle(NotificationChannel $channel, AlertMessage $message): void
+    public function handle(NotificationChannel $channel, ChannelMessage $message): void
     {
         if ($channel->kind === NotificationChannelKind::Email) {
-            Mail::to($channel->addresses())->sendNow(new AlertMail($message));
+            Mail::to($channel->addresses())->sendNow($message->mail());
 
             return;
         }
 
         $address = $this->guard->check($channel->kind, $channel->target);
         $body = json_encode(match ($channel->kind) {
-            NotificationChannelKind::Slack => ['text' => $this->slack($message)],
+            NotificationChannelKind::Slack => ['text' => sprintf("%s *%s*\n%s\n<%s|%s>", $message->mark(), $message->subject(), $message->detail(), $message->link(), $message->linkLabel())],
             NotificationChannelKind::Teams => $this->teams($message),
             default => $message->payload(),
         }, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
         $response = $this->request($channel, $address)
             ->withHeaders($channel->kind === NotificationChannelKind::Webhook ? [
-                'X-Meridian-Event' => $message->payload()['event'],
+                'X-Meridian-Event' => $message->event(),
                 'X-Meridian-Signature' => 'sha256='.hash_hmac('sha256', $body, (string) $channel->secret),
             ] : [])
             ->withBody($body, 'application/json')
@@ -70,26 +67,13 @@ final readonly class SendAlertNotification
         return $request->withOptions(['curl' => [CURLOPT_RESOLVE => [sprintf('%s:%d:%s', $host, $port, $address)]]]);
     }
 
-    private function slack(AlertMessage $message): string
-    {
-        $mark = match (true) {
-            $message->event === AlertEvent::Cleared => ':white_check_mark:',
-            $message->event === AlertEvent::Escalated => ':rotating_light:',
-            $message->severity === AlertSeverity::Critical => ':red_circle:',
-            $message->severity === AlertSeverity::Warning => ':large_orange_circle:',
-            default => ':large_blue_circle:',
-        };
-
-        return sprintf("%s *%s*\n%s · %s\n<%s|%s>", $mark, $message->subject(), $message->project, $message->timing(), $message->url, __('Open the alert log'));
-    }
-
     /**
      * An Adaptive Card, as a Teams workflow's "post to a channel when a
      * webhook request is received" expects.
      *
      * @return array<string, mixed>
      */
-    private function teams(AlertMessage $message): array
+    private function teams(ChannelMessage $message): array
     {
         return [
             'type' => 'message',
@@ -100,14 +84,10 @@ final readonly class SendAlertNotification
                     'type' => 'AdaptiveCard',
                     'version' => '1.4',
                     'body' => [
-                        ['type' => 'TextBlock', 'text' => $message->subject(), 'weight' => 'Bolder', 'wrap' => true, 'color' => match (true) {
-                            $message->event === AlertEvent::Cleared => 'Good',
-                            $message->event === AlertEvent::Escalated, $message->severity === AlertSeverity::Critical => 'Attention',
-                            default => 'Warning',
-                        }],
-                        ['type' => 'TextBlock', 'text' => $message->project.' · '.$message->timing(), 'isSubtle' => true, 'wrap' => true],
+                        ['type' => 'TextBlock', 'text' => $message->subject(), 'weight' => 'Bolder', 'wrap' => true, 'color' => $message->tone()],
+                        ['type' => 'TextBlock', 'text' => $message->detail(), 'isSubtle' => true, 'wrap' => true],
                     ],
-                    'actions' => [['type' => 'Action.OpenUrl', 'title' => __('Open the alert log'), 'url' => $message->url]],
+                    'actions' => [['type' => 'Action.OpenUrl', 'title' => $message->linkLabel(), 'url' => $message->link()]],
                 ],
             ]],
         ];

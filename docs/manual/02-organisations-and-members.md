@@ -10,9 +10,10 @@ Everything in Meridian belongs to an **organisation**: its projects, twins, uplo
 | ------------------------------------------------------------------------------- | :---: | :---: | :------: | :----: |
 | See projects and twins, open them, and watch them live                          |   ✓   |   ✓   |    ✓     |   ✓    |
 | Raise issues in a twin and comment on them                                      |   ✓   |   ✓   |    ✓     |   ✓    |
+| Assign their own issues, and close issues assigned to them                      |   ✓   |   ✓   |    ✓     |   ✓    |
 | Save views of a twin and copy links to them                                     |   ✓   |   ✓   |    ✓     |   ✓    |
 | Send commands to a twin (setpoints, taking equipment out of service, scenarios) |   ✓   |   ✓   |    ✓     |        |
-| Close anyone's issue                                                            |   ✓   |   ✓   |    ✓     |        |
+| Assign, close and reopen anyone's issue                                         |   ✓   |   ✓   |    ✓     |        |
 | Create projects and twins, upload, place, save and restore versions             |   ✓   |   ✓   |          |        |
 | Share views, and choose the view a twin opens at                                |   ✓   |   ✓   |          |        |
 | Issue gateway tokens, add devices, map telemetry                                |   ✓   |   ✓   |          |        |

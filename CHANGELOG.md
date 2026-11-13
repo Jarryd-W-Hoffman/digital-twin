@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Issues that reach people** ([#37]): an issue's author or an operator assigns it to anyone in the organisation, with a due date; the assignee is emailed, can close it, and finds it under **Mine**, and an issue past its date shows **Overdue**. **Raise issue** on an alert in the alert log opens the twin with the issue pinned on the alert's asset and linked to the alert. Notification channels can take **issue updates** (raised, assigned, closed) by email, Slack, Teams or webhook (`issue.raised`, `issue.assigned`, `issue.closed`), outside their quiet hours. Roadmap item 12 is done.
 - **Saved views and links** ([#36]): **Views** on the twin page, for everyone who can see the twin. **Save view** keeps the camera, colouring, basemap, layers, section cut and selected asset under a name, private until an editor shares it; choosing a view flies there and sets the rest. **Copy link to what you see** makes a link that carries the whole view (`?look=`), and a saved view's link (`?view=`) opens it for anyone in the organisation. Editors choose a shared view for the twin to open at instead of the whole site.
 - **Issues in the scene** ([#35]): **Issues** on the twin page, for everyone who can see the twin. **New issue** pins a note or problem to the spot you click in the scene, with the camera you're looking from, a title, and a first comment and photo. Issues are numbered per twin and drawn as pins over everything; they open from the list (flying to their view), by clicking their pin, or from a link (`?issue=`), and gather comments with photos. Their author or an operator closes and reopens them, and their author or an editor deletes them. Roadmap item 12, **Collaboration in the scene**, starts here.
 - **Escalation** ([#34]): a notification channel can be told of an alert only if nobody acknowledges it within a number of minutes, so a project can bring in a manager, then a director, when the people on call don't respond. The scheduler checks every minute and escalates each alert to each such channel once; acknowledging or clearing it stops there, quiet hours hold warnings until they end, and messages say how long the alert has gone unacknowledged. Roadmap item 11 is done.
@@ -41,6 +42,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Fixed
 
+- **Issues after leaving an organisation** ([#37]): someone removed from an organisation can no longer close or delete the issues and comments they left there.
 - **Terrain relief shows** ([#31]): terrain is hillshaded, lit from the north-west, so slopes read at site scale where Cesium leaves the ground unlit. Flat ground is unchanged.
 - **Deleting an account keeps every organisation owned** ([#31]): it's refused while you're the only owner of an organisation with other members, with the organisation named, and you stay signed in. An organisation you're the only member of is deleted with you, its projects' files too.
 - A gateway no longer restarts its model when only a project's OPC UA servers or the writing switch change, and after a new version it measures each mapped OPC UA node's last value again. Before, a steady value (which a server never reports again) was lost until it changed ([#25]).
@@ -226,6 +228,7 @@ Dates are when the change was merged into `main` (UTC).
 [#30]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/30
 [#31]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/31
 [#35]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/35
+[#37]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/37
 [#36]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/36
 [#34]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/34
 [#33]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/33

@@ -18,6 +18,23 @@ export default function CesiumView() {
             scene.setPinning(
                 on ? (at, view) => useTwin.getState().placePin(at, view) : null,
             );
+        /**
+         * Pins a requested asset, keeping the request until the pin is placed
+         * so the panel can say it's finding it; asks for a click instead if
+         * the asset has no place. A request given up in the meantime stays
+         * given up.
+         */
+        const pinIfAsked = (s: ReturnType<typeof useTwin.getState>) => {
+            const request = s.assetPinRequest;
+            if (!request) return;
+            const placed = scene.pinAtAsset(request.id, (at, view) => {
+                if (useTwin.getState().assetPinRequest === request)
+                    useTwin.getState().placePin(at, view);
+            });
+            if (placed) return;
+            useTwin.setState({ assetPinRequest: null });
+            useTwin.getState().setPinning(true);
+        };
         /** Flies to a requested camera once, so a rebuilt scene doesn't repeat it. */
         const flyIfAsked = (s: ReturnType<typeof useTwin.getState>) => {
             if (!s.cameraRequest) return;
@@ -123,6 +140,7 @@ export default function CesiumView() {
             scene.pins.set(s.pins, s.activePin, s.placedPin?.at);
             pinOnClick(s.pinning);
             flyIfAsked(s);
+            pinIfAsked(s);
             if (s.view) {
                 scene.updateFrame(s.view, s.colorBy);
                 scene.setAlerts(alertsAt(s.alerts, s.view.t));
@@ -159,6 +177,7 @@ export default function CesiumView() {
                 scene.pins.set(s.pins, s.activePin, s.placedPin?.at);
             if (s.pinning !== prev.pinning) pinOnClick(s.pinning);
             if (s.cameraRequest !== prev.cameraRequest) flyIfAsked(s);
+            if (s.assetPinRequest !== prev.assetPinRequest) pinIfAsked(s);
             if (s.drafts !== prev.drafts) {
                 for (const id of new Set([
                     ...Object.keys(s.drafts),

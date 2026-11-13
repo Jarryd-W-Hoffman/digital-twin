@@ -54,7 +54,8 @@ Open it from **Alert log** on the Alerts tab, or go to the twin's address follow
 - its message, when it was raised and when it cleared, and how long it lasted;
 - the asset and rule it came from, and the value when it was raised;
 - who **acknowledged** it, and when;
-- who was **told**, through which [channels](#who-is-told), and how it went.
+- who was **told**, through which [channels](#who-is-told), and how it went;
+- **Raise issue**, to follow it up as an [issue pinned on its asset](06-twins-and-the-viewer.md#raise-an-issue-from-an-alert), or a link to the issues already raised from it.
 
 Choose **Open** at the top to see only what hasn't cleared, and **Older** and **Newer** to page back through the log, 50 at a time.
 
@@ -90,6 +91,7 @@ Each channel has:
 | **When** | **As soon as it's raised**, or **If nobody acknowledges it in time**, after a number of **Minutes to wait** (up to a day) |
 | **Also say when an alert clears** | Sends a second message when it clears, with how long it lasted |
 | **Quiet from / until** and **Time zone** | Hours when only critical alerts are sent, such as 22:00 to 07:00. They may run past midnight |
+| **Also issue updates** | Also tells the channel when an [issue](06-twins-and-the-viewer.md#tell-a-channel-about-issues) is raised, assigned or closed, outside its quiet hours |
 
 #### Escalation
 
@@ -132,7 +134,18 @@ Every message names the alert, the twin and project, its severity, when it was r
 }
 ```
 
-`event` is `alert.raised`, `alert.escalated`, `alert.cleared` or `test`. When you add a webhook, the page shows its **signing secret** once: copy it then. Each request carries `X-Meridian-Signature: sha256=` and the HMAC-SHA256 of the body with the secret, so your receiver can check the request came from Meridian:
+`event` is `alert.raised`, `alert.escalated`, `alert.cleared` or `test`. A channel that takes issue updates also gets `issue.raised`, `issue.assigned` and `issue.closed`:
+
+```json
+{
+  "event": "issue.assigned",
+  "issue": { "id": "…", "number": 12, "title": "Fire water tank is below 60%",
+             "assignee": "Ana Fitter", "dueOn": "2026-11-20", "alertId": "…" },
+  "by": "Test User", "twin": "Harbour Depot", "project": "Pilot sites",
+  "url": "https://meridian.example.com/twins/…?issue=…"
+}
+```
+ When you add a webhook, the page shows its **signing secret** once: copy it then. Each request carries `X-Meridian-Signature: sha256=` and the HMAC-SHA256 of the body with the secret, so your receiver can check the request came from Meridian:
 
 ```
 on request:

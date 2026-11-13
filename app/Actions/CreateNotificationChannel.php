@@ -18,7 +18,7 @@ use Illuminate\Support\Str;
 final readonly class CreateNotificationChannel
 {
     /**
-     * @param  array{name: string, kind: NotificationChannelKind, target: string, min_severity: AlertSeverity, notify_cleared: bool, escalate_after_minutes: int|null, quiet_from: string|null, quiet_until: string|null, timezone: string}  $channel
+     * @param  array{name: string, kind: NotificationChannelKind, target: string, min_severity: AlertSeverity, notify_cleared: bool, notify_issues: bool, escalate_after_minutes: int|null, quiet_from: string|null, quiet_until: string|null, timezone: string}  $channel
      */
     public function handle(Project $project, array $channel): NotificationChannel
     {

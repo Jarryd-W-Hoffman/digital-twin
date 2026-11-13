@@ -234,6 +234,11 @@ export class TwinScene {
         intensity: 1.4,
     });
     private selection?: Entity;
+    /** An asset to pin once the site is built, asked for before it was. */
+    private assetPin?: {
+        id: string;
+        done: (at: Vec3, view: CameraView) => void;
+    };
     /** Kept so a selection made while terrain loads shows once it's built. */
     private selectedId: string | null = null;
     /** Uploaded and bundled context: tilesets and placed models, by layer id. */
@@ -453,7 +458,11 @@ export class TwinScene {
         if (this.lastFrame) this.updateFrame(this.lastFrame, this.colorBy);
         this.setSelected(this.selectedId);
         this.built = true;
-        if (this.openingView)
+        if (this.assetPin) {
+            const { id, done } = this.assetPin;
+            this.assetPin = undefined;
+            this.pinAtAsset(id, done);
+        } else if (this.openingView)
             this.pins.flyTo(this.openingView, OPENING_FLIGHT_S);
         else this.home(OPENING_FLIGHT_S);
     }
@@ -462,6 +471,33 @@ export class TwinScene {
     flyToView(view: CameraView): void {
         if (this.built) this.pins.flyTo(view);
         else this.openingView = view;
+    }
+
+    /**
+     * Pins at the top of an asset, flying to it first so the pin keeps a
+     * camera that shows it; before the site is built, once it is. False if
+     * the twin has no such asset with a place, so the caller can ask for a
+     * click instead.
+     */
+    pinAtAsset(
+        id: string,
+        done: (at: Vec3, view: CameraView) => void,
+    ): boolean {
+        const a = this.def.assets.find((x) => x.id === id);
+        const p = a && (a.footprint ? centroid(a.footprint) : a.position);
+        if (!a || !p) return false;
+        if (!this.built) {
+            this.assetPin = { id, done };
+            return true;
+        }
+        const { lon, lat } = metresToLonLat(this.origin, p);
+        const at: Vec3 = [
+            lon,
+            lat,
+            this.ground + (a.baseHeight ?? 0.5) + (a.height ?? 4),
+        ];
+        this.flyToAsset(id, () => done(at, this.pins.cameraView()));
+        return true;
     }
 
     /** Places pins on the next click while on, with a crosshair to show it. */
@@ -1396,7 +1432,8 @@ export class TwinScene {
         this.selection.show = true;
     }
 
-    flyToAsset(id: string): void {
+    /** Flies to an asset; `arrived` runs when the flight ends or is cut short. */
+    flyToAsset(id: string, arrived?: () => void): void {
         const a = this.def.assets.find((x) => x.id === id);
         if (!a) return;
         const vehicle = this.vehicles.get(id);
@@ -1430,6 +1467,8 @@ export class TwinScene {
                     CesiumMath.toRadians(-28),
                     Math.max(70, size * 4.2),
                 ),
+                complete: arrived,
+                cancel: arrived,
             },
         );
     }

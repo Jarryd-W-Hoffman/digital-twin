@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\SendAlertNotification;
+use App\Actions\SendChannelMessage;
 use App\Models\NotificationChannel;
 use App\Models\Project;
 use App\Support\AlertMessage;
@@ -18,7 +18,7 @@ use Throwable;
  */
 final readonly class ProjectNotificationChannelTestController
 {
-    public function store(Project $project, NotificationChannel $notificationChannel, SendAlertNotification $send): RedirectResponse
+    public function store(Project $project, NotificationChannel $notificationChannel, SendChannelMessage $send): RedirectResponse
     {
         Gate::authorize('update', $project);
 

@@ -34,6 +34,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Twin $twin
  * @property-read User|null $acknowledger
  * @property-read Collection<int, AlertNotification> $notifications
+ * @property-read Collection<int, Issue> $issues
  */
 #[WithoutTimestamps]
 final class Alert extends Model
@@ -79,6 +80,16 @@ final class Alert extends Model
     public function notifications(): HasMany
     {
         return $this->hasMany(AlertNotification::class);
+    }
+
+    /**
+     * The issues raised from it, to follow it up.
+     *
+     * @return HasMany<Issue, $this>
+     */
+    public function issues(): HasMany
+    {
+        return $this->hasMany(Issue::class);
     }
 
     /**

@@ -27,6 +27,7 @@ final class NotificationChannelFactory extends Factory
             'target' => 'ops@example.com',
             'min_severity' => AlertSeverity::Warning,
             'notify_cleared' => true,
+            'notify_issues' => false,
             'timezone' => 'UTC',
         ];
     }
@@ -49,6 +50,14 @@ final class NotificationChannelFactory extends Factory
     public function escalation(int $minutes = 15): self
     {
         return $this->state(['escalate_after_minutes' => $minutes]);
+    }
+
+    /**
+     * Told about issues too.
+     */
+    public function issues(): self
+    {
+        return $this->state(['notify_issues' => true]);
     }
 
     /**

@@ -560,7 +560,35 @@ test('a viewer pins an issue with a photo in the scene, and the owner opens it f
   await expect.poll(() => owner.evaluate((issue) => (window as unknown as Issues).__twin.getState().pins.find((p) => p.id === issue)?.closed, id)).toBe(true);
   await ownerPanel.getByRole('button', { name: 'Reopen' }).click();
   await expect(ownerPanel.getByRole('button', { name: 'Close issue' })).toBeVisible();
+
+  // The owner gives it to the viewer, by a date already past.
+  const assignment = ownerPanel.getByRole('form', { name: 'Assignment' });
+  await assignment.getByLabel('Assigned to').selectOption({ label: 'Viewer User' });
+  await assignment.getByLabel('Due').fill('2026-01-15');
+  await assignment.getByRole('button', { name: 'Save assignment' }).click();
+  await expect(assignment.getByRole('button', { name: 'Save assignment' })).toHaveCount(0);
+  await expect(assignment.getByText('Overdue')).toBeVisible();
+  await ownerPanel.getByRole('button', { name: '← All issues' }).click();
+  const row = ownerPanel.getByRole('button', { name: /Door seal torn on freezer 2/ });
+  await expect(row).toContainText('For Viewer User');
+  await expect(row).toContainText(/Overdue, due/);
+  await expect(ownerPanel.getByRole('radio', { name: 'Mine (0)' })).toBeVisible();
+  await owner.goto('about:blank');
   await owner.close();
+
+  // The viewer finds it given to them, closes it, and finds it under Closed.
+  await page.goto(link);
+  const mine = page.getByRole('complementary', { name: 'Issues' });
+  await expect(mine.getByRole('form', { name: 'Assignment' }).getByLabel('Assigned to').locator('option:checked')).toHaveText('Viewer User', { timeout: 45_000 });
+  // The page is still loading the scene on a single-threaded server; try again until the close lands.
+  await expect(async () => {
+    const close = mine.getByRole('button', { name: 'Close issue' });
+    if (await close.isVisible()) await close.click();
+    await expect(mine.getByText(/^Closed$/)).toBeVisible({ timeout: 15_000 });
+  }).toPass({ timeout: 90_000 });
+  await mine.getByRole('button', { name: '← All issues' }).click();
+  await mine.getByRole('radio', { name: /^Closed/ }).click();
+  await expect(mine.getByRole('button', { name: /Door seal torn on freezer 2/ })).toContainText('For you');
   expect(problems).toEqual([]);
 });
 

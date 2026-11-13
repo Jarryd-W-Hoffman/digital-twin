@@ -159,7 +159,7 @@ final readonly class TwinController
                     'acknowledgedAt' => $alert->acknowledged_at?->toIso8601String(),
                 ]),
             // The issues pinned in the scene, and the one open in the Issues panel (`?issue=`).
-            'issues' => fn () => $twin->issues()->with('author:id,name')->withCount('comments')
+            'issues' => fn () => $twin->issues()->with(['author:id,name', 'assignee:id,name'])->withCount('comments')
                 ->latest('updated_at')->limit(500)->get()
                 ->map(fn (Issue $issue): array => [
                     'id' => $issue->id,
@@ -169,10 +169,16 @@ final readonly class TwinController
                     'at' => [$issue->lon, $issue->lat, $issue->height],
                     'view' => $issue->view,
                     'author' => $issue->author?->name,
+                    'assignee' => $issue->assignee?->name,
+                    'mine' => $issue->assignee_id === $user->id,
+                    'dueOn' => $issue->due_on?->format('Y-m-d'),
+                    'overdue' => $issue->isOverdue(),
                     'comments' => $issue->comments_count,
                     'updatedAt' => $issue->updated_at->toIso8601String(),
                 ]),
             'issue' => fn (): ?array => $this->issue($twin, $user, $request->query('issue')),
+            // An alert to raise an issue from (`?raise=`), pinned at its asset.
+            'raise' => fn (): ?array => $this->raise($twin, $request->query('raise')),
             // The views this user can see: theirs and the shared ones.
             'views' => fn () => $twin->savedViews()->with('author:id,name')
                 ->where(fn (Builder $query): Builder => $query->where('shared', true)->orWhere('author_id', $user->id))
@@ -263,7 +269,7 @@ final readonly class TwinController
     private function issue(Twin $twin, User $user, mixed $id): ?array
     {
         $issue = is_string($id) && Str::isUuid($id)
-            ? $twin->issues()->with(['author:id,name', 'closer:id,name', 'comments' => fn (HasMany $query): HasMany => $query->with('author:id,name')->oldest()->oldest('id')])->find($id)
+            ? $twin->issues()->with(['author:id,name', 'closer:id,name', 'assignee:id,name', 'alert:id,asset,message,raised_at', 'comments' => fn (HasMany $query): HasMany => $query->with('author:id,name')->oldest()->oldest('id')])->find($id)
             : null;
 
         if (! $issue instanceof Issue) {
@@ -272,6 +278,7 @@ final readonly class TwinController
 
         $issue->setRelation('twin', $twin);
         $canModerate = $user->can('update', $twin);
+        $canAssign = $user->can('assign', $issue);
 
         return [
             'id' => $issue->id,
@@ -283,7 +290,19 @@ final readonly class TwinController
             'createdAt' => $issue->created_at->toIso8601String(),
             'closedAt' => $issue->closed_at?->toIso8601String(),
             'closedBy' => $issue->closer?->name,
-            'can' => ['close' => $user->can('close', $issue), 'delete' => $user->can('delete', $issue)],
+            'assignee' => $issue->assignee === null ? null : ['id' => $issue->assignee->id, 'name' => $issue->assignee->name],
+            'dueOn' => $issue->due_on?->format('Y-m-d'),
+            'overdue' => $issue->isOverdue(),
+            'alert' => $issue->alert === null ? null : [
+                'message' => $issue->alert->message,
+                'asset' => $issue->alert->asset,
+                'raisedAt' => $issue->alert->raised_at->toIso8601String(),
+                'url' => route('twins.alerts.index', $twin, false),
+            ],
+            'can' => ['assign' => $canAssign, 'close' => $user->can('close', $issue), 'delete' => $user->can('delete', $issue)],
+            // Who it could be given to: the organisation's members.
+            'members' => $canAssign ? User::query()->whereIn('id', $twin->organisation->memberships()->select('user_id'))->orderBy('name')->get(['id', 'name'])
+                ->map(fn (User $member): array => ['id' => $member->id, 'name' => $member->name]) : [],
             'comments' => $issue->comments->map(fn (IssueComment $comment): array => [
                 'id' => $comment->id,
                 'author' => $comment->author?->name,
@@ -293,5 +312,18 @@ final readonly class TwinController
                 'canDelete' => $canModerate || $comment->author_id === $user->id,
             ]),
         ];
+    }
+
+    /**
+     * An alert of the twin to raise an issue from: what it says and the asset
+     * it's on, where the issue is pinned.
+     *
+     * @return array{id: string, asset: string, message: string}|null
+     */
+    private function raise(Twin $twin, mixed $id): ?array
+    {
+        $alert = is_string($id) && Str::isUuid($id) ? $twin->alerts()->find($id) : null;
+
+        return $alert instanceof Alert ? ['id' => $alert->id, 'asset' => $alert->asset, 'message' => $alert->message] : null;
     }
 }
