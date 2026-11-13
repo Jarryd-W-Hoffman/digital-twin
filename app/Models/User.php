@@ -100,4 +100,14 @@ final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     {
         return $this->currentOrganisation()->firstOrFail();
     }
+
+    /**
+     * The organisations' identity providers this person signs in through.
+     *
+     * @return HasMany<SsoIdentity, $this>
+     */
+    public function ssoIdentities(): HasMany
+    {
+        return $this->hasMany(SsoIdentity::class);
+    }
 }

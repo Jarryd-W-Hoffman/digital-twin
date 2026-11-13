@@ -106,4 +106,14 @@ return [
         'connection' => (string) env('MERIDIAN_NOTIFICATIONS_QUEUE', ''),
     ],
 
+    /*
+    | Single sign-on through an organisation's OpenID Connect identity
+    | provider. Meridian talks to the provider itself, so like webhooks it
+    | only reaches public https addresses, unless an identity provider on a
+    | private network (an on-premises Keycloak or AD FS) is allowed.
+    */
+    'sso' => [
+        'allow_private_issuers' => (bool) env('MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS', false),
+    ],
+
 ];

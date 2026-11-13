@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, Link } from '@inertiajs/react';
 import InputError from '@/components/input-error';
 import PasskeyVerify from '@/components/passkey-verify';
 import PasswordInput from '@/components/password-input';
@@ -12,6 +12,7 @@ import AuthLayout from '@/layouts/auth-layout';
 import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
+import { create as createSso } from '@/routes/sso';
 
 type Props = {
     status?: string;
@@ -95,6 +96,15 @@ export default function Login({
                             >
                                 {processing && <Spinner />}
                                 Log in
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                asChild
+                            >
+                                <Link href={createSso()} tabIndex={6}>
+                                    Sign in with single sign-on
+                                </Link>
                             </Button>
                         </div>
 

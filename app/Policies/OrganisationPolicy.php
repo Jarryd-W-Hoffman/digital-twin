@@ -45,4 +45,13 @@ final readonly class OrganisationPolicy
     {
         return $user->roleIn($organisation)?->canManageMembers() ?? false;
     }
+
+    /**
+     * Setting up single sign-on, which decides how everyone in the
+     * organisation signs in: its owners.
+     */
+    public function manageSso(User $user, Organisation $organisation): bool
+    {
+        return $user->roleIn($organisation) === OrganisationRole::Owner;
+    }
 }

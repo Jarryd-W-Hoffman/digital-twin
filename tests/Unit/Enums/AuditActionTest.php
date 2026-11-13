@@ -17,5 +17,9 @@ it('lists the actions in an area', function (): void {
         AuditAction::MemberRemoved,
         AuditAction::ApiTokenCreated,
         AuditAction::ApiTokenRevoked,
+        AuditAction::SsoSaved,
+        AuditAction::SsoRemoved,
+        AuditAction::SsoLinked,
+        AuditAction::SsoUnlinked,
     ])->and(AuditAction::in('nowhere'))->toBe([]);
 });

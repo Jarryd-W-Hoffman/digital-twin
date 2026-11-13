@@ -43,7 +43,7 @@ it("shows admins and owners the organisation's audit log, newest first", functio
             ->where('events.1.twin', ['id' => $twin->id, 'name' => 'Harbour Depot'])
             ->where('events.1.details', [])
             ->has('areas', 5)
-            ->where('areas.0', ['value' => 'access', 'label' => 'Members and API tokens'])
+            ->where('areas.0', ['value' => 'access', 'label' => 'Members, API tokens and single sign-on'])
             ->where('area', null)
             ->where('next', null)
             ->where('previous', null)
