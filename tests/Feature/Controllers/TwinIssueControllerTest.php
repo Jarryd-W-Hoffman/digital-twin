@@ -2,11 +2,18 @@
 
 declare(strict_types=1);
 
+use App\Enums\IssueEvent;
 use App\Enums\OrganisationRole;
+use App\Jobs\DeliverIssueNotification;
+use App\Mail\IssueMail;
+use App\Models\Alert;
 use App\Models\Issue;
 use App\Models\IssueComment;
+use App\Models\NotificationChannel;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 function issueFields(array $overrides = []): array
@@ -166,4 +173,91 @@ it('serves a photo as an image only, to those who can see the twin', function ()
     $this->actingAs($user)->get(route('twins.issues.comments.photo', [$twin, $issue, $words]))->assertNotFound();
     $this->actingAs($user)->get(route('twins.issues.comments.photo', [$twin, $issue, $gone]))->assertNotFound();
     $this->actingAs(User::factory()->create())->get(route('twins.issues.comments.photo', [$twin, $issue, $photo]))->assertForbidden();
+});
+
+it("raises an issue from one of the twin's alerts, and tells the channels that take issues", function (): void {
+    Queue::fake();
+    [$user, $organisation] = member(OrganisationRole::Viewer);
+    $twin = twinIn($organisation);
+    $alert = Alert::factory()->for($twin)->create();
+    $issues = NotificationChannel::factory()->for($twin->project)->issues()->create();
+    NotificationChannel::factory()->for($twin->project)->create();
+
+    $this->actingAs($user)->post(route('twins.issues.store', $twin), issueFields(['alert' => $alert->id]))->assertSessionHasNoErrors();
+
+    expect($twin->issues()->sole()->alert_id)->toBe($alert->id);
+    Queue::assertPushed(DeliverIssueNotification::class, 1);
+    Queue::assertPushed(fn (DeliverIssueNotification $job): bool => $job->channel->is($issues) && $job->message->event === IssueEvent::Raised);
+});
+
+it("won't follow up another twin's alert", function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $elsewhere = Alert::factory()->create();
+
+    $this->actingAs($user)->post(route('twins.issues.store', $twin), issueFields(['alert' => $elsewhere->id]))->assertSessionHasErrors('alert');
+    expect($twin->issues()->count())->toBe(0);
+});
+
+it('lets whoever has an issue close it', function (): void {
+    [$assignee, $organisation] = member(OrganisationRole::Viewer);
+    $twin = twinIn($organisation);
+    $issue = Issue::factory()->for($twin)->assigned($assignee)->create();
+
+    $this->actingAs($assignee)->post(route('twins.issues.closure.store', [$twin, $issue]))->assertRedirect();
+
+    expect($issue->fresh()?->closed_by)->toBe($assignee->id);
+});
+
+it('lets the author or an operator give an issue to a member, by a date', function (): void {
+    Mail::fake();
+    [$author, $organisation] = member(OrganisationRole::Viewer);
+    $twin = twinIn($organisation);
+    $issue = Issue::factory()->for($twin)->create(['author_id' => $author->id, 'title' => 'Gate sticks']);
+    $fitter = User::factory()->create(['name' => 'Ana Fitter']);
+    $organisation->memberships()->create(['user_id' => $fitter->id, 'role' => OrganisationRole::Viewer]);
+    $other = User::factory()->create();
+    $organisation->memberships()->create(['user_id' => $other->id, 'role' => OrganisationRole::Viewer]);
+    $operator = User::factory()->create();
+    $organisation->memberships()->create(['user_id' => $operator->id, 'role' => OrganisationRole::Operator]);
+    $assign = fn (User $as, array $fields) => $this->actingAs($as)->from(route('twins.show', $twin))
+        ->patch(route('twins.issues.assignment.update', [$twin, $issue]), $fields);
+
+    $assign($other, ['assignee' => $other->id])->assertForbidden();
+    $assign($author, ['assignee' => $fitter->id, 'due_on' => '2026-11-20'])->assertRedirect(route('twins.show', $twin));
+
+    $issue->refresh();
+    expect($issue->assignee_id)->toBe($fitter->id)
+        ->and($issue->due_on?->format('Y-m-d'))->toBe('2026-11-20');
+    Mail::assertQueued(IssueMail::class, fn (IssueMail $mail): bool => $mail->hasTo($fitter->email)
+        && $mail->toAssignee
+        && $mail->envelope()->subject === sprintf('Issue #1 is yours: Gate sticks (%s)', $twin->name));
+
+    $assign($operator, ['assignee' => '', 'due_on' => ''])->assertRedirect();
+    expect($issue->fresh()?->assignee_id)->toBeNull()
+        ->and($issue->fresh()?->due_on)->toBeNull();
+    Mail::assertQueuedCount(1);
+});
+
+it('checks who an issue is given to and when it is due', function (array $fields, string $error): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $issue = Issue::factory()->for($twin)->create();
+    $outsider = User::factory()->create();
+
+    $this->actingAs($user)->patch(route('twins.issues.assignment.update', [$twin, $issue]), array_map(fn (string $value): string => $value === 'outsider' ? $outsider->id : $value, $fields))
+        ->assertSessionHasErrors($error);
+})->with([
+    'someone outside the organisation' => [['assignee' => 'outsider'], 'assignee'],
+    'not a person' => [['assignee' => 'nobody'], 'assignee'],
+    'not a date' => [['due_on' => 'next week'], 'due_on'],
+    'a date out of reach' => [['due_on' => '2300-01-01'], 'due_on'],
+]);
+
+it('only assigns an issue through its own twin', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $elsewhere = Issue::factory()->create();
+
+    $this->actingAs($user)->patch(route('twins.issues.assignment.update', [$twin, $elsewhere]), ['assignee' => $user->id])->assertNotFound();
 });

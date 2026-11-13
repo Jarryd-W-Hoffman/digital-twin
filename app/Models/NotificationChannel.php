@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * optionally their clearing too, and outside its quiet hours only critical
  * ones. An escalation channel is told of an alert only once it has gone
  * unacknowledged for its delay, and of its clearing only if it was told.
+ * It can also be told when issues are raised, assigned and closed.
  *
  * @property-read string $id
  * @property-read string $project_id
@@ -30,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string|null $secret
  * @property-read AlertSeverity $min_severity
  * @property-read bool $notify_cleared
+ * @property-read bool $notify_issues
  * @property-read int|null $escalate_after_minutes
  * @property-read string|null $quiet_from
  * @property-read string|null $quiet_until
@@ -61,6 +63,7 @@ final class NotificationChannel extends Model
             'secret' => 'encrypted',
             'min_severity' => AlertSeverity::class,
             'notify_cleared' => 'boolean',
+            'notify_issues' => 'boolean',
             'escalate_after_minutes' => 'integer',
             'quiet_from' => 'string',
             'quiet_until' => 'string',

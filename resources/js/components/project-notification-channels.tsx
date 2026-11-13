@@ -22,6 +22,8 @@ export type ProjectNotificationChannel = {
     target: string | null;
     minSeverity: Severity;
     notifyCleared: boolean;
+    /** Also told when issues are raised, assigned and closed. */
+    notifyIssues: boolean;
     /** Told only of alerts still unacknowledged this long; null when told at once. */
     escalateAfterMinutes: number | null;
     quietFrom: string | null;
@@ -95,6 +97,7 @@ export default function ProjectNotificationChannels({
         target: '',
         min_severity: 'warning' as Severity,
         notify_cleared: true,
+        notify_issues: false,
         escalate_after_minutes: '',
         quiet_from: '',
         quiet_until: '',
@@ -224,6 +227,16 @@ export default function ProjectNotificationChannels({
                             }
                         />
                         Also say when an alert clears
+                    </label>
+                    <label className="flex items-center gap-2 self-end pb-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={form.data.notify_issues}
+                            onChange={(e) =>
+                                form.setData('notify_issues', e.target.checked)
+                            }
+                        />
+                        Also issue updates: raised, assigned, closed
                     </label>
                     <div className="grid gap-2">
                         <Label htmlFor="channel-when">When</Label>
@@ -370,6 +383,9 @@ export default function ProjectNotificationChannels({
                                                 : ''}
                                             {channel.notifyCleared
                                                 ? ', and when they clear'
+                                                : ''}
+                                            {channel.notifyIssues
+                                                ? ' · issue updates'
                                                 : ''}
                                             {channel.quietFrom &&
                                                 ` · quiet ${channel.quietFrom}–${channel.quietUntil} ${channel.timezone}, except critical`}

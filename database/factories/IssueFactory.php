@@ -32,6 +32,14 @@ final class IssueFactory extends Factory
     }
 
     /**
+     * Given to someone to deal with, by a date.
+     */
+    public function assigned(?User $to = null, string $due = '+7 days'): self
+    {
+        return $this->state(['assignee_id' => $to ?? User::factory(), 'due_on' => today()->modify($due)]);
+    }
+
+    /**
      * Dealt with, by someone.
      */
     public function closed(): self

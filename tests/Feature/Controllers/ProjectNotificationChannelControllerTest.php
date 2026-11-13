@@ -48,7 +48,17 @@ it('adds an email channel', function (): void {
         ->and($channel->quiet_until)->toBe('06:30')
         ->and($channel->timezone)->toBe('Pacific/Auckland')
         ->and($channel->escalate_after_minutes)->toBeNull()
+        ->and($channel->notify_issues)->toBeFalse()
         ->and($channel->secret)->toBeNull();
+});
+
+it('adds a channel that takes issue updates too', function (): void {
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.notification-channels.store', $project), channelForm(['notify_issues' => true]))->assertSessionHasNoErrors();
+
+    expect($project->notificationChannels()->sole()->notify_issues)->toBeTrue();
 });
 
 it('adds a webhook with a signing secret, shown once', function (): void {

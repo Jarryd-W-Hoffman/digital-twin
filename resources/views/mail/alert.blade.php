@@ -9,7 +9,7 @@
 - **When:** {{ $alert->timing() }}
 
 <x-mail::button :url="$alert->url">
-{{ $alert->test ? __('Open the project') : __('Open the alert log') }}
+{{ $alert->linkLabel() }}
 </x-mail::button>
 
 {{ __('You get this because the address is on one of the project\'s alert notification channels in :app.', ['app' => config('app.name')]) }}

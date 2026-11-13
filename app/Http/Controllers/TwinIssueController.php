@@ -33,6 +33,7 @@ final readonly class TwinIssueController
             $request->view(),
             $request->body(),
             $request->photo(),
+            $request->alert(),
         );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Issue :number raised.', ['number' => $issue->number])]);

@@ -1,5 +1,6 @@
 import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import TwinIssueAssignmentController from '@/actions/App/Http/Controllers/TwinIssueAssignmentController';
 import TwinIssueClosureController from '@/actions/App/Http/Controllers/TwinIssueClosureController';
 import TwinIssueCommentController from '@/actions/App/Http/Controllers/TwinIssueCommentController';
 import TwinIssueController from '@/actions/App/Http/Controllers/TwinIssueController';
@@ -15,9 +16,17 @@ export type IssueSummary = {
     at: Vec3;
     view: CameraView;
     author: string | null;
+    assignee: string | null;
+    /** Whether it's given to whoever is looking. */
+    mine: boolean;
+    dueOn: string | null;
+    overdue: boolean;
     comments: number;
     updatedAt: string;
 };
+
+/** An alert to raise an issue from, pinned at its asset. */
+export type RaiseFrom = { id: string; asset: string; message: string };
 
 export type IssueDetail = {
     id: string;
@@ -29,7 +38,19 @@ export type IssueDetail = {
     createdAt: string;
     closedAt: string | null;
     closedBy: string | null;
-    can: { close: boolean; delete: boolean };
+    assignee: { id: string; name: string } | null;
+    dueOn: string | null;
+    overdue: boolean;
+    /** The alert it was raised from. */
+    alert: {
+        message: string;
+        asset: string;
+        raisedAt: string;
+        url: string;
+    } | null;
+    can: { assign: boolean; close: boolean; delete: boolean };
+    /** Who it could be given to, when the viewer may assign it. */
+    members: { id: string; name: string }[];
     comments: {
         id: string;
         author: string | null;
@@ -48,6 +69,8 @@ const RELOAD = {
 };
 
 const when = (iso: string) => new Date(iso).toLocaleString();
+/** A due date (`2026-11-20`) as the reader writes dates, without shifting days. */
+const day = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString();
 const who = (name: string | null) => name ?? 'a former member';
 
 /**
@@ -76,11 +99,13 @@ export function TwinIssues({
     twinId,
     issues,
     issue,
+    raise = null,
     onClose,
 }: {
     twinId: string;
     issues: IssueSummary[];
     issue: IssueDetail | null;
+    raise?: RaiseFrom | null;
     onClose: () => void;
 }) {
     return (
@@ -107,37 +132,48 @@ export function TwinIssues({
             {issue ? (
                 <OpenIssue key={issue.id} twinId={twinId} issue={issue} />
             ) : (
-                <IssueList twinId={twinId} issues={issues} />
+                <IssueList twinId={twinId} issues={issues} raise={raise} />
             )}
         </aside>
     );
 }
 
+const SHOWING = {
+    open: { label: 'Open', test: (i: IssueSummary) => !i.closed },
+    mine: { label: 'Mine', test: (i: IssueSummary) => !i.closed && i.mine },
+    closed: { label: 'Closed', test: (i: IssueSummary) => i.closed },
+} as const;
+const EMPTY = {
+    open: 'Nothing open. Raise an issue to pin a problem or a note to a place in the scene.',
+    mine: 'Nothing open is assigned to you.',
+    closed: 'Nothing closed yet.',
+} as const;
+
 function IssueList({
     twinId,
     issues,
+    raise,
 }: {
     twinId: string;
     issues: IssueSummary[];
+    raise: RaiseFrom | null;
 }) {
-    const [showing, setShowing] = useState<'open' | 'closed'>('open');
+    const [showing, setShowing] = useState<keyof typeof SHOWING>('open');
     const pinning = useTwin((s) => s.pinning);
     const placed = useTwin((s) => s.placedPin);
-    const counts = {
-        open: issues.filter((i) => !i.closed).length,
-        closed: issues.filter((i) => i.closed).length,
-    };
-    const shown = issues.filter((i) => i.closed === (showing === 'closed'));
+    const finding = useTwin((s) => s.assetPinRequest !== null);
+    const shown = issues.filter(SHOWING[showing].test);
 
     return (
         <>
             {placed ? (
-                <NewIssue twinId={twinId} placed={placed} />
-            ) : pinning ? (
+                <NewIssue twinId={twinId} placed={placed} raise={raise} />
+            ) : pinning || (raise && finding) ? (
                 <section>
                     <p className="editor-hint" role="status">
-                        Click the spot in the scene where the issue is. The
-                        camera you're looking from is kept with it.
+                        {pinning
+                            ? "Click the spot in the scene where the issue is. The camera you're looking from is kept with it."
+                            : `Finding ${raise?.asset} in the scene…`}
                     </p>
                     <div className="editor-actions">
                         <button
@@ -158,27 +194,28 @@ function IssueList({
 
             <section>
                 <div className="segmented" role="radiogroup" aria-label="Show">
-                    {(['open', 'closed'] as const).map((option) => (
-                        <button
-                            key={option}
-                            role="radio"
-                            aria-checked={showing === option}
-                            className={showing === option ? 'on' : ''}
-                            onClick={() => setShowing(option)}
-                        >
-                            {option === 'open' ? 'Open' : 'Closed'} (
-                            {counts[option]})
-                        </button>
-                    ))}
+                    {(Object.keys(SHOWING) as (keyof typeof SHOWING)[]).map(
+                        (option) => (
+                            <button
+                                key={option}
+                                role="radio"
+                                aria-checked={showing === option}
+                                className={showing === option ? 'on' : ''}
+                                onClick={() => setShowing(option)}
+                            >
+                                {SHOWING[option].label} (
+                                {issues.filter(SHOWING[option].test).length})
+                            </button>
+                        ),
+                    )}
                 </div>
                 {shown.length === 0 ? (
-                    <p className="editor-hint">
-                        {showing === 'open'
-                            ? 'Nothing open. Raise an issue to pin a problem or a note to a place in the scene.'
-                            : 'Nothing closed yet.'}
-                    </p>
+                    <p className="editor-hint">{EMPTY[showing]}</p>
                 ) : (
-                    <ul className="issue-list" aria-label={`${showing} issues`}>
+                    <ul
+                        className="issue-list"
+                        aria-label={`${SHOWING[showing].label.toLowerCase()} issues`}
+                    >
                         {shown.map((i) => (
                             <li key={i.id}>
                                 <button
@@ -201,6 +238,19 @@ function IssueList({
                                             : `${i.comments} comments`}{' '}
                                         · {when(i.updatedAt)}
                                     </span>
+                                    {(i.assignee || i.dueOn) && (
+                                        <span className="issue-meta">
+                                            {i.assignee &&
+                                                `For ${i.mine ? 'you' : i.assignee}`}
+                                            {i.assignee && i.dueOn && ' · '}
+                                            {i.dueOn && (
+                                                <Due
+                                                    on={i.dueOn}
+                                                    overdue={i.overdue}
+                                                />
+                                            )}
+                                        </span>
+                                    )}
                                 </button>
                             </li>
                         ))}
@@ -214,12 +264,14 @@ function IssueList({
 function NewIssue({
     twinId,
     placed,
+    raise,
 }: {
     twinId: string;
     placed: { at: Vec3; view: CameraView };
+    raise: RaiseFrom | null;
 }) {
     const form = useForm<{ title: string; body: string; photo: File | null }>({
-        title: '',
+        title: raise ? raise.message.slice(0, 200) : '',
         body: '',
         photo: null,
     });
@@ -227,6 +279,12 @@ function NewIssue({
     return (
         <section aria-label="New issue">
             <h3>New issue</h3>
+            {raise && (
+                <p className="editor-hint">
+                    Following up the alert on {raise.asset}. The pin is on it;
+                    move it if the problem is elsewhere.
+                </p>
+            )}
             <form
                 className="editor-form"
                 onSubmit={(e) => {
@@ -239,9 +297,11 @@ function NewIssue({
                             height: placed.at[2],
                         },
                         view: placed.view,
+                        ...(raise ? { alert: raise.id } : {}),
                     }));
                     form.submit(TwinIssueController.store(twinId), {
                         ...RELOAD,
+                        only: [...RELOAD.only, 'raise'],
                         onSuccess: () => useTwin.getState().clearPlacedPin(),
                     });
                 }}
@@ -330,6 +390,37 @@ function OpenIssue({ twinId, issue }: { twinId: string; issue: IssueDetail }) {
                         <span className="issue-closed">Closed</span> by{' '}
                         {who(issue.closedBy)} · {when(issue.closedAt)}
                     </p>
+                )}
+                {issue.alert && (
+                    <p className="issue-meta">
+                        From the alert{' '}
+                        <a href={issue.alert.url}>“{issue.alert.message}”</a> on{' '}
+                        {issue.alert.asset} · {when(issue.alert.raisedAt)}
+                    </p>
+                )}
+                {issue.can.assign ? (
+                    <Assignment
+                        key={`${issue.assignee?.id}-${issue.dueOn}`}
+                        twinId={twinId}
+                        issue={issue}
+                    />
+                ) : (
+                    (issue.assignee || issue.dueOn) && (
+                        <p className="issue-meta">
+                            {issue.assignee
+                                ? `Assigned to ${issue.assignee.name}`
+                                : 'Not assigned'}
+                            {issue.dueOn && (
+                                <>
+                                    {' · '}
+                                    <Due
+                                        on={issue.dueOn}
+                                        overdue={issue.overdue}
+                                    />
+                                </>
+                            )}
+                        </p>
+                    )
                 )}
                 <div className="editor-actions">
                     <button
@@ -510,6 +601,84 @@ function CommentForm({ twinId, issueId }: { twinId: string; issueId: string }) {
                     Comment
                 </button>
             </div>
+        </form>
+    );
+}
+
+/** When an issue is due, marked when it's late. */
+function Due({ on, overdue }: { on: string; overdue: boolean }) {
+    return overdue ? (
+        <span className="issue-overdue">Overdue, due {day(on)}</span>
+    ) : (
+        <>Due {day(on)}</>
+    );
+}
+
+/** Who an issue is given to and by when, for whoever may change them. */
+function Assignment({ twinId, issue }: { twinId: string; issue: IssueDetail }) {
+    const form = useForm({
+        assignee: issue.assignee?.id ?? '',
+        due_on: issue.dueOn ?? '',
+    });
+    const changed =
+        form.data.assignee !== (issue.assignee?.id ?? '') ||
+        form.data.due_on !== (issue.dueOn ?? '');
+
+    return (
+        <form
+            className="issue-assignment"
+            aria-label="Assignment"
+            onSubmit={(e) => {
+                e.preventDefault();
+                form.submit(
+                    TwinIssueAssignmentController.update([twinId, issue.id]),
+                    RELOAD,
+                );
+            }}
+        >
+            <label className="editor-field">
+                <span>Assigned to</span>
+                <select
+                    value={form.data.assignee}
+                    onChange={(e) => form.setData('assignee', e.target.value)}
+                >
+                    <option value="">Nobody</option>
+                    {issue.members.map((m) => (
+                        <option key={m.id} value={m.id}>
+                            {m.name}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            <label className="editor-field">
+                <span>Due</span>
+                <input
+                    type="date"
+                    value={form.data.due_on}
+                    onChange={(e) => form.setData('due_on', e.target.value)}
+                />
+            </label>
+            {issue.overdue && !changed && (
+                <p className="issue-meta">
+                    <span className="issue-overdue">Overdue</span>
+                </p>
+            )}
+            {(form.errors.assignee || form.errors.due_on) && (
+                <p className="editor-error" role="alert">
+                    {form.errors.assignee ?? form.errors.due_on}
+                </p>
+            )}
+            {changed && (
+                <div className="editor-actions">
+                    <button
+                        type="submit"
+                        className="primary"
+                        disabled={form.processing}
+                    >
+                        Save assignment
+                    </button>
+                </div>
+            )}
         </form>
     );
 }

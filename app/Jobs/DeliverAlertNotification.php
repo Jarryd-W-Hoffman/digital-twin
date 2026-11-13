@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Actions\SendAlertNotification;
+use App\Actions\SendChannelMessage;
 use App\Enums\AlertNotificationStatus;
 use App\Models\AlertNotification;
 use App\Support\AlertMessage;
@@ -31,7 +31,7 @@ final class DeliverAlertNotification implements ShouldQueue
         $this->onConnection(config()->string('meridian.notifications.connection') ?: null);
     }
 
-    public function handle(SendAlertNotification $send): void
+    public function handle(SendChannelMessage $send): void
     {
         $channel = $this->notification->channel;
         if ($channel === null) {

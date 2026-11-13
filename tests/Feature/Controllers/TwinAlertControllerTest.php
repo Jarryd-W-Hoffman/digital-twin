@@ -7,6 +7,7 @@ use App\Enums\AlertNotificationStatus;
 use App\Enums\OrganisationRole;
 use App\Models\Alert;
 use App\Models\AlertNotification;
+use App\Models\Issue;
 use App\Models\User;
 
 it("lists a twin's alerts newest first, with who acknowledged them", function (): void {
@@ -21,6 +22,7 @@ it("lists a twin's alerts newest first, with who acknowledged them", function ()
     AlertNotification::factory()->for($older)->create(['status' => AlertNotificationStatus::Sent, 'created_at' => now()->subMinute()]);
     $newer = Alert::factory()->for($twin)->create(['rule' => 'tripped', 'asset' => 'plant', 'value' => 4]);
     Alert::factory()->create();
+    $followUp = Issue::factory()->for($twin)->closed()->create(['alert_id' => $older->id]);
 
     $this->actingAs($user)->get(route('twins.alerts.index', $twin))
         ->assertOk()
@@ -38,9 +40,11 @@ it("lists a twin's alerts newest first, with who acknowledged them", function ()
                 'clearedAt' => null,
                 'acknowledgedAt' => null,
                 'acknowledgedBy' => null,
+                'issues' => [],
                 'notifications' => [],
             ])
             ->where('alerts.1.id', $older->id)
+            ->where('alerts.1.issues', [['id' => $followUp->id, 'number' => 1, 'closed' => true]])
             ->where('alerts.1.notifications', [
                 ['channel' => 'Ops email', 'event' => 'raised', 'status' => 'sent', 'error' => null],
                 ['channel' => 'Ops email', 'event' => 'cleared', 'status' => 'failed', 'error' => 'Mailbox full'],

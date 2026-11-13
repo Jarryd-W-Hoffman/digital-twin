@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\Alert;
+use App\Models\Twin;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 
 final class StoreIssueRequest extends FormRequest
 {
@@ -15,7 +18,11 @@ final class StoreIssueRequest extends FormRequest
      */
     public function rules(): array
     {
+        $twin = $this->route('twin');
+        assert($twin instanceof Twin);
+
         return [
+            'alert' => ['nullable', 'uuid', Rule::exists('alerts', 'id')->where('twin_id', $twin->id)],
             'title' => ['required', 'string', 'max:200'],
             'body' => ['nullable', 'string', 'max:5000'],
             'photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
@@ -67,6 +74,14 @@ final class StoreIssueRequest extends FormRequest
     public function body(): ?string
     {
         return $this->filled('body') ? $this->string('body')->value() : null;
+    }
+
+    /**
+     * The twin's alert the issue follows up, if any.
+     */
+    public function alert(): ?Alert
+    {
+        return $this->filled('alert') ? Alert::query()->findOrFail($this->string('alert')->value()) : null;
     }
 
     public function photo(): ?UploadedFile

@@ -19,6 +19,8 @@ type LoggedAlert = {
     clearedAt: string | null;
     acknowledgedAt: string | null;
     acknowledgedBy: string | null;
+    /** The issues raised to follow it up. */
+    issues: { id: string; number: number; closed: boolean }[];
     notifications: {
         channel: string;
         event: 'raised' | 'escalated' | 'cleared';
@@ -167,7 +169,34 @@ export default function TwinAlerts({
                                         </span>
                                     )}
                                 </div>
-                                <div className="shrink-0 text-sm">
+                                <div className="flex shrink-0 flex-wrap items-center gap-2 text-sm">
+                                    {alert.issues.map((issue) => (
+                                        <Link
+                                            key={issue.id}
+                                            href={show.url(twin.id, {
+                                                query: { issue: issue.id },
+                                            })}
+                                            className="underline underline-offset-4"
+                                        >
+                                            Issue #{issue.number}
+                                            {issue.closed ? ' (closed)' : ''}
+                                        </Link>
+                                    ))}
+                                    {alert.issues.length === 0 && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={show.url(twin.id, {
+                                                    query: { raise: alert.id },
+                                                })}
+                                            >
+                                                Raise issue
+                                            </Link>
+                                        </Button>
+                                    )}
                                     {alert.acknowledgedAt ? (
                                         <span className="text-muted-foreground">
                                             Acknowledged by{' '}

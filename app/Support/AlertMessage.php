@@ -6,6 +6,7 @@ namespace App\Support;
 
 use App\Enums\AlertEvent;
 use App\Enums\AlertSeverity;
+use App\Mail\AlertMail;
 use App\Models\Alert;
 use App\Models\NotificationChannel;
 use Carbon\CarbonInterface;
@@ -15,7 +16,7 @@ use Carbon\CarbonInterface;
  * still unacknowledged, or cleared on a twin, with a link to the twin's
  * alert log.
  */
-final readonly class AlertMessage
+final readonly class AlertMessage implements ChannelMessage
 {
     public function __construct(
         public AlertEvent $event,
@@ -106,6 +107,51 @@ final readonly class AlertMessage
             : $raised;
     }
 
+    public function detail(): string
+    {
+        return $this->project.' · '.$this->timing();
+    }
+
+    public function link(): string
+    {
+        return $this->url;
+    }
+
+    public function linkLabel(): string
+    {
+        return $this->test ? __('Open the project') : __('Open the alert log');
+    }
+
+    public function event(): string
+    {
+        return $this->test ? 'test' : 'alert.'.$this->event->value;
+    }
+
+    public function mark(): string
+    {
+        return match (true) {
+            $this->event === AlertEvent::Cleared => ':white_check_mark:',
+            $this->event === AlertEvent::Escalated => ':rotating_light:',
+            $this->severity === AlertSeverity::Critical => ':red_circle:',
+            $this->severity === AlertSeverity::Warning => ':large_orange_circle:',
+            default => ':large_blue_circle:',
+        };
+    }
+
+    public function tone(): string
+    {
+        return match (true) {
+            $this->event === AlertEvent::Cleared => 'Good',
+            $this->event === AlertEvent::Escalated, $this->severity === AlertSeverity::Critical => 'Attention',
+            default => 'Warning',
+        };
+    }
+
+    public function mail(): AlertMail
+    {
+        return new AlertMail($this);
+    }
+
     /**
      * The webhook body: the alert as data.
      *
@@ -114,7 +160,7 @@ final readonly class AlertMessage
     public function payload(): array
     {
         return [
-            'event' => $this->test ? 'test' : 'alert.'.$this->event->value,
+            'event' => $this->event(),
             'alert' => [
                 'id' => $this->alertId,
                 'severity' => $this->severity->value,

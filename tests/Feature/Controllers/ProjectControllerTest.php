@@ -92,6 +92,7 @@ it('shows a project with its twins, library and abilities', function (Organisati
                 'target' => $update ? 'ops@example.com' : null,
                 'minSeverity' => 'warning',
                 'notifyCleared' => true,
+                'notifyIssues' => false,
                 'escalateAfterMinutes' => 30,
                 'quietFrom' => '22:00',
                 'quietUntil' => '07:00',

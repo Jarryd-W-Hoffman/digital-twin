@@ -604,6 +604,18 @@ test('screenshots', async ({ page, context }) => {
         await expect(issues.getByText(/Bolts ordered/)).toBeVisible({
             timeout: 30_000,
         });
+        // Given to someone to fix, by a date.
+        const assignment = issues.getByRole('form', { name: 'Assignment' });
+        await assignment
+            .getByLabel('Assigned to')
+            .selectOption({ label: 'Operator User' });
+        await assignment.getByLabel('Due').fill('2026-12-04');
+        await assignment
+            .getByRole('button', { name: 'Save assignment' })
+            .click();
+        await expect(
+            assignment.getByRole('button', { name: 'Save assignment' }),
+        ).toHaveCount(0);
         await page.waitForTimeout(1500);
         await shot(page, 'issues');
         await issues.getByRole('button', { name: 'Hide issues' }).click();
@@ -881,6 +893,30 @@ test('screenshots', async ({ page, context }) => {
             .click();
         await expect(alertList).toContainText('Acknowledged by Test User');
         await shot(page, 'alert-log');
+
+        // The open alert is followed up as an issue pinned on its store.
+        await alertList
+            .getByRole('listitem')
+            .filter({ hasText: 'Open' })
+            .getByRole('link', { name: 'Raise issue' })
+            .click();
+        const raising = page
+            .getByRole('complementary', { name: 'Issues' })
+            .getByRole('region', { name: 'New issue' });
+        await expect(raising.getByText(/Following up the alert/)).toBeVisible({
+            timeout: 90_000,
+        });
+        await raising
+            .getByLabel('Note')
+            .fill('Door left open during the night unload?');
+        await page.waitForTimeout(2500);
+        await shot(page, 'issue-from-alert');
+        await raising.getByRole('button', { name: 'Raise issue' }).click();
+        await expect(
+            page
+                .getByRole('complementary', { name: 'Issues' })
+                .getByText(/From the alert/),
+        ).toBeVisible({ timeout: 30_000 });
         await storeAt(1.2, 600);
         await logShows('Open', 0);
         await page.goto(twinUrl);

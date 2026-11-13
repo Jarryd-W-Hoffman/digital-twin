@@ -23,6 +23,7 @@ use App\Http\Controllers\TwinAlertController;
 use App\Http\Controllers\TwinAssetController;
 use App\Http\Controllers\TwinController;
 use App\Http\Controllers\TwinGatewayTokenController;
+use App\Http\Controllers\TwinIssueAssignmentController;
 use App\Http\Controllers\TwinIssueClosureController;
 use App\Http\Controllers\TwinIssueCommentController;
 use App\Http\Controllers\TwinIssueController;
@@ -94,6 +95,7 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('twins/{twin}/alerts/{alert}/acknowledgement', [TwinAlertAcknowledgementController::class, 'store'])->scopeBindings()->name('twins.alerts.acknowledgement.store');
     Route::post('twins/{twin}/issues', [TwinIssueController::class, 'store'])->middleware('throttle:30,1')->name('twins.issues.store');
     Route::delete('twins/{twin}/issues/{issue}', [TwinIssueController::class, 'destroy'])->scopeBindings()->name('twins.issues.destroy');
+    Route::patch('twins/{twin}/issues/{issue}/assignment', [TwinIssueAssignmentController::class, 'update'])->scopeBindings()->name('twins.issues.assignment.update');
     Route::post('twins/{twin}/issues/{issue}/closure', [TwinIssueClosureController::class, 'store'])->scopeBindings()->name('twins.issues.closure.store');
     Route::delete('twins/{twin}/issues/{issue}/closure', [TwinIssueClosureController::class, 'destroy'])->scopeBindings()->name('twins.issues.closure.destroy');
     Route::post('twins/{twin}/issues/{issue}/comments', [TwinIssueCommentController::class, 'store'])->scopeBindings()->middleware('throttle:60,1')->name('twins.issues.comments.store');

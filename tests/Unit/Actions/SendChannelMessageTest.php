@@ -2,14 +2,19 @@
 
 declare(strict_types=1);
 
-use App\Actions\SendAlertNotification;
+use App\Actions\SendChannelMessage;
 use App\Enums\AlertEvent;
 use App\Enums\AlertSeverity;
+use App\Enums\IssueEvent;
 use App\Enums\NotificationChannelKind;
 use App\Mail\AlertMail;
+use App\Mail\IssueMail;
 use App\Models\Alert;
+use App\Models\Issue;
 use App\Models\NotificationChannel;
+use App\Models\User;
 use App\Support\AlertMessage;
+use App\Support\IssueMessage;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -33,7 +38,7 @@ it('emails every address', function (): void {
     $alert = alertOn();
     $channel = NotificationChannel::factory()->for($alert->twin->project)->create(['target' => 'ops@example.com, oncall@example.com']);
 
-    resolve(SendAlertNotification::class)->handle($channel, AlertMessage::about($alert, AlertEvent::Raised));
+    resolve(SendChannelMessage::class)->handle($channel, AlertMessage::about($alert, AlertEvent::Raised));
 
     Mail::assertSent(AlertMail::class, fn (AlertMail $mail): bool => $mail->hasTo('ops@example.com')
         && $mail->hasTo('oncall@example.com')
@@ -56,7 +61,7 @@ it('posts a signed webhook with the alert as data', function (): void {
     $alert = alertOn();
     $channel = NotificationChannel::factory()->for($alert->twin->project)->webhook(url: 'https://93.184.216.34/meridian')->create();
 
-    resolve(SendAlertNotification::class)->handle($channel, AlertMessage::about($alert, AlertEvent::Raised));
+    resolve(SendChannelMessage::class)->handle($channel, AlertMessage::about($alert, AlertEvent::Raised));
 
     Http::assertSent(function (Request $request) use ($alert): bool {
         $body = $request->body();
@@ -77,7 +82,7 @@ it('posts Slack a message, and Teams a card', function (): void {
     $project = $alert->twin->project;
     $slack = NotificationChannel::factory()->for($project)->webhook(NotificationChannelKind::Slack, 'https://hooks.slack.com/services/T0/B0/x')->create();
     $teams = NotificationChannel::factory()->for($project)->webhook(NotificationChannelKind::Teams, 'https://prod-01.westus.logic.azure.com/workflows/x')->create();
-    $send = resolve(SendAlertNotification::class);
+    $send = resolve(SendChannelMessage::class);
 
     $send->handle($slack, AlertMessage::about($alert, AlertEvent::Raised));
     $send->handle($teams, AlertMessage::about($alert, AlertEvent::Cleared));
@@ -99,8 +104,8 @@ it('marks Slack by severity', function (string $severity, string $mark): void {
     $slack = NotificationChannel::factory()->for($alert->twin->project)->webhook(NotificationChannelKind::Slack, 'https://hooks.slack.com/services/x')->create();
     $teams = NotificationChannel::factory()->for($alert->twin->project)->webhook(NotificationChannelKind::Teams, 'https://x.webhook.office.com/x')->create();
 
-    resolve(SendAlertNotification::class)->handle($slack, AlertMessage::about($alert, AlertEvent::Raised));
-    resolve(SendAlertNotification::class)->handle($teams, AlertMessage::about($alert, AlertEvent::Raised));
+    resolve(SendChannelMessage::class)->handle($slack, AlertMessage::about($alert, AlertEvent::Raised));
+    resolve(SendChannelMessage::class)->handle($teams, AlertMessage::about($alert, AlertEvent::Raised));
 
     Http::assertSent(fn (Request $request): bool => str_starts_with((string) ($request->data()['text'] ?? ''), $mark));
     Http::assertSent(fn (Request $request): bool => ($request['attachments'][0]['content']['body'][0]['color'] ?? null) === ($severity === 'critical' ? 'Attention' : 'Warning'));
@@ -115,7 +120,7 @@ it('throws when the receiver refuses, redirects, or is on a private network', fu
         'https://93.184.216.34/moves' => Http::response(null, 302, ['Location' => 'http://10.0.0.1/']),
     ]);
     $alert = alertOn();
-    $send = resolve(SendAlertNotification::class);
+    $send = resolve(SendChannelMessage::class);
     $message = AlertMessage::about($alert, AlertEvent::Raised);
     $channel = fn (string $url): NotificationChannel => NotificationChannel::factory()->for($alert->twin->project)->webhook(url: $url)->create();
 
@@ -145,12 +150,82 @@ it('says an escalated alert is still waiting for someone', function (): void {
     $teams = NotificationChannel::factory()->for($alert->twin->project)->webhook(NotificationChannelKind::Teams, 'https://x.webhook.office.com/x')->create();
     $message = AlertMessage::about($alert, AlertEvent::Escalated);
 
-    resolve(SendAlertNotification::class)->handle($slack, $message);
-    resolve(SendAlertNotification::class)->handle($teams, $message);
+    resolve(SendChannelMessage::class)->handle($slack, $message);
+    resolve(SendChannelMessage::class)->handle($teams, $message);
 
     expect($message->subject())->toBe('Not acknowledged: Warning: Seafood store is above its temperature limit (Harbour Depot)')
         ->and($message->timing())->toEndWith('still open and not acknowledged after 12 minutes')
         ->and($message->payload()['event'])->toBe('alert.escalated');
     Http::assertSent(fn (Request $request): bool => str_starts_with((string) ($request->data()['text'] ?? ''), ':rotating_light: *Not acknowledged'));
     Http::assertSent(fn (Request $request): bool => ($request->data()['attachments'][0]['content']['body'][0]['color'] ?? null) === 'Attention');
+});
+
+function issueOn(): Issue
+{
+    [, $organisation] = member();
+    $twin = twinIn($organisation);
+    $twin->update(['name' => 'Harbour Depot']);
+    $twin->project->update(['name' => 'Auckland sites']);
+
+    return Issue::factory()->for($twin)->create(['title' => 'Gate sticks', 'due_on' => '2026-11-20']);
+}
+
+it('says what happened to an issue, by whom, and when it is due', function (IssueEvent $event, string $subject, string $mark, string $tone): void {
+    $issue = issueOn();
+    $issue->setRelation('assignee', User::factory()->make(['name' => 'Ana']));
+
+    $by = User::factory()->make(['name' => 'Sam']);
+
+    $message = IssueMessage::about($issue, $event, $by);
+
+    expect($message->subject())->toBe($subject)
+        ->and($message->detail())->toBe($event === IssueEvent::Closed ? 'Auckland sites · by Sam' : 'Auckland sites · by Sam · due 2026-11-20')
+        ->and($message->mark())->toBe($mark)
+        ->and($message->tone())->toBe($tone)
+        ->and($message->event())->toBe('issue.'.$event->value)
+        ->and($message->link())->toBe(route('twins.show', [$issue->twin, 'issue' => $issue->id]))
+        ->and($message->linkLabel())->toBe('Open the issue');
+})->with([
+    [IssueEvent::Raised, 'Issue #1 raised: Gate sticks (Harbour Depot)', ':round_pushpin:', 'Accent'],
+    [IssueEvent::Assigned, 'Issue #1 assigned to Ana: Gate sticks (Harbour Depot)', ':bust_in_silhouette:', 'Accent'],
+    [IssueEvent::Closed, 'Issue #1 closed: Gate sticks (Harbour Depot)', ':white_check_mark:', 'Good'],
+]);
+
+it('carries an issue to a webhook, Slack and Teams', function (): void {
+    Http::fake();
+    $issue = issueOn();
+    $project = $issue->twin->project;
+    $webhook = NotificationChannel::factory()->for($project)->webhook(url: 'https://93.184.216.34/meridian')->create();
+    $slack = NotificationChannel::factory()->for($project)->webhook(NotificationChannelKind::Slack, 'https://hooks.slack.com/services/x')->create();
+    $teams = NotificationChannel::factory()->for($project)->webhook(NotificationChannelKind::Teams, 'https://x.webhook.office.com/x')->create();
+    $message = IssueMessage::about($issue, IssueEvent::Raised, null);
+    $send = resolve(SendChannelMessage::class);
+
+    $send->handle($webhook, $message);
+    $send->handle($slack, $message);
+    $send->handle($teams, $message);
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://93.184.216.34/meridian'
+        && $request->header('X-Meridian-Event') === ['issue.raised']
+        && $request['issue'] === ['id' => $issue->id, 'number' => 1, 'title' => 'Gate sticks', 'assignee' => null, 'dueOn' => '2026-11-20', 'alertId' => null]
+        && $request['by'] === null
+        && $request['twin'] === 'Harbour Depot');
+    Http::assertSent(fn (Request $request): bool => ($request->data()['text'] ?? null) === sprintf(":round_pushpin: *Issue #1 raised: Gate sticks (Harbour Depot)*\nAuckland sites · due 2026-11-20\n<%s|Open the issue>", $message->url));
+    Http::assertSent(fn (Request $request): bool => ($request->data()['attachments'][0]['content']['actions'][0]['title'] ?? null) === 'Open the issue');
+});
+
+it('emails an issue to a channel, or to whoever was given it', function (): void {
+    $issue = issueOn();
+    $issue->setRelation('assignee', User::factory()->make(['name' => 'Ana']));
+
+    $message = IssueMessage::about($issue, IssueEvent::Assigned, User::factory()->make(['name' => 'Sam']));
+
+    expect($message->mail()->render())->toContain('Issue #1 assigned to Ana: Gate sticks (Harbour Depot)')
+        ->toContain('20 November 2026')
+        ->toContain('notification channels')
+        ->and(new IssueMail($message, toAssignee: true)->render())->toContain('Sam gave you the issue');
+
+    $unassigned = IssueMessage::about(issueOn(), IssueEvent::Raised, null);
+    expect($unassigned->subject())->toBe('Issue #1 raised: Gate sticks (Harbour Depot)')
+        ->and(new IssueMail($unassigned, toAssignee: true)->render())->toContain('someone gave you the issue');
 });

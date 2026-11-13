@@ -1437,6 +1437,23 @@
     color: var(--ink-2);
     font-weight: 600;
 }
+.twin-root .issue-overdue {
+    color: var(--critical);
+    font-weight: 600;
+}
+.twin-root .issue-assignment {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 8px;
+    align-items: end;
+}
+.twin-root .issue-assignment > :not(label) {
+    grid-column: 1 / -1;
+}
+.twin-root .issue-meta a {
+    color: inherit;
+    text-decoration: underline;
+}
 .twin-root .issue-comments > li {
     border-left: 2px solid var(--line-strong);
     padding: 2px 0 2px 8px;

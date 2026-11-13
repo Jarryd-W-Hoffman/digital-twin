@@ -136,6 +136,9 @@ export interface TwinStore {
     setPinning: (pinning: boolean) => void;
     /** Where the new pin was placed, with the camera at the time; kept while it is moved. */
     placedPin: { at: Vec3; view: CameraView } | null;
+    /** An asset to pin a new issue on, such as the one an alert is about. */
+    assetPinRequest: { id: string; n: number } | null;
+    pinAsset: (id: string) => void;
     placePin: (at: Vec3, view: CameraView) => void;
     clearPlacedPin: () => void;
     /** The pin last clicked in the scene, bumped on every click. */
@@ -393,8 +396,15 @@ export const useTwin = create<TwinStore>((set, get) => ({
             sketch: pinning ? null : s.sketch,
         })),
     placedPin: null,
-    placePin: (at, view) => set({ placedPin: { at, view }, pinning: false }),
-    clearPlacedPin: () => set({ placedPin: null, pinning: false }),
+    placePin: (at, view) =>
+        set({ placedPin: { at, view }, pinning: false, assetPinRequest: null }),
+    clearPlacedPin: () =>
+        set({ placedPin: null, pinning: false, assetPinRequest: null }),
+    assetPinRequest: null,
+    pinAsset: (id) =>
+        set((s) => ({
+            assetPinRequest: { id, n: (s.assetPinRequest?.n ?? 0) + 1 },
+        })),
     pickedPin: null,
     pickPin: (id) =>
         set((s) => ({ pickedPin: { id, n: (s.pickedPin?.n ?? 0) + 1 } })),

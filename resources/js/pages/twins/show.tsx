@@ -14,6 +14,7 @@ import {
     TwinIssues,
     type IssueDetail,
     type IssueSummary,
+    type RaiseFrom,
 } from '@/components/twin-issues';
 import { TwinSettings } from '@/components/twin-settings';
 import { TwinViews, type SavedViewSummary } from '@/components/twin-views';
@@ -62,6 +63,8 @@ type Props = {
     /** The issues pinned in the scene, and the one open in the panel (`?issue=`). */
     issues: IssueSummary[];
     issue: IssueDetail | null;
+    /** An alert to raise an issue from (`?raise=`), pinned at its asset. */
+    raise: RaiseFrom | null;
     /** The views this user can see: theirs and the shared ones. */
     views: SavedViewSummary[];
     /** The view to open at: the one linked (`?view=`), or the twin's opening view. */
@@ -82,13 +85,14 @@ export default function ShowTwin({
     alerts,
     issues,
     issue,
+    raise,
     views,
     startView,
     can,
 }: Props) {
     const [editing, setEditing] = useState<
         'layout' | 'definition' | 'settings' | 'issues' | 'views' | null
-    >(issue ? 'issues' : null);
+    >(issue || raise ? 'issues' : null);
     // Follow the gateway when one is connected, unless the user picks the simulator.
     const [preferSimulator, setPreferSimulator] = useState(false);
     const live =
@@ -188,19 +192,29 @@ export default function ShowTwin({
     useEffect(() => {
         useTwin.setState({ activePin: issue?.id ?? null });
     }, [issue?.id]);
-    // Opening at: a linked issue's camera, else a view from the link (a
-    // whole look, or a saved view), else the twin's opening view.
-    const opening = useRef<{ issue?: IssueDetail['view']; view?: ViewState }>(
-        issue
-            ? { issue: issue.view }
-            : {
-                  view:
-                      linkedLook() ?? parseView(startView?.state) ?? undefined,
-              },
+    // Opening at: the asset of an alert an issue is raised from, else a
+    // linked issue's camera, else a view from the link (a whole look, or a
+    // saved view), else the twin's opening view.
+    const opening = useRef<{
+        asset?: string;
+        issue?: IssueDetail['view'];
+        view?: ViewState;
+    }>(
+        raise
+            ? { asset: raise.asset }
+            : issue
+              ? { issue: issue.view }
+              : {
+                    view:
+                        linkedLook() ??
+                        parseView(startView?.state) ??
+                        undefined,
+                },
     );
     useEffect(() => {
-        const { issue: at, view } = opening.current;
-        if (at) useTwin.getState().flyTo(at);
+        const { asset, issue: at, view } = opening.current;
+        if (asset) useTwin.getState().pinAsset(asset);
+        else if (at) useTwin.getState().flyTo(at);
         else if (view) applyView(view);
     }, []);
     // Clicking a pin opens its issue.
@@ -337,6 +351,7 @@ export default function ShowTwin({
                         twinId={twin.id}
                         issues={issues}
                         issue={issue}
+                        raise={raise}
                         onClose={() => {
                             setEditing(null);
                             if (issue) openIssue(twin.id, null);

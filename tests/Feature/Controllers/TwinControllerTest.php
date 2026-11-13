@@ -317,7 +317,7 @@ it('passes the issues pinned in the scene, most recently active first', function
     [$user, $organisation] = member(OrganisationRole::Viewer);
     $twin = twinIn($organisation);
     $older = Issue::factory()->for($twin)->closed()->create(['updated_at' => now()->subDay()]);
-    $newer = Issue::factory()->for($twin)->create(['title' => 'Gate sticks']);
+    $newer = Issue::factory()->for($twin)->assigned($user, '-1 day')->create(['title' => 'Gate sticks']);
     IssueComment::factory()->count(2)->for($newer)->create();
     Issue::factory()->create();
 
@@ -332,11 +332,18 @@ it('passes the issues pinned in the scene, most recently active first', function
                 'at' => [174.7633, -36.8485, 12.5],
                 'view' => ['lon' => 174.7629, 'lat' => -36.8489, 'height' => 60, 'heading' => 30, 'pitch' => -35, 'roll' => 0],
                 'author' => $newer->author?->name,
+                'assignee' => $user->name,
+                'mine' => true,
+                'dueOn' => today()->subDay()->format('Y-m-d'),
+                'overdue' => true,
                 'comments' => 2,
                 'updatedAt' => $newer->updated_at->toIso8601String(),
             ])
             ->where('issues.1.id', $older->id)
             ->where('issues.1.closed', true)
+            ->where('issues.1.assignee', null)
+            ->where('issues.1.mine', false)
+            ->where('issues.1.overdue', false)
             ->where('issue', null));
 });
 
@@ -358,7 +365,12 @@ it('opens an issue with its conversation and what the viewer may do', function (
             'createdAt' => $issue->created_at->toIso8601String(),
             'closedAt' => $issue->closed_at?->toIso8601String(),
             'closedBy' => $issue->closer?->name,
-            'can' => ['close' => $close, 'delete' => $delete],
+            'assignee' => null,
+            'dueOn' => null,
+            'overdue' => false,
+            'alert' => null,
+            'can' => ['assign' => $close, 'close' => $close, 'delete' => $delete],
+            'members' => $close ? [['id' => $user->id, 'name' => $user->name]] : [],
             'comments' => [
                 [
                     'id' => $first->id,
@@ -383,6 +395,44 @@ it('opens an issue with its conversation and what the viewer may do', function (
     [OrganisationRole::Operator, true, false],
     [OrganisationRole::Viewer, false, false],
 ]);
+
+it('opens an issue with who has it, when it is due, and the alert it follows up', function (): void {
+    [$user, $organisation] = member(OrganisationRole::Viewer);
+    $twin = twinIn($organisation);
+    $alert = Alert::factory()->for($twin)->create();
+    $issue = Issue::factory()->for($twin)->assigned($user, '+3 days')->create(['alert_id' => $alert->id]);
+
+    $this->actingAs($user)->get(route('twins.show', [$twin, 'issue' => $issue->id]))
+        ->assertInertia(fn ($page) => $page
+            ->where('issue.assignee', ['id' => $user->id, 'name' => $user->name])
+            ->where('issue.dueOn', today()->addDays(3)->format('Y-m-d'))
+            ->where('issue.overdue', false)
+            ->where('issue.alert', [
+                'message' => $alert->message,
+                'asset' => $alert->asset,
+                'raisedAt' => $alert->raised_at->toIso8601String(),
+                'url' => route('twins.alerts.index', $twin, false),
+            ])
+            ->where('issue.can', ['assign' => false, 'close' => true, 'delete' => false])
+            ->where('issue.members', []));
+});
+
+it("passes the alert an issue is raised from, if it's one of the twin's", function (string $which): void {
+    [$user, $organisation] = member(OrganisationRole::Viewer);
+    $twin = twinIn($organisation);
+    $alert = Alert::factory()->for($twin)->create();
+    $elsewhere = Alert::factory()->create();
+    $id = match ($which) {
+        'own' => $alert->id,
+        'elsewhere' => $elsewhere->id,
+        default => 'not-a-uuid',
+    };
+
+    $this->actingAs($user)->get(route('twins.show', [$twin, 'raise' => $id]))
+        ->assertInertia(fn ($page) => $page->where('raise', $which === 'own'
+            ? ['id' => $alert->id, 'asset' => $alert->asset, 'message' => $alert->message]
+            : null));
+})->with(['own', 'elsewhere', 'not-a-uuid']);
 
 it("opens no issue for an id that isn't one of the twin's", function (string $id): void {
     [$user, $organisation] = member();
