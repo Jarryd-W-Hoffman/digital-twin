@@ -26,6 +26,7 @@ import {
     type Sensor,
     type Sight as SightResult,
 } from '../core/sight.ts';
+import { surfaceAt } from './pick.ts';
 
 const SEEN = Color.fromCssColorString('#3fb68b');
 const HIDDEN = Color.fromCssColorString('#ef5350');
@@ -185,7 +186,7 @@ export class Sight {
 
     click(position: Cartesian2): void {
         if (!this.picking) return;
-        const hit = this.surfaceAt(position);
+        const hit = surfaceAt(this.viewer, position);
         if (hit) this.onPick?.(this.local(hit));
     }
 
@@ -513,20 +514,6 @@ export class Sight {
 
     private local(world: Cartesian3): Vec3 {
         return this.site.toLocal(world);
-    }
-
-    private surfaceAt(position: Cartesian2): Cartesian3 | null {
-        const { scene, camera } = this.viewer;
-        if (scene.pickPositionSupported) {
-            const hit = scene.pickPosition(position);
-            if (hit && Number.isFinite(hit.x)) return hit;
-        }
-        const ray = camera.getPickRay(position);
-        return (
-            (ray && scene.globe.pick(ray, scene)) ??
-            camera.pickEllipsoid(position) ??
-            null
-        );
     }
 
     private marker(

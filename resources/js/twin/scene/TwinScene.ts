@@ -58,6 +58,7 @@ import {
 } from 'cesium';
 import { hourOfDay } from '../core/engine.ts';
 import { centroid, lonLatToMetres, metresToLonLat } from '../core/geo.ts';
+import type { Vec3 } from '../core/measure.ts';
 import {
     formatMetric,
     metricDefFor,
@@ -83,7 +84,7 @@ import type {
     TwinDefinition,
 } from '../core/types.ts';
 import { State } from '../core/types.ts';
-import type { Basemap, ColorBy, Layers } from '../state/store.ts';
+import type { Basemap, CameraView, ColorBy, Layers } from '../state/store.ts';
 import {
     BODY_COLOR,
     INERT_COLOR,
@@ -94,6 +95,8 @@ import {
 import { Gizmo } from './Gizmo.ts';
 import { hillshade } from './hillshade.ts';
 import { Measure } from './Measure.ts';
+import { surfaceAt } from './pick.ts';
+import { Pins } from './Pins.ts';
 import { Shapes } from './Shapes.ts';
 import { Sight } from './Sight.ts';
 import { Sketch } from './Sketch.ts';
@@ -212,6 +215,15 @@ export class TwinScene {
     readonly sight: Sight;
     /** The definition's vectors and fans. */
     readonly shapes: Shapes;
+    /** Issues pinned in the scene. */
+    readonly pins: Pins;
+    /** While set, a click places a new pin instead of selecting. */
+    onPinPlaced?: (at: Vec3, view: CameraView) => void;
+    /** Clicking a pin. */
+    onPinPick?: (id: string) => void;
+    private built = false;
+    /** A camera asked for before the site was built, flown to instead of the opening view. */
+    private openingView: CameraView | null = null;
     private readonly sunLight = new SunLight({ intensity: 1.35 });
     private readonly moonLight = new DirectionalLight({
         direction: Cartesian3.normalize(
@@ -343,8 +355,23 @@ export class TwinScene {
             ([east, north, up]) => this.cart([east, north], up),
             (def.shapes ?? []).flatMap((s) => compileShape(def, s) ?? []),
         );
+        this.pins = new Pins(this.viewer);
         this.handler = new ScreenSpaceEventHandler(scene.canvas);
         this.handler.setInputAction((e: { position: Cartesian2 }) => {
+            if (this.onPinPlaced) {
+                const hit = surfaceAt(this.viewer, e.position);
+                if (!hit) return;
+                const c = Cartographic.fromCartesian(hit);
+                this.onPinPlaced(
+                    [
+                        CesiumMath.toDegrees(c.longitude),
+                        CesiumMath.toDegrees(c.latitude),
+                        c.height,
+                    ],
+                    this.pins.cameraView(),
+                );
+                return;
+            }
             if (this.measure.active) {
                 this.measure.click(e.position);
                 return;
@@ -365,6 +392,11 @@ export class TwinScene {
             const picked = scene.pick(e.position) as
                 | { id?: Entity | string }
                 | undefined;
+            const pin = this.pins.idOf(picked);
+            if (pin) {
+                this.onPinPick?.(pin);
+                return;
+            }
             // A zone's translucent fill can lie over a feature; look through it.
             const feature =
                 this.featureOf(picked) ??
@@ -420,7 +452,22 @@ export class TwinScene {
         void this.loadLayers();
         if (this.lastFrame) this.updateFrame(this.lastFrame, this.colorBy);
         this.setSelected(this.selectedId);
-        this.home(OPENING_FLIGHT_S);
+        this.built = true;
+        if (this.openingView)
+            this.pins.flyTo(this.openingView, OPENING_FLIGHT_S);
+        else this.home(OPENING_FLIGHT_S);
+    }
+
+    /** Flies to a saved camera; before the site is built, it replaces the opening flight. */
+    flyToView(view: CameraView): void {
+        if (this.built) this.pins.flyTo(view);
+        else this.openingView = view;
+    }
+
+    /** Places pins on the next click while on, with a crosshair to show it. */
+    setPinning(onPlaced: ((at: Vec3, view: CameraView) => void) | null): void {
+        this.onPinPlaced = onPlaced ?? undefined;
+        this.viewer.canvas.style.cursor = onPlaced ? 'crosshair' : '';
     }
 
     /**
@@ -1521,6 +1568,7 @@ export class TwinScene {
         this.gizmo.destroy();
         this.sight.destroy();
         this.shapes.destroy();
+        this.pins.destroy();
         if (!this.viewer.isDestroyed()) this.viewer.destroy();
     }
 }

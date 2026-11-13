@@ -37,6 +37,7 @@ From left to right:
 - **← and the twin's name**: back to its project.
 - **The version chip** (`v4`): the version you're looking at. Every saved change adds one; see [Layout and versions](08-layout-and-versions.md).
 - **Simulator / Live**: shown while a [gateway](09-gateways-and-live-data.md) is running the twin. **Live** follows the gateway; **Simulator** runs the model in your browser instead.
+- **Issues**: opens the [Issues panel](#issues-in-the-scene), with how many are open. Everyone who can see the twin has it.
 - **Layout** (editors only): opens the [Layout panel](08-layout-and-versions.md).
 - **Definition** (editors only): opens the [definition editor](12-twin-definitions.md#edit-a-definition), for zones, assets and everything else in the twin.
 - **Settings** (editors only): renames, describes or deletes the twin; see [Rename or delete a twin](#rename-or-delete-a-twin).
@@ -172,6 +173,64 @@ Equipment the model has no physics for, like this fire water tank, can still be 
 - The chart is the site load over the last day, with a mark for each alert. Click or drag along it to **look back** to that moment: the scene, readings and clock all show the past. **Back to live** returns to now.
 
 ![The site at night, coloured by power: solar has gone quiet, and the battery and grid carry the plant.](../images/night-power.png)
+
+## Issues in the scene
+
+An issue is a note or a problem pinned to a place in the twin: a loose guard on a pump, a camera's blind spot, a seal to replace. It keeps where it is, the view it was raised from, and a conversation with photos, so the people who deal with it see exactly what was meant. Anyone who can see the twin can raise one and join in, viewers included.
+
+![Raising an issue: the yellow pin on the pump skid where it was clicked, and the title, note and photo being filled in.](../images/issue-new.png)
+
+To raise one:
+
+1. Choose **Issues** in the top bar, then **New issue**.
+2. Move the camera so the problem is in view, then click the spot in the scene: the ground, a building, a model or a scan. A yellow pin marks it. The camera you're looking from is saved with the issue.
+3. Give it a **Title**, and optionally a **Note** and a **Photo** (JPEG, PNG or WebP, up to 10 MB). **Move pin** lets you click somewhere else first.
+4. Choose **Raise issue**. It's numbered after the twin's last issue and opens straight away.
+
+![An open issue: its pin, numbered and titled, over the pump skid, and the panel with who raised it, the photo from site and a reply.](../images/issues.png)
+
+Each issue is a pin over its spot, drawn on top of everything so one inside a building still shows: orange while open, grey once closed. The open issue's pin is larger and shows its title.
+
+- **Open an issue** by choosing it in the list, which flies the camera to the view it was raised from, or by clicking its pin. **Go to view** flies back to that view.
+- **Share an issue** by copying the page's address while it's open: it ends in `?issue=…`, and opens the twin at that issue and its view for anyone in the organisation.
+- **Comment** with words, a photo or both. Comments and new issues show for everyone within 15 seconds.
+- **Close issue** once it's dealt with, and **Reopen** if it isn't. **Open** and **Closed** in the list switch between them.
+- **Delete** removes the issue with its comments and photos. The ✕ on a comment deletes that comment.
+
+Who can do what:
+
+|                                                      | Owner | Admin | Operator | Viewer |
+| ---------------------------------------------------- | :---: | :---: | :------: | :----: |
+| Raise issues, comment, and close or delete their own |   ✓   |   ✓   |    ✓     |   ✓    |
+| Close and reopen anyone's issue                      |   ✓   |   ✓   |    ✓     |        |
+| Delete anyone's issue or comment                     |   ✓   |   ✓   |          |        |
+
+How an issue goes:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Open: New issue, a click in the scene, Raise issue
+    Open --> Open: comments and photos
+    Open --> Closed: Close issue (its author or an operator)
+    Closed --> Open: Reopen
+    Open --> [*]: Delete (its author or an editor)
+    Closed --> [*]: Delete
+```
+
+What's kept for each issue:
+
+```
+issue #n of the twin
+    title, who raised it, when
+    pin:  longitude, latitude, height above the ellipsoid   (where it is)
+    view: the camera's longitude, latitude, height, heading, pitch and roll
+    closed: when and by whom, or still open
+    comments, oldest first: who, when, words and/or a photo
+photos are kept with the project's files, served only to its organisation,
+and deleted with their comment, their issue or the twin
+```
+
+Issues belong to the twin, not to a version: saving a new version or restoring an old one leaves them where they are.
 
 ## Without signing in
 

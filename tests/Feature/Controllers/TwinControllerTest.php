@@ -7,6 +7,8 @@ use App\Actions\IssueGatewayToken;
 use App\Actions\RecordGatewayCheckIn;
 use App\Enums\OrganisationRole;
 use App\Models\Alert;
+use App\Models\Issue;
+use App\Models\IssueComment;
 use App\Models\OpcUaServer;
 use App\Models\OpcUaWrite;
 use App\Models\Project;
@@ -309,3 +311,83 @@ it('passes the open alerts of a twin with a gateway, with who acknowledged them'
             ['id' => $acknowledged->id, 'rule' => 'warm', 'asset' => 'store', 'acknowledgedBy' => $user->name, 'acknowledgedAt' => $acknowledged->acknowledged_at?->toIso8601String()],
         ]));
 });
+
+it('passes the issues pinned in the scene, most recently active first', function (): void {
+    [$user, $organisation] = member(OrganisationRole::Viewer);
+    $twin = twinIn($organisation);
+    $older = Issue::factory()->for($twin)->closed()->create(['updated_at' => now()->subDay()]);
+    $newer = Issue::factory()->for($twin)->create(['title' => 'Gate sticks']);
+    IssueComment::factory()->count(2)->for($newer)->create();
+    Issue::factory()->create();
+
+    $this->actingAs($user)->get(route('twins.show', $twin))
+        ->assertInertia(fn ($page) => $page
+            ->has('issues', 2)
+            ->where('issues.0', [
+                'id' => $newer->id,
+                'number' => 2,
+                'title' => 'Gate sticks',
+                'closed' => false,
+                'at' => [174.7633, -36.8485, 12.5],
+                'view' => ['lon' => 174.7629, 'lat' => -36.8489, 'height' => 60, 'heading' => 30, 'pitch' => -35, 'roll' => 0],
+                'author' => $newer->author?->name,
+                'comments' => 2,
+                'updatedAt' => $newer->updated_at->toIso8601String(),
+            ])
+            ->where('issues.1.id', $older->id)
+            ->where('issues.1.closed', true)
+            ->where('issue', null));
+});
+
+it('opens an issue with its conversation and what the viewer may do', function (OrganisationRole $role, bool $close, bool $delete): void {
+    [$user, $organisation] = member($role);
+    $twin = twinIn($organisation);
+    $issue = Issue::factory()->for($twin)->closed()->create();
+    $first = IssueComment::factory()->for($issue)->create(['photo' => $issue->storagePrefix().'/a.jpg', 'created_at' => now()->subHour()]);
+    $mine = IssueComment::factory()->for($issue)->create(['author_id' => $user->id]);
+
+    $this->actingAs($user)->get(route('twins.show', [$twin, 'issue' => $issue->id]))
+        ->assertInertia(fn ($page) => $page->where('issue', [
+            'id' => $issue->id,
+            'number' => 1,
+            'title' => 'Cracked slab by the loading bay',
+            'at' => [174.7633, -36.8485, 12.5],
+            'view' => ['lon' => 174.7629, 'lat' => -36.8489, 'height' => 60, 'heading' => 30, 'pitch' => -35, 'roll' => 0],
+            'author' => $issue->author?->name,
+            'createdAt' => $issue->created_at->toIso8601String(),
+            'closedAt' => $issue->closed_at?->toIso8601String(),
+            'closedBy' => $issue->closer?->name,
+            'can' => ['close' => $close, 'delete' => $delete],
+            'comments' => [
+                [
+                    'id' => $first->id,
+                    'author' => $first->author?->name,
+                    'body' => 'About a metre long, along the joint.',
+                    'photo' => route('twins.issues.comments.photo', [$twin, $issue, $first], false),
+                    'createdAt' => $first->created_at->toIso8601String(),
+                    'canDelete' => $delete,
+                ],
+                [
+                    'id' => $mine->id,
+                    'author' => $user->name,
+                    'body' => 'About a metre long, along the joint.',
+                    'photo' => null,
+                    'createdAt' => $mine->created_at->toIso8601String(),
+                    'canDelete' => true,
+                ],
+            ],
+        ]));
+})->with([
+    [OrganisationRole::Owner, true, true],
+    [OrganisationRole::Operator, true, false],
+    [OrganisationRole::Viewer, false, false],
+]);
+
+it("opens no issue for an id that isn't one of the twin's", function (string $id): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $elsewhere = Issue::factory()->create();
+
+    $this->actingAs($user)->get(route('twins.show', [$twin, 'issue' => $id === 'elsewhere' ? $elsewhere->id : $id]))
+        ->assertInertia(fn ($page) => $page->where('issue', null));
+})->with(['elsewhere', 'not-a-uuid']);

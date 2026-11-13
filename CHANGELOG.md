@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Issues in the scene** ([#35]): **Issues** on the twin page, for everyone who can see the twin. **New issue** pins a note or problem to the spot you click in the scene, with the camera you're looking from, a title, and a first comment and photo. Issues are numbered per twin and drawn as pins over everything; they open from the list (flying to their view), by clicking their pin, or from a link (`?issue=`), and gather comments with photos. Their author or an operator closes and reopens them, and their author or an editor deletes them. Roadmap item 12, **Collaboration in the scene**, starts here.
 - **Escalation** ([#34]): a notification channel can be told of an alert only if nobody acknowledges it within a number of minutes, so a project can bring in a manager, then a director, when the people on call don't respond. The scheduler checks every minute and escalates each alert to each such channel once; acknowledging or clearing it stops there, quiet hours hold warnings until they end, and messages say how long the alert has gone unacknowledged. Roadmap item 11 is done.
 - **Alert notifications** ([#33]): each project has **Alert notifications** channels that send its twins' gateway alerts by email, Slack, Microsoft Teams or a JSON webhook signed with HMAC-SHA256. A channel takes alerts from a severity up, optionally their clearing, and keeps quiet hours in its own time zone when only critical alerts get through. Deliveries are queued and retried, **Send test** checks a channel, and the alert log lists who was told and how it went. Webhook URLs must be public `https://` addresses; Slack and Teams URLs must be on their own domains.
 - **Alert log** ([#32]): a twin's gateway now runs its rules itself, so alerts are raised while nobody has the twin open, and tells the control plane which are open whenever that changes and every 30 seconds. Each alert is kept in the twin's new **alert log** (`/twins/{twin}/alerts`) with when it was raised and cleared, and who acknowledged it; operators acknowledge there or from the Alerts tab while following the gateway, and everyone sees who did. Roadmap item 11, **Alerts that reach people**, starts here.
@@ -223,6 +224,7 @@ Dates are when the change was merged into `main` (UTC).
 [#29]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/29
 [#30]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/30
 [#31]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/31
+[#35]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/35
 [#34]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/34
 [#33]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/33
 [#32]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/32

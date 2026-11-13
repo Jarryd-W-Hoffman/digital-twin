@@ -33,6 +33,7 @@ import {
     slopeOf,
     type Vec3,
 } from '../core/measure.ts';
+import { surfaceAt } from './pick.ts';
 
 const COLOUR = Color.fromCssColorString('#5ce1ff');
 const LEG = Color.fromCssColorString('#ffc95c');
@@ -142,7 +143,7 @@ export class Measure {
 
     /** What is under the pointer, held level or vertical for a locked distance. */
     private pick(position: Cartesian2): Cartesian3 | null {
-        const { scene, camera } = this.viewer;
+        const { camera } = this.viewer;
         const first = this.fixed[0];
         if (
             this.tool === 'distance' &&
@@ -177,16 +178,7 @@ export class Measure {
                       new Cartesian3(),
                   );
         }
-        if (scene.pickPositionSupported) {
-            const hit = scene.pickPosition(position);
-            if (hit && Number.isFinite(hit.x)) return hit;
-        }
-        const ray = camera.getPickRay(position);
-        return (
-            (ray && scene.globe.pick(ray, scene)) ??
-            camera.pickEllipsoid(position) ??
-            null
-        );
+        return surfaceAt(this.viewer, position);
     }
 
     private measured(c: Cartesian3): MeasuredPoint {

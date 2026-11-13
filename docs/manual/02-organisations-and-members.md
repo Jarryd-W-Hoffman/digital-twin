@@ -9,7 +9,9 @@ Everything in Meridian belongs to an **organisation**: its projects, twins, uplo
 |                                                                                 | Owner | Admin | Operator | Viewer |
 | ------------------------------------------------------------------------------- | :---: | :---: | :------: | :----: |
 | See projects and twins, open them, and watch them live                          |   ✓   |   ✓   |    ✓     |   ✓    |
+| Raise issues in a twin and comment on them                                      |   ✓   |   ✓   |    ✓     |   ✓    |
 | Send commands to a twin (setpoints, taking equipment out of service, scenarios) |   ✓   |   ✓   |    ✓     |        |
+| Close anyone's issue                                                            |   ✓   |   ✓   |    ✓     |        |
 | Create projects and twins, upload, place, save and restore versions             |   ✓   |   ✓   |          |        |
 | Issue gateway tokens, add devices, map telemetry                                |   ✓   |   ✓   |          |        |
 | Import, save and delete types in the type library                               |   ✓   |   ✓   |          |        |

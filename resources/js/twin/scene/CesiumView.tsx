@@ -13,6 +13,17 @@ export default function CesiumView() {
         if (!def || !container.current) return;
         const scene = new TwinScene(container.current, def);
         scene.onPick = (id) => useTwin.getState().select(id);
+        scene.onPinPick = (id) => useTwin.getState().pickPin(id);
+        const pinOnClick = (on: boolean) =>
+            scene.setPinning(
+                on ? (at, view) => useTwin.getState().placePin(at, view) : null,
+            );
+        /** Flies to a requested camera once, so a rebuilt scene doesn't repeat it. */
+        const flyIfAsked = (s: ReturnType<typeof useTwin.getState>) => {
+            if (!s.cameraRequest) return;
+            scene.flyToView(s.cameraRequest.view);
+            useTwin.setState({ cameraRequest: null });
+        };
         scene.measure.onChange = (measurement) =>
             useTwin.getState().setMeasurement(measurement);
         scene.gizmo.onChange = (placement) => {
@@ -109,6 +120,9 @@ export default function CesiumView() {
             showGizmo(s);
             showSight(s);
             pickFeatures(waitingFor(s));
+            scene.pins.set(s.pins, s.activePin, s.placedPin?.at);
+            pinOnClick(s.pinning);
+            flyIfAsked(s);
             if (s.view) {
                 scene.updateFrame(s.view, s.colorBy);
                 scene.setAlerts(alertsAt(s.alerts, s.view.t));
@@ -137,6 +151,14 @@ export default function CesiumView() {
             if (s.placingLayer !== prev.placingLayer)
                 placeOnClick(s.placingLayer);
             if (waitingFor(s) !== waitingFor(prev)) pickFeatures(waitingFor(s));
+            if (
+                s.pins !== prev.pins ||
+                s.activePin !== prev.activePin ||
+                s.placedPin !== prev.placedPin
+            )
+                scene.pins.set(s.pins, s.activePin, s.placedPin?.at);
+            if (s.pinning !== prev.pinning) pinOnClick(s.pinning);
+            if (s.cameraRequest !== prev.cameraRequest) flyIfAsked(s);
             if (s.drafts !== prev.drafts) {
                 for (const id of new Set([
                     ...Object.keys(s.drafts),

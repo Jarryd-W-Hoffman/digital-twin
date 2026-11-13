@@ -549,6 +549,66 @@ test('screenshots', async ({ page, context }) => {
         await shot(page, 'point-cloud');
     });
 
+    await test.step('issues in the scene', async () => {
+        type Scene = {
+            __scene: {
+                screenAt(
+                    p: [number, number],
+                    h?: number,
+                ): { x: number; y: number } | null;
+            };
+        };
+        await page.getByRole('button', { name: 'Whole site' }).click();
+        await page.waitForTimeout(3000);
+        // A close-up of the pump skid stands in for a photo from site.
+        const skid = await page.evaluate(() =>
+            (window as unknown as Scene).__scene.screenAt([-38, -30], 2),
+        );
+        const canvas = (await page.locator('canvas').first().boundingBox())!;
+        const photo = resolve(ROOT, 'storage/framework/testing/skid.png');
+        mkdirSync(resolve(photo, '..'), { recursive: true });
+        await page.screenshot({
+            path: photo,
+            clip: {
+                x: Math.max(0, canvas.x + skid!.x - 240),
+                y: Math.max(0, canvas.y + skid!.y - 150),
+                width: 480,
+                height: 300,
+            },
+        });
+
+        await page.getByRole('button', { name: /^Issues/ }).click();
+        const issues = page.getByRole('complementary', { name: 'Issues' });
+        await issues.getByRole('button', { name: 'New issue' }).click();
+        await clickGround(page, [-38, -30]);
+        const form = issues.getByRole('region', { name: 'New issue' });
+        await form.getByLabel('Title').fill('Pump skid guard is loose');
+        await form
+            .getByLabel('Note')
+            .fill(
+                'The coupling guard rattles at full speed. Two of its bolts are missing.',
+            );
+        await form.getByLabel('Photo').setInputFiles(photo);
+        await page.waitForTimeout(1000);
+        await shot(page, 'issue-new');
+        await form.getByRole('button', { name: 'Raise issue' }).click();
+        await expect(
+            issues.getByRole('heading', { name: /Pump skid guard is loose/ }),
+        ).toBeVisible({ timeout: 30_000 });
+        await issues
+            .getByRole('textbox', { name: 'Comment' })
+            .fill('Bolts ordered. Running it at half speed until they come.');
+        await issues
+            .getByRole('button', { name: 'Comment', exact: true })
+            .click();
+        await expect(issues.getByText(/Bolts ordered/)).toBeVisible({
+            timeout: 30_000,
+        });
+        await page.waitForTimeout(1500);
+        await shot(page, 'issues');
+        await issues.getByRole('button', { name: 'Hide issues' }).click();
+    });
+
     await test.step('telemetry, the gateway and recorded history', async () => {
         await page.getByRole('button', { name: 'Layout', exact: true }).click();
         const telemetry = editor.getByRole('region', { name: 'Telemetry' });

@@ -495,6 +495,75 @@ test('a viewer watches the twin but cannot edit or operate it', async ({ page })
   await expect(page.getByRole('button', { name: 'Raise setpoint' })).toBeDisabled();
 });
 
+test('a viewer pins an issue with a photo in the scene, and the owner opens it from a link, by its pin, and closes it', async ({ page, browser }) => {
+  type Issues = {
+    __twin: { getState(): { pins: { id: string; closed: boolean }[]; activePin: string | null } };
+    __scene: { screenAt(p: [number, number], h: number): { x: number; y: number } | null; pins: { project(id: string): { x: number; y: number } | null } };
+  };
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  await logIn(page, 'viewer@example.com');
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  await page.getByRole('button', { name: 'Whole site' }).click();
+  await page.waitForTimeout(3000);
+
+  await page.getByRole('button', { name: /^Issues/ }).click();
+  const panel = page.getByRole('complementary', { name: 'Issues' });
+  await panel.getByRole('button', { name: 'New issue' }).click();
+  await expect(panel.getByText(/Click the spot in the scene/)).toBeVisible();
+  const at = await page.evaluate(() => (window as unknown as Issues).__scene.screenAt([0, -60], 0));
+  const box = (await page.locator('.globe canvas').first().boundingBox())!;
+  await page.mouse.click(box.x + at!.x, box.y + at!.y);
+
+  const form = panel.getByRole('region', { name: 'New issue' });
+  await form.getByLabel('Title').fill('Door seal torn on freezer 2');
+  await form.getByLabel('Note').fill('Split along the bottom edge.');
+  await form.getByLabel('Photo').setInputFiles('public/apple-touch-icon.png');
+  await form.getByRole('button', { name: 'Raise issue' }).click();
+
+  await expect(page).toHaveURL(/[?&]issue=/);
+  await expect(panel.getByRole('heading', { name: /^#\d+ Door seal torn on freezer 2$/ })).toBeVisible();
+  const photo = panel.getByRole('img', { name: 'Photo from Viewer' });
+  await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  await panel.getByRole('textbox', { name: 'Comment' }).fill('Ordered a new seal.');
+  await panel.getByRole('button', { name: 'Comment', exact: true }).click();
+  await expect(panel.getByText('Ordered a new seal.')).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
+  const id = await page.evaluate(() => (window as unknown as Issues).__twin.getState().activePin);
+  expect(await page.evaluate(() => (window as unknown as Issues).__twin.getState().pins.map((p) => p.id))).toContain(id);
+  const link = page.url();
+  // Two scenes rendering at once starve each other of frames.
+  await page.goto('about:blank');
+
+  // The owner follows the link, goes back to the list, and opens it again by its pin.
+  const owner = await browser.newPage();
+  owner.on('pageerror', (e) => problems.push(e.message));
+  await logIn(owner, 'test@example.com');
+  await owner.goto(link);
+  const ownerPanel = owner.getByRole('complementary', { name: 'Issues' });
+  await expect(ownerPanel.getByRole('heading', { name: /Door seal torn on freezer 2$/ })).toBeVisible({ timeout: 45_000 });
+  await expect(ownerPanel.getByText('Ordered a new seal.')).toBeVisible();
+  await expect.poll(() => owner.evaluate(() => Boolean((window as unknown as Debug).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
+  await ownerPanel.getByRole('button', { name: '← All issues' }).click();
+  await expect(ownerPanel.getByRole('button', { name: /Door seal torn on freezer 2/ })).toBeVisible();
+  // Let the camera settle on the issue's view, then click its pin; it is looked up again until a click lands.
+  await owner.waitForTimeout(5000);
+  await expect(async () => {
+    const pin = await owner.evaluate((issue) => (window as unknown as Issues).__scene.pins.project(issue!), id);
+    await owner.mouse.click(pin!.x, pin!.y);
+    await expect(ownerPanel.getByRole('heading', { name: /Door seal torn on freezer 2$/ })).toBeVisible({ timeout: 15_000 });
+  }).toPass({ timeout: 60_000 });
+
+  await ownerPanel.getByRole('button', { name: 'Close issue' }).click();
+  await expect(ownerPanel.getByText(/^Closed$/)).toBeVisible();
+  await expect(ownerPanel.getByText(/by Test User/)).toBeVisible();
+  await expect.poll(() => owner.evaluate((issue) => (window as unknown as Issues).__twin.getState().pins.find((p) => p.id === issue)?.closed, id)).toBe(true);
+  await ownerPanel.getByRole('button', { name: 'Reopen' }).click();
+  await expect(ownerPanel.getByRole('button', { name: 'Close issue' })).toBeVisible();
+  await owner.close();
+  expect(problems).toEqual([]);
+});
+
 test('outsiders are sent to log in', async ({ page }) => {
   await page.goto('/twins');
   await expect(page).toHaveURL(/\/login$/);

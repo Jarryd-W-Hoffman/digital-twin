@@ -9,6 +9,12 @@ import {
     type TwinAssetSummary,
     type TwinVersionSummary,
 } from '@/components/twin-editor';
+import {
+    openIssue,
+    TwinIssues,
+    type IssueDetail,
+    type IssueSummary,
+} from '@/components/twin-issues';
 import { TwinSettings } from '@/components/twin-settings';
 import { show as showProject } from '@/routes/projects';
 import { index as alertLog } from '@/routes/twins/alerts';
@@ -50,6 +56,9 @@ type Props = {
     opcuaWrites: OpcUaWrites;
     /** The alerts the gateway says are open; null without a gateway. */
     alerts: ServerAlert[] | null;
+    /** The issues pinned in the scene, and the one open in the panel (`?issue=`). */
+    issues: IssueSummary[];
+    issue: IssueDetail | null;
     can: { update: boolean; operate: boolean; manageTypes: boolean };
 };
 
@@ -64,11 +73,13 @@ export default function ShowTwin({
     gateway,
     opcuaWrites,
     alerts,
+    issues,
+    issue,
     can,
 }: Props) {
     const [editing, setEditing] = useState<
-        'layout' | 'definition' | 'settings' | null
-    >(null);
+        'layout' | 'definition' | 'settings' | 'issues' | null
+    >(issue ? 'issues' : null);
     // Follow the gateway when one is connected, unless the user picks the simulator.
     const [preferSimulator, setPreferSimulator] = useState(false);
     const live =
@@ -77,7 +88,7 @@ export default function ShowTwin({
     const gatewayUrl = gateway?.online ? gateway.url : null;
 
     // The gateway's status comes and goes; tickets are refreshed with it.
-    usePoll(15_000, { only: ['gateway', 'alerts'] });
+    usePoll(15_000, { only: ['gateway', 'alerts', 'issues', 'issue'] });
     const ticket = useRef(gateway?.ticket ?? null);
     useEffect(() => {
         if (gateway?.ticket) ticket.current = gateway.ticket;
@@ -151,6 +162,41 @@ export default function ShowTwin({
         });
     }, [alerts, live, twin.id]);
 
+    // Issues are pins in the scene; a link to one opens at its camera.
+    useEffect(() => {
+        useTwin.setState({
+            pins: issues.map((i) => ({
+                id: i.id,
+                number: i.number,
+                title: i.title,
+                closed: i.closed,
+                at: i.at,
+            })),
+        });
+    }, [issues]);
+    useEffect(() => {
+        useTwin.setState({ activePin: issue?.id ?? null });
+    }, [issue?.id]);
+    const linkedIssue = useRef(issue?.view);
+    useEffect(() => {
+        if (linkedIssue.current) useTwin.getState().flyTo(linkedIssue.current);
+    }, []);
+    // Clicking a pin opens its issue.
+    useEffect(
+        () =>
+            useTwin.subscribe((s, prev) => {
+                if (!s.pickedPin || s.pickedPin === prev.pickedPin) return;
+                setEditing('issues');
+                openIssue(twin.id, s.pickedPin.id);
+            }),
+        [twin.id],
+    );
+    // Closing the panel stops placing a pin.
+    useEffect(() => {
+        if (editing !== 'issues') useTwin.getState().clearPlacedPin();
+    }, [editing]);
+    const openIssues = issues.filter((i) => !i.closed).length;
+
     useEffect(() => stopTwin, []);
 
     return (
@@ -199,6 +245,19 @@ export default function ShowTwin({
                                 )}
                             </div>
                         )}
+                        <button
+                            className={
+                                editing === 'issues' ? 'primary' : 'ghost'
+                            }
+                            aria-expanded={editing === 'issues'}
+                            onClick={() =>
+                                setEditing(
+                                    editing === 'issues' ? null : 'issues',
+                                )
+                            }
+                        >
+                            Issues{openIssues > 0 ? ` (${openIssues})` : ''}
+                        </button>
                         {can.update &&
                             (
                                 [
@@ -238,6 +297,17 @@ export default function ShowTwin({
                         opcuaServers={project.opcuaServers}
                         opcuaWrites={opcuaWrites}
                         onClose={() => setEditing(null)}
+                    />
+                )}
+                {editing === 'issues' && (
+                    <TwinIssues
+                        twinId={twin.id}
+                        issues={issues}
+                        issue={issue}
+                        onClose={() => {
+                            setEditing(null);
+                            if (issue) openIssue(twin.id, null);
+                        }}
                     />
                 )}
                 {editing === 'settings' && (

@@ -30,6 +30,7 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  * @property-read Organisation $organisation
  * @property-read Project $project
  * @property-read TwinVersion|null $latestVersion
+ * @property-read int|null $open_issues_count
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
@@ -111,6 +112,16 @@ final class Twin extends Model
     }
 
     /**
+     * The notes and problems pinned in its scene.
+     *
+     * @return HasMany<Issue, $this>
+     */
+    public function issues(): HasMany
+    {
+        return $this->hasMany(Issue::class);
+    }
+
+    /**
      * @return HasMany<OpcUaWrite, $this>
      */
     public function opcUaWrites(): HasMany
@@ -148,6 +159,14 @@ final class Twin extends Model
         return $this->gateway_token_hash !== null
             && $this->gateway_url !== null
             && $this->gateway_seen_at?->isAfter(now()->subSeconds(self::GATEWAY_TIMEOUT_SECONDS)) === true;
+    }
+
+    /**
+     * Where its own files, such as issue photos, are kept on the assets disk.
+     */
+    public function storagePrefix(): string
+    {
+        return $this->project->storagePrefix().'/twins/'.$this->id;
     }
 
     /**
