@@ -16,13 +16,16 @@ import {
     type IssueSummary,
 } from '@/components/twin-issues';
 import { TwinSettings } from '@/components/twin-settings';
+import { TwinViews, type SavedViewSummary } from '@/components/twin-views';
 import { show as showProject } from '@/routes/projects';
 import { index as alertLog } from '@/routes/twins/alerts';
 import { store as acknowledgeAlert } from '@/routes/twins/alerts/acknowledgement';
 import { index as twinReadings } from '@/routes/twins/readings';
 import type { TwinDefinition } from '@/twin/core/types';
+import { decodeView, parseView, type ViewState } from '@/twin/core/views';
 import {
     alertKey,
+    applyView,
     runDefinition,
     runGateway,
     stopTwin,
@@ -59,6 +62,10 @@ type Props = {
     /** The issues pinned in the scene, and the one open in the panel (`?issue=`). */
     issues: IssueSummary[];
     issue: IssueDetail | null;
+    /** The views this user can see: theirs and the shared ones. */
+    views: SavedViewSummary[];
+    /** The view to open at: the one linked (`?view=`), or the twin's opening view. */
+    startView: { id: string; state: unknown } | null;
     can: { update: boolean; operate: boolean; manageTypes: boolean };
 };
 
@@ -75,10 +82,12 @@ export default function ShowTwin({
     alerts,
     issues,
     issue,
+    views,
+    startView,
     can,
 }: Props) {
     const [editing, setEditing] = useState<
-        'layout' | 'definition' | 'settings' | 'issues' | null
+        'layout' | 'definition' | 'settings' | 'issues' | 'views' | null
     >(issue ? 'issues' : null);
     // Follow the gateway when one is connected, unless the user picks the simulator.
     const [preferSimulator, setPreferSimulator] = useState(false);
@@ -88,7 +97,9 @@ export default function ShowTwin({
     const gatewayUrl = gateway?.online ? gateway.url : null;
 
     // The gateway's status comes and goes; tickets are refreshed with it.
-    usePoll(15_000, { only: ['gateway', 'alerts', 'issues', 'issue'] });
+    usePoll(15_000, {
+        only: ['gateway', 'alerts', 'issues', 'issue', 'views'],
+    });
     const ticket = useRef(gateway?.ticket ?? null);
     useEffect(() => {
         if (gateway?.ticket) ticket.current = gateway.ticket;
@@ -177,9 +188,20 @@ export default function ShowTwin({
     useEffect(() => {
         useTwin.setState({ activePin: issue?.id ?? null });
     }, [issue?.id]);
-    const linkedIssue = useRef(issue?.view);
+    // Opening at: a linked issue's camera, else a view from the link (a
+    // whole look, or a saved view), else the twin's opening view.
+    const opening = useRef<{ issue?: IssueDetail['view']; view?: ViewState }>(
+        issue
+            ? { issue: issue.view }
+            : {
+                  view:
+                      linkedLook() ?? parseView(startView?.state) ?? undefined,
+              },
+    );
     useEffect(() => {
-        if (linkedIssue.current) useTwin.getState().flyTo(linkedIssue.current);
+        const { issue: at, view } = opening.current;
+        if (at) useTwin.getState().flyTo(at);
+        else if (view) applyView(view);
     }, []);
     // Clicking a pin opens its issue.
     useEffect(
@@ -258,6 +280,17 @@ export default function ShowTwin({
                         >
                             Issues{openIssues > 0 ? ` (${openIssues})` : ''}
                         </button>
+                        <button
+                            className={
+                                editing === 'views' ? 'primary' : 'ghost'
+                            }
+                            aria-expanded={editing === 'views'}
+                            onClick={() =>
+                                setEditing(editing === 'views' ? null : 'views')
+                            }
+                        >
+                            Views
+                        </button>
                         {can.update &&
                             (
                                 [
@@ -310,6 +343,14 @@ export default function ShowTwin({
                         }}
                     />
                 )}
+                {editing === 'views' && (
+                    <TwinViews
+                        twinId={twin.id}
+                        views={views}
+                        canEdit={can.update}
+                        onClose={() => setEditing(null)}
+                    />
+                )}
                 {editing === 'settings' && (
                     <TwinSettings
                         twin={twin}
@@ -327,4 +368,10 @@ export default function ShowTwin({
             </Viewer>
         </>
     );
+}
+
+/** A whole look carried in the link (`?look=`), if it holds a valid one. */
+function linkedLook(): ViewState | null {
+    const look = new URLSearchParams(window.location.search).get('look');
+    return look ? decodeView(look) : null;
 }

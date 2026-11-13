@@ -371,6 +371,8 @@ test('a viewshed tints what a sensor sees, by its shape, and a line of sight fin
       .toBe(true);
     untinted.set(point, JSON.parse(last));
   };
+  // A viewshed takes a few frames to redraw, and software WebGL can manage one a second.
+  const TINTED = { timeout: 20_000 };
   // Green where it's seen, red where it's hidden, as a shift from its own colour.
   const tint = async (point: Vec3) => {
     const [r, g] = (await colourAt(point))!;
@@ -395,26 +397,26 @@ test('a viewshed tints what a sensor sees, by its shape, and a line of sight fin
   // A dome sees all round, but not through the hall: its 6 m eye is lower than the roof.
   // The first viewshed waits on its shaders.
   await expect.poll(() => tint(front), { timeout: 30_000 }).toBe('seen');
-  await expect.poll(() => tint(behind)).toBe('hidden');
+  await expect.poll(() => tint(behind), TINTED).toBe('hidden');
 
   // A cone looks one way: facing south, the ground behind the hall is out of it.
   await panel.getByRole('button', { name: 'Cone' }).click();
   await panel.getByLabel('Heading').fill('180');
   await expect(panel.getByText('facing S · 180°')).toBeVisible();
-  await expect.poll(() => tint(behind)).toBe('none');
-  await expect.poll(() => tint(front)).toBe('seen');
+  await expect.poll(() => tint(behind), TINTED).toBe('none');
+  await expect.poll(() => tint(front), TINTED).toBe('seen');
   // Aimed at the ground behind the hall, it faces north, and sees the hall in the way.
   await panel.getByRole('button', { name: 'Aim at…' }).click();
   await pick(behind);
   await expect(panel.getByText('facing N · 0°')).toBeVisible();
-  await expect.poll(() => tint(behind)).toBe('hidden');
+  await expect.poll(() => tint(behind), TINTED).toBe('hidden');
   // A rectangle, the same way.
   await panel.getByRole('button', { name: 'Rectangle' }).click();
-  await expect.poll(() => tint(behind)).toBe('hidden');
+  await expect.poll(() => tint(behind), TINTED).toBe('hidden');
 
   // From where the sensor stands, the hall's south wall is 20 m away, at eye height.
   await panel.getByRole('button', { name: 'Line of sight' }).click();
-  await expect.poll(() => tint(behind)).toBe('none');
+  await expect.poll(() => tint(behind), TINTED).toBe('none');
   await pick(sensor);
   await expect(panel.getByText('Click what it should see.')).toBeVisible();
   await pick(behind);

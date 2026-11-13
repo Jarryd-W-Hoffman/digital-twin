@@ -23,6 +23,7 @@ import type {
     TwinDefinition,
 } from '../core/types.ts';
 import { parseDefinition } from '../core/validate.ts';
+import type { CameraView, ViewState } from '../core/views.ts';
 import { GatewaySource } from '../sources/gateway.ts';
 import { LocalSource } from '../sources/local.ts';
 import type { SourceStatus, SourceTick, TwinSource } from '../sources/types.ts';
@@ -143,6 +144,8 @@ export interface TwinStore {
     /** A camera the scene should fly to, bumped on every request. */
     cameraRequest: { view: CameraView; n: number } | null;
     flyTo: (view: CameraView) => void;
+    /** Where the scene's camera is now; null until the scene is up. */
+    readCamera: (() => CameraView) | null;
 }
 
 /** An issue pinned at a place: longitude and latitude in degrees, height in metres above the ellipsoid. */
@@ -154,15 +157,7 @@ export interface Pin {
     at: Vec3;
 }
 
-/** Where a camera was and which way it looked, in degrees and metres. */
-export interface CameraView {
-    lon: number;
-    lat: number;
-    height: number;
-    heading: number;
-    pitch: number;
-    roll: number;
-}
+export type { CameraView } from '../core/views.ts';
 
 /** A sensor's settings, kept while it's moved or before it's placed. */
 export type SensorSettings = Omit<Sensor, 'at'>;
@@ -408,6 +403,7 @@ export const useTwin = create<TwinStore>((set, get) => ({
         set((s) => ({
             cameraRequest: { view, n: (s.cameraRequest?.n ?? 0) + 1 },
         })),
+    readCamera: null,
     showGlobe: () => set((s) => ({ globeRequest: s.globeRequest + 1 })),
 
     select: (id, fly = false) =>
@@ -664,4 +660,40 @@ export function boot(): void {
 export function alertsAt(alerts: Alert[], t: number | undefined): Alert[] {
     if (t === undefined) return [];
     return alerts.filter((a) => activeAt(a, t));
+}
+
+/** How the twin looks now, to save or share; null until the scene is up. */
+export function currentView(): ViewState | null {
+    const s = useTwin.getState();
+    const camera = s.readCamera?.();
+    if (!camera) return null;
+    return {
+        camera,
+        colorBy: s.colorBy,
+        basemap: s.basemap,
+        layers: { ...s.layers },
+        section: s.section,
+        selected: s.selectedId,
+    };
+}
+
+/**
+ * Makes the twin look as it did in a view: flies the camera there and sets
+ * the colouring, basemap, layers, section and selection. A custom basemap
+ * this build has no tiles for is left as it is.
+ */
+export function applyView(view: ViewState): void {
+    const s = useTwin.getState();
+    const basemap =
+        view.basemap === 'custom' && !import.meta.env.VITE_BASEMAP_URL
+            ? s.basemap
+            : view.basemap;
+    useTwin.setState({
+        colorBy: view.colorBy,
+        basemap,
+        layers: { ...view.layers },
+        section: view.section,
+    });
+    s.select(view.selected);
+    s.flyTo(view.camera);
 }

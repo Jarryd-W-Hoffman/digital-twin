@@ -564,6 +564,90 @@ test('a viewer pins an issue with a photo in the scene, and the owner opens it f
   expect(problems).toEqual([]);
 });
 
+test('an owner saves a view, shares it as where the twin opens, and a viewer opens the twin there and follows a link to a look', async ({ page, browser }) => {
+  type Views = {
+    __twin: {
+      getState(): {
+        def?: { assets: { id: string }[] };
+        colorBy: string;
+        layers: { shadows: boolean; labels: boolean };
+        selectedId: string | null;
+        select(id: string | null): void;
+      };
+    };
+  };
+  const state = (p: Page) => p.evaluate(() => {
+    const s = (window as unknown as Views).__twin.getState();
+    return { colorBy: s.colorBy, shadows: s.layers.shadows, labels: s.layers.labels, selected: s.selectedId };
+  });
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  page.on('dialog', (d) => void d.accept());
+  await logIn(page, 'test@example.com');
+  await openTwin(page, 'Northshore Cold Chain Hub');
+
+  // Colour by temperature, sun shadows on, an asset selected: saved as a view.
+  const asset = await page.evaluate(() => (window as unknown as Views).__twin.getState().def!.assets[0].id);
+  await page.getByRole('radio', { name: 'Temp' }).click();
+  await page.getByRole('checkbox', { name: 'Sun shadows' }).check();
+  await page.evaluate((id) => (window as unknown as Views).__twin.getState().select(id), asset);
+  await page.getByRole('button', { name: 'Views' }).click();
+  const panel = page.getByRole('complementary', { name: 'Views' });
+  await panel.getByLabel('Name').fill('Night check');
+  await panel.getByRole('button', { name: 'Save view' }).click();
+  const yours = panel.getByRole('region', { name: 'Your views' });
+  await expect(yours.getByRole('listitem', { name: 'Night check' })).toBeVisible();
+
+  // A link that carries the whole look, then labels off for the viewer to find on.
+  await page.getByRole('checkbox', { name: 'Labels' }).uncheck();
+  await panel.getByRole('button', { name: 'Copy link to what you see' }).click();
+  const look = await panel.getByLabel('Link, copied').inputValue();
+  expect(look).toMatch(/\/twins\/[^?]+\?look=[\w-]+$/);
+
+  // Shared, and where the twin opens.
+  await yours.getByRole('listitem', { name: 'Night check' }).getByRole('button', { name: 'Share' }).click();
+  const shared = panel.getByRole('region', { name: 'Shared views' });
+  const row = shared.getByRole('listitem', { name: 'Night check' });
+  await row.getByRole('button', { name: 'Open twin here' }).click();
+  await expect(row.getByText('Opens the twin')).toBeVisible();
+
+  // Opening it puts everything back.
+  await page.getByRole('radio', { name: 'Status' }).click();
+  await page.getByRole('checkbox', { name: 'Sun shadows' }).uncheck();
+  await page.evaluate(() => (window as unknown as Views).__twin.getState().select(null));
+  await row.getByRole('button', { name: /^Night check/ }).click();
+  expect(await state(page)).toEqual({ colorBy: 'temperature', shadows: true, labels: true, selected: asset });
+  const twinUrl = page.url().split('?')[0];
+  // Two scenes rendering at once starve each other of frames.
+  await page.goto('about:blank');
+
+  // A viewer opens the twin at its opening view, sees it shared but can't share it, and follows the link.
+  const viewer = await browser.newPage();
+  viewer.on('pageerror', (e) => problems.push(e.message));
+  await logIn(viewer, 'viewer@example.com');
+  await viewer.goto(twinUrl);
+  await expect.poll(() => viewer.evaluate(() => Boolean((window as unknown as Views).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
+  await expect.poll(() => state(viewer)).toEqual({ colorBy: 'temperature', shadows: true, labels: true, selected: asset });
+  await viewer.getByRole('button', { name: 'Views' }).click();
+  const viewerRow = viewer.getByRole('complementary', { name: 'Views' }).getByRole('listitem', { name: 'Night check' });
+  await expect(viewerRow.getByRole('button', { name: 'Copy link' })).toBeVisible();
+  await expect(viewerRow.getByRole('button', { name: 'Share' })).toHaveCount(0);
+  await expect(viewerRow.getByRole('button', { name: 'Stop sharing' })).toHaveCount(0);
+  await expect(viewerRow.getByRole('button', { name: 'Delete' })).toHaveCount(0);
+  await viewer.goto(look);
+  await expect.poll(() => viewer.evaluate(() => Boolean((window as unknown as Views).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
+  await expect.poll(() => state(viewer)).toEqual({ colorBy: 'temperature', shadows: true, labels: false, selected: asset });
+  await viewer.close();
+
+  // The owner deletes it, and the twin opens at the whole site again.
+  await page.goto(twinUrl);
+  await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Views).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
+  await page.getByRole('button', { name: 'Views' }).click();
+  await panel.getByRole('listitem', { name: 'Night check' }).getByRole('button', { name: 'Delete' }).click();
+  await expect(panel.getByRole('listitem', { name: 'Night check' })).toHaveCount(0);
+  expect(problems).toEqual([]);
+});
+
 test('outsiders are sent to log in', async ({ page }) => {
   await page.goto('/twins');
   await expect(page).toHaveURL(/\/login$/);

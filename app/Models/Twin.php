@@ -27,9 +27,11 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  * @property-read string|null $gateway_mqtt
  * @property-read array<string, string>|null $gateway_opcua
  * @property-read bool $opcua_writes
+ * @property-read string|null $opening_view_id
  * @property-read Organisation $organisation
  * @property-read Project $project
  * @property-read TwinVersion|null $latestVersion
+ * @property-read SavedView|null $openingView
  * @property-read int|null $open_issues_count
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -72,6 +74,7 @@ final class Twin extends Model
             'gateway_mqtt' => 'string',
             'gateway_opcua' => 'array',
             'opcua_writes' => 'boolean',
+            'opening_view_id' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -119,6 +122,26 @@ final class Twin extends Model
     public function issues(): HasMany
     {
         return $this->hasMany(Issue::class);
+    }
+
+    /**
+     * The views people saved of it, private and shared.
+     *
+     * @return HasMany<SavedView, $this>
+     */
+    public function savedViews(): HasMany
+    {
+        return $this->hasMany(SavedView::class);
+    }
+
+    /**
+     * The shared view it opens at, instead of the whole site.
+     *
+     * @return BelongsTo<SavedView, $this>
+     */
+    public function openingView(): BelongsTo
+    {
+        return $this->belongsTo(SavedView::class, 'opening_view_id');
     }
 
     /**

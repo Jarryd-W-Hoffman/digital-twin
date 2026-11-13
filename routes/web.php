@@ -29,10 +29,12 @@ use App\Http\Controllers\TwinIssueController;
 use App\Http\Controllers\TwinIssuePhotoController;
 use App\Http\Controllers\TwinLayerController;
 use App\Http\Controllers\TwinOpcUaWritesController;
+use App\Http\Controllers\TwinOpeningViewController;
 use App\Http\Controllers\TwinReadingController;
 use App\Http\Controllers\TwinTypeController;
 use App\Http\Controllers\TwinVersionController;
 use App\Http\Controllers\TwinVersionRestorationController;
+use App\Http\Controllers\TwinViewController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserEmailResetNotificationController;
 use App\Http\Controllers\UserEmailVerificationController;
@@ -97,6 +99,11 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('twins/{twin}/issues/{issue}/comments', [TwinIssueCommentController::class, 'store'])->scopeBindings()->middleware('throttle:60,1')->name('twins.issues.comments.store');
     Route::delete('twins/{twin}/issues/{issue}/comments/{comment}', [TwinIssueCommentController::class, 'destroy'])->scopeBindings()->name('twins.issues.comments.destroy');
     Route::get('twins/{twin}/issues/{issue}/comments/{comment}/photo', [TwinIssuePhotoController::class, 'show'])->scopeBindings()->name('twins.issues.comments.photo');
+    Route::post('twins/{twin}/views', [TwinViewController::class, 'store'])->middleware('throttle:30,1')->name('twins.views.store');
+    Route::patch('twins/{twin}/views/{savedView}', [TwinViewController::class, 'update'])->scopeBindings()->name('twins.views.update');
+    Route::delete('twins/{twin}/views/{savedView}', [TwinViewController::class, 'destroy'])->scopeBindings()->name('twins.views.destroy');
+    Route::post('twins/{twin}/views/{savedView}/opening', [TwinOpeningViewController::class, 'store'])->scopeBindings()->name('twins.views.opening.store');
+    Route::delete('twins/{twin}/opening-view', [TwinOpeningViewController::class, 'destroy'])->name('twins.opening-view.destroy');
 
     // Organisations...
     Route::post('organisations', [OrganisationController::class, 'store'])->name('organisations.store');
