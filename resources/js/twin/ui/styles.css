@@ -843,6 +843,10 @@
         stroke-width: 1;
         stroke-dasharray: 3 3;
     }
+    .chart-band {
+        fill: var(--ink-3);
+        opacity: 0.18;
+    }
     .chart-marker {
         stroke: var(--accent);
         stroke-width: 1;

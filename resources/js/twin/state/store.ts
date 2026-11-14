@@ -219,6 +219,8 @@ export interface Recorded {
         max: number;
         count: number;
     }[];
+    /** The usual range at each point, when the metric is watched for anomalies. */
+    expected?: { t: number; low: number; high: number }[] | null;
 }
 
 /**

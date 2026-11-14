@@ -15,6 +15,8 @@ interface Props {
     references?: { value: number; label: string }[];
     formatValue: (v: number) => string;
     formatTime: (t: number) => string;
+    /** A shaded range behind the lines, such as the usual band for the hour. */
+    band?: { t: number; low: number; high: number }[];
     /** Marks a moment on the chart, such as the time-travel position. */
     marker?: number;
     axes?: boolean;
@@ -29,6 +31,7 @@ export function LineChart({
     series,
     height = 120,
     references = [],
+    band = [],
     formatValue,
     formatTime,
     marker,
@@ -40,7 +43,11 @@ export function LineChart({
     const pad = axes ? PAD : SPARK_PAD;
     const all = series.flatMap((s) => s.points);
     const ts = all.map((p) => p.t);
-    const vs = [...all.map((p) => p.v), ...references.map((r) => r.value)];
+    const vs = [
+        ...all.map((p) => p.v),
+        ...references.map((r) => r.value),
+        ...band.flatMap((b) => [b.low, b.high]),
+    ];
 
     if (all.length < 2 || width === 0) {
         return (
@@ -119,6 +126,13 @@ export function LineChart({
                             {formatTime(t1)}
                         </text>
                     </g>
+                )}
+                {band.length > 1 && (
+                    <path
+                        className="chart-band"
+                        d={bandPath(band, x, y)}
+                        aria-hidden
+                    />
                 )}
                 {references.map((r) => (
                     <g key={r.label} className="chart-reference">
@@ -225,6 +239,21 @@ function linePath(
                 `${i ? 'L' : 'M'}${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`,
         )
         .join('');
+}
+
+function bandPath(
+    band: NonNullable<Props['band']>,
+    x: (t: number) => number,
+    y: (v: number) => number,
+): string {
+    const upper = band.map(
+        (b, i) =>
+            `${i ? 'L' : 'M'}${x(b.t).toFixed(1)} ${y(b.high).toFixed(1)}`,
+    );
+    const lower = [...band]
+        .reverse()
+        .map((b) => `L${x(b.t).toFixed(1)} ${y(b.low).toFixed(1)}`);
+    return `${upper.join('')}${lower.join('')}Z`;
 }
 
 function nearest(points: Series['points'], t: number): number {

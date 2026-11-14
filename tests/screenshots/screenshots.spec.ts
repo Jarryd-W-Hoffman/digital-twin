@@ -1196,6 +1196,56 @@ test('screenshots', async ({ page, context }) => {
         );
     });
 
+    await test.step('anomaly detection', async () => {
+        // Three weeks of the store before the day already recorded, hourly,
+        // wandering a little around 1.1 °C.
+        const depot = artisan(
+            'tinker',
+            '--execute',
+            `$t = App\\Models\\Twin::query()->where("name", "Harbour Depot")->sole();
+     resolve(App\\Actions\\RecordReadings::class)->handle($t, array_map(fn ($i) => ["asset" => "store", "metric" => "tempC", "value" => round(1.1 + 0.3 * sin($i * 1.7), 2), "at" => now()->subDay()->subHours($i)->getTimestampMs()], range(1, 21 * 24)));
+     echo $t->id;`,
+        ).trim();
+        await page.goto(`/twins/${depot}`);
+        await settle(page, 6000);
+        await page.getByRole('button', { name: 'Anomalies' }).click();
+        const anomalies = page.getByRole('complementary', {
+            name: 'Anomalies',
+        });
+        await anomalies
+            .getByLabel('Metric')
+            .selectOption({ label: 'Seafood store · Temperature' });
+        await anomalies
+            .getByLabel('Alert when unchanged for (hours)')
+            .fill('6');
+        await anomalies.getByRole('button', { name: 'Watch' }).click();
+        await expect(
+            anomalies.getByRole('listitem', {
+                name: 'Seafood store · Temperature',
+            }),
+        ).toContainText('medium sensitivity', { timeout: 30_000 });
+
+        // The last few minutes well above usual, then the five-minute check.
+        artisan(
+            'tinker',
+            '--execute',
+            `$t = App\\Models\\Twin::query()->whereKey("${depot}")->sole();
+     resolve(App\\Actions\\RecordReadings::class)->handle($t, array_map(fn ($i) => ["asset" => "store", "metric" => "tempC", "value" => 3.4, "at" => now()->subMinutes(2 * $i)->getTimestampMs()], range(0, 4)));
+     resolve(App\\Actions\\DetectAnomalies::class)->handle();`,
+        );
+        await page.reload();
+        await settle(page, 6000);
+        await page.getByRole('button', { name: /^Anomalies/ }).click();
+        await expect(anomalies.getByRole('status')).toContainText('usually');
+        await shot(anomalies, 'anomalies');
+        await anomalies
+            .getByRole('button', { name: 'Close anomalies' })
+            .click();
+        await page.locator('.asset-row', { hasText: 'Seafood store' }).click();
+        await page.waitForTimeout(3000);
+        await shot(page, 'anomaly-band');
+    });
+
     await test.step('members and account', async () => {
         await page.goto('/organisation/members');
         await expect(page.getByText('viewer@example.com')).toBeVisible();

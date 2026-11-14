@@ -378,9 +378,10 @@ function RecordedReadings({
                         },
                     ]}
                     height={120}
+                    band={shown.data.expected ?? undefined}
                     formatValue={(x) => formatMetric(metric, x)}
                     formatTime={(t) => dateTime(t, offset)}
-                    label={`${metric.label}, recorded`}
+                    label={`${metric.label}, recorded${shown.data.expected ? ', with its usual range' : ''}`}
                 />
             )}
         </section>

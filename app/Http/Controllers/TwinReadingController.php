@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\ExpectedBand;
 use App\Actions\ReadingHistory;
 use App\Http\Requests\IndexTwinReadingsRequest;
 use App\Models\Twin;
@@ -15,17 +16,14 @@ use Illuminate\Support\Facades\Gate;
  */
 final readonly class TwinReadingController
 {
-    public function index(IndexTwinReadingsRequest $request, Twin $twin, ReadingHistory $history): JsonResponse
+    public function index(IndexTwinReadingsRequest $request, Twin $twin, ReadingHistory $history, ExpectedBand $band): JsonResponse
     {
         Gate::authorize('view', $twin);
 
-        return response()->json($history->handle(
-            $twin,
-            $request->string('asset')->value(),
-            $request->string('metric')->value(),
-            $request->integer('from'),
-            $request->integer('to'),
-            $request->integer('buckets', 300),
-        ));
+        $asset = $request->string('asset')->value();
+        $metric = $request->string('metric')->value();
+        $recorded = $history->handle($twin, $asset, $metric, $request->integer('from'), $request->integer('to'), $request->integer('buckets', 300));
+
+        return response()->json([...$recorded, 'expected' => $band->handle($twin, $asset, $metric, $recorded['points'])]);
     }
 }
