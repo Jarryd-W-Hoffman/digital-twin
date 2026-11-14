@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DefinitionEditor } from '@/components/definition-editor';
 import type { GatewayStatus } from '@/components/gateway-panel';
 import type { OpcUaWrites } from '@/components/opcua-panel';
+import type { ReadingImportSummary } from '@/components/reading-import-panel';
 import { TwinAnomalies, type Anomalies } from '@/components/twin-anomalies';
 import {
     TwinEditor,
@@ -64,6 +65,8 @@ type Props = {
     types: LibraryTypeSummary[];
     gateway: GatewayStatus;
     opcuaWrites: OpcUaWrites;
+    /** CSV files of readings imported into its history; editors only. */
+    readingImports: ReadingImportSummary[];
     /** The alerts the gateway says are open; null without a gateway. */
     alerts: ServerAlert[] | null;
     /** The issues pinned in the scene, and the one open in the panel (`?issue=`). */
@@ -99,6 +102,7 @@ export default function ShowTwin({
     types,
     gateway,
     opcuaWrites,
+    readingImports,
     alerts,
     issues,
     issue,
@@ -419,6 +423,7 @@ export default function ShowTwin({
                         topicPrefix={project.topicPrefix}
                         opcuaServers={project.opcuaServers}
                         opcuaWrites={opcuaWrites}
+                        readingImports={readingImports}
                         onClose={() => setEditing(null)}
                     />
                 )}

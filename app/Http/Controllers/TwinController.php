@@ -20,6 +20,7 @@ use App\Models\Issue;
 use App\Models\IssueComment;
 use App\Models\OpcUaWrite;
 use App\Models\ProjectAsset;
+use App\Models\ReadingImport;
 use App\Models\SavedView;
 use App\Models\SurveyComparison;
 use App\Models\Twin;
@@ -221,6 +222,20 @@ final readonly class TwinController
                         'image' => route('twins.survey-comparisons.images.show', [$twin, $comparison, $index + 1]),
                     ], $comparison->results ?? [], array_keys($comparison->results ?? [])),
                 ])->all(),
+            // CSV files of readings imported into its history, for its editors.
+            'readingImports' => fn (): array => $user->can('update', $twin) ? $twin->readingImports()->with('creator:id,name')->latest()->limit(50)->get()
+                ->map(fn (ReadingImport $import): array => [
+                    'id' => $import->id,
+                    'fileName' => $import->file_name,
+                    'status' => $import->status->value,
+                    'error' => $import->error,
+                    'series' => count($import->series),
+                    'summary' => $import->summary,
+                    'firstAt' => $import->first_at?->toIso8601String(),
+                    'lastAt' => $import->last_at?->toIso8601String(),
+                    'createdBy' => $import->creator?->name,
+                    'createdAt' => $import->created_at->toIso8601String(),
+                ])->all() : [],
             // The links showing it outside the organisation, for those who make them.
             'shareLinks' => fn (): array => $user->can('share', $twin) ? $twin->shareLinks()->with('creator:id,name')->latest()->limit(50)->get()
                 ->map(fn (TwinShareLink $link): array => [

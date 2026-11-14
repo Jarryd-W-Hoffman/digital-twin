@@ -2,6 +2,10 @@ import { router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { GatewayPanel, type GatewayStatus } from '@/components/gateway-panel';
 import { OpcUaPanel, type OpcUaWrites } from '@/components/opcua-panel';
+import {
+    ReadingImportPanel,
+    type ReadingImportSummary,
+} from '@/components/reading-import-panel';
 import { TelemetryPanel } from '@/components/telemetry-panel';
 import { index as typeLibrary } from '@/routes/organisation/types';
 import { store as storeAsset } from '@/routes/twins/assets';
@@ -83,6 +87,7 @@ export function TwinEditor({
     topicPrefix,
     opcuaServers,
     opcuaWrites,
+    readingImports,
     onClose,
 }: {
     twinId: string;
@@ -90,6 +95,7 @@ export function TwinEditor({
     topicPrefix: string;
     opcuaServers: string[];
     opcuaWrites: OpcUaWrites;
+    readingImports: ReadingImportSummary[];
     definition: TwinDefinition;
     versions: TwinVersionSummary[];
     assets: TwinAssetSummary[];
@@ -681,6 +687,12 @@ export function TwinEditor({
                         ? { url: gateway.url, ticket: gateway.ticket }
                         : null
                 }
+            />
+
+            <ReadingImportPanel
+                twinId={twinId}
+                definition={definition}
+                imports={readingImports}
             />
 
             <section>

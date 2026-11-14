@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\ReadingHistory;
+use App\Actions\RecordReadings;
 use App\Http\Middleware\AuthenticateApiToken;
 use App\Http\Requests\IndexTwinReadingsRequest;
+use App\Http\Requests\StoreApiReadingsRequest;
 use App\Models\Twin;
 use Illuminate\Http\JsonResponse;
 
 /**
  * A metric's recorded history, bucketed, for API tokens: the same answer
- * the twin's charts get.
+ * the twin's charts get. Tokens that may write add readings, for systems
+ * that measure without a gateway.
  */
 final readonly class ApiTwinReadingController
 {
@@ -28,5 +31,10 @@ final readonly class ApiTwinReadingController
             $request->integer('to'),
             $request->integer('buckets', 300),
         )]);
+    }
+
+    public function store(StoreApiReadingsRequest $request, Twin $twin, RecordReadings $action): JsonResponse
+    {
+        return response()->json(['stored' => $action->handle($twin, $request->readings())], 202);
     }
 }

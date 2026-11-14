@@ -25,6 +25,7 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 | 🔑  | [The API](15-the-api.md)                                         | API tokens, reading from other systems, and raising issues and acknowledging alerts from them                                                          |
 | 🗺️  | [Map layers and imagery](16-map-layers-and-imagery.md)           | Uploading GeoJSON, KML, shapefiles, DXF and GeoPackages as map layers, and GeoTIFF orthophotos as imagery, and drawing them in a twin                 |
 | ⛏️  | [Comparing surveys](17-comparing-surveys.md)                     | Cut and fill between surveys of the ground inside an area, over time, for stockpiles, pits and earthworks                                            |
+| 📥  | [Importing readings](18-importing-readings.md)                   | Readings from CSV files and other systems, without a gateway: survey monitoring, lab results and loggers                                             |
 
 ## Conventions
 

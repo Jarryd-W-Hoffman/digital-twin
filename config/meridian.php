@@ -94,6 +94,9 @@ return [
     */
     'readings' => [
         'retention_days' => (int) env('MERIDIAN_READINGS_RETENTION_DAYS', 365),
+        // CSV files of readings imported into a twin's history.
+        'import_max_mb' => (int) env('MERIDIAN_READINGS_IMPORT_MAX_MB', 50),
+        'import_max_readings' => (int) env('MERIDIAN_READINGS_IMPORT_MAX', 2_000_000),
     ],
 
     /*

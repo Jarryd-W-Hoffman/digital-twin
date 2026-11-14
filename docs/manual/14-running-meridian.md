@@ -155,6 +155,8 @@ Meridian talks to an organisation's identity provider itself, to find its endpoi
 
 Readings are kept for `MERIDIAN_READINGS_RETENTION_DAYS` (365 by default). On TimescaleDB they're stored in day chunks, compressed after a week, and old chunks are dropped automatically. On plain Postgres or SQLite, the scheduler trims them each day, so make sure the scheduler runs.
 
+[Imported CSV files](18-importing-readings.md) are read by the queue worker (the default queue, not the converter's), up to `MERIDIAN_READINGS_IMPORT_MAX_MB` (50 MB) and `MERIDIAN_READINGS_IMPORT_MAX` readings (2,000,000) each. PHP's upload limits must allow the file size too.
+
 The [audit log](02-organisations-and-members.md#the-audit-log) is kept for `MERIDIAN_AUDIT_RETENTION_DAYS` (730 by default), and the scheduler removes older entries each day.
 
 ## Basemaps

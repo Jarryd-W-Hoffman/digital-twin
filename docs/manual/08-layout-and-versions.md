@@ -23,7 +23,7 @@ flowchart LR
 
 On the twin page, choose **Layout** in the top bar. Only editors see it. The panel opens on the right, over the inspector; choose **✕** to close it.
 
-The panel has these sections, from the top: **Upload**, **Layers**, **Library**, **Types**, **Gateway**, **Telemetry**, **OPC UA**, **Definition** and **History**. Zones, assets and everything else in the twin are edited in the separate **Definition** panel; see [Edit a definition](12-twin-definitions.md#edit-a-definition).
+The panel has these sections, from the top: **Upload**, **Layers**, **Library**, **Types**, **Gateway**, **Telemetry**, **OPC UA**, **Import readings**, **Definition** and **History**. Zones, assets and everything else in the twin are edited in the separate **Definition** panel; see [Edit a definition](12-twin-definitions.md#edit-a-definition).
 
 ## Add an upload
 
@@ -115,3 +115,4 @@ Under **History**, every version is listed newest first, with its note (**Create
 - [Projects and the library](03-projects-and-the-library.md): uploading to the library.
 - [Devices and MQTT](10-devices-and-mqtt.md#map-topics-onto-metrics): the **Telemetry** section.
 - [Gateways and live data](09-gateways-and-live-data.md): the **Gateway** section.
+- [Importing readings](18-importing-readings.md): the **Import readings** section.

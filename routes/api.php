@@ -53,7 +53,8 @@ Route::middleware(AuthenticateBroker::class)->prefix('mqtt/{secret}')->name('mqt
 });
 
 // Other systems read an organisation's data with one of its API tokens, and
-// those that may write raise and comment on issues and acknowledge alerts.
+// those that may write add readings, raise and comment on issues and
+// acknowledge alerts.
 Route::middleware([AuthenticateApiToken::class, 'throttle:api'])->prefix('v1')->name('api.v1.')->group(function (): void {
     Route::get('token', [ApiTokenController::class, 'show'])->name('token.show');
     Route::get('audit', [ApiAuditController::class, 'index'])->name('audit.index');
@@ -62,6 +63,7 @@ Route::middleware([AuthenticateApiToken::class, 'throttle:api'])->prefix('v1')->
     Route::get('twins', [ApiTwinController::class, 'index'])->name('twins.index');
     Route::get('twins/{twin}', [ApiTwinController::class, 'show'])->name('twins.show');
     Route::get('twins/{twin}/readings', [ApiTwinReadingController::class, 'index'])->name('twins.readings.index');
+    Route::post('twins/{twin}/readings', [ApiTwinReadingController::class, 'store'])->middleware(EnsureApiTokenWrites::class)->name('twins.readings.store');
     Route::get('twins/{twin}/alerts', [ApiTwinAlertController::class, 'index'])->name('twins.alerts.index');
     Route::get('twins/{twin}/issues', [ApiTwinIssueController::class, 'index'])->name('twins.issues.index');
     Route::post('twins/{twin}/issues', [ApiTwinIssueController::class, 'store'])->middleware(EnsureApiTokenWrites::class)->name('twins.issues.store');

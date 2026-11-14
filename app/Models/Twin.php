@@ -151,6 +151,14 @@ final class Twin extends Model
     }
 
     /**
+     * @return HasMany<ReadingImport, $this>
+     */
+    public function readingImports(): HasMany
+    {
+        return $this->hasMany(ReadingImport::class);
+    }
+
+    /**
      * @return HasMany<SurveyComparison, $this>
      */
     public function surveyComparisons(): HasMany

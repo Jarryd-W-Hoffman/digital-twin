@@ -46,6 +46,7 @@ use App\Http\Controllers\TwinLayerController;
 use App\Http\Controllers\TwinOpcUaWritesController;
 use App\Http\Controllers\TwinOpeningViewController;
 use App\Http\Controllers\TwinReadingController;
+use App\Http\Controllers\TwinReadingImportController;
 use App\Http\Controllers\TwinShareLinkController;
 use App\Http\Controllers\TwinSurveyComparisonController;
 use App\Http\Controllers\TwinSurveyComparisonImageController;
@@ -128,6 +129,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     Route::put('twins/{twin}/survey-comparisons/{surveyComparison}', [TwinSurveyComparisonController::class, 'update'])->scopeBindings()->name('twins.survey-comparisons.update');
     Route::delete('twins/{twin}/survey-comparisons/{surveyComparison}', [TwinSurveyComparisonController::class, 'destroy'])->scopeBindings()->name('twins.survey-comparisons.destroy');
     Route::get('twins/{twin}/survey-comparisons/{surveyComparison}/images/{pair}', [TwinSurveyComparisonImageController::class, 'show'])->scopeBindings()->whereNumber('pair')->name('twins.survey-comparisons.images.show');
+    Route::post('twins/{twin}/reading-imports', [TwinReadingImportController::class, 'store'])->middleware('throttle:30,1')->name('twins.reading-imports.store');
+    Route::delete('twins/{twin}/reading-imports/{readingImport}', [TwinReadingImportController::class, 'destroy'])->scopeBindings()->name('twins.reading-imports.destroy');
     Route::post('twins/{twin}/share-links', [TwinShareLinkController::class, 'store'])->name('twins.share-links.store');
     Route::delete('twins/{twin}/share-links/{shareLink}', [TwinShareLinkController::class, 'destroy'])->scopeBindings()->name('twins.share-links.destroy');
     Route::put('twins/{twin}/types/{type}/library', [TwinTypeController::class, 'update'])->name('twins.types.library.update');

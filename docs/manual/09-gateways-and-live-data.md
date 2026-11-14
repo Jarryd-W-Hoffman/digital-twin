@@ -20,7 +20,7 @@ flowchart LR
 - The gateway fetches the twin's latest version, and follows each new version within a few seconds.
 - A reading **pins** its metric: the model uses the measured value and works out the rest from it. Where sensors report, the twin follows reality; where they don't, the model fills the gaps.
 - The gateway runs the twin's rules itself and tells Meridian which alerts are open, so they're [logged](07-alerts-time-and-what-if.md#the-alert-log) even when nobody is watching.
-- Every reading is also sent back to Meridian and kept, so you can [chart what was recorded](10-devices-and-mqtt.md#see-what-was-recorded) long after the model's own 24-hour window.
+- Every reading is also sent back to Meridian and kept, so you can [chart what was recorded](10-devices-and-mqtt.md#see-what-was-recorded) long after the model's own 24-hour window. Readings that arrive in files, or from systems without a gateway, can be [imported](18-importing-readings.md) instead.
 - The gateway is admitted by a **token**. Browsers get in with a pass Meridian signs for each visit, which says whether that person may send commands.
 
 ## Issue a token

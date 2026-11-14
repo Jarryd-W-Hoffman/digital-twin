@@ -86,11 +86,11 @@ Messages without a number are skipped and counted on the gateway's `/health`. A 
 
 ![The Recorded chart in the inspector: the Seafood store's measured temperature over the last day, with a spike and the most recent readings.](../images/recorded.png)
 
-Every reading the gateway receives is kept by Meridian, for a year unless your administrator changes it. Select an asset in the viewer and find **Recorded** in the inspector:
+Every reading the gateway receives is kept by Meridian, for a year unless your administrator changes it, and so are readings [imported](18-importing-readings.md) from files or other systems. Select an asset in the viewer and find **Recorded** in the inspector:
 
-- Choose a metric, and **24 h**, **7 days** or **30 days**.
+- Choose a metric, and **24 h**, **7 days**, **30 days** or **1 year**.
 - The chart shows the average reading for each interval, in real time rather than the model's clock.
-- Until a gateway has sent something for that metric, it says **No readings recorded in this range.**
+- Until something has been recorded for that metric, it says **No readings recorded in this range.**
 
 ## Tips
 

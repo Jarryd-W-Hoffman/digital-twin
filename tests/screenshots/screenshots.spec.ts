@@ -1463,6 +1463,59 @@ test('screenshots', async ({ page, context }) => {
         await page.getByLabel('Uploaded layers').check();
     });
 
+    await test.step('importing readings', async () => {
+        // A week of the store's logger, every half hour, ending two days ago:
+        // about 1 °C, warming during each morning's defrost, and its door.
+        const rows = ['Logged,Seafood store · Temperature,Door open'];
+        const end = Date.now() - 2 * 86_400_000;
+        for (let at = end - 7 * 86_400_000; at <= end; at += 1_800_000) {
+            const local = new Date(at + 12 * 3_600_000);
+            const hour = local.getUTCHours() + local.getUTCMinutes() / 60;
+            const defrost = hour >= 6 && hour < 7 ? 3.5 : 0;
+            const temperature =
+                1 + 0.4 * Math.sin((hour / 24) * 2 * Math.PI) + defrost;
+            rows.push(
+                `${local.toISOString().slice(0, 16).replace('T', ' ')},${temperature.toFixed(2)},${hour >= 8 && hour < 9 ? 1 : 0}`,
+            );
+        }
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+        const imports = editor.getByRole('region', { name: 'Import readings' });
+        await imports.getByLabel('CSV file').setInputFiles({
+            name: 'store-logger.csv',
+            mimeType: 'text/csv',
+            buffer: Buffer.from(rows.join('\n')),
+        });
+        await expect(
+            imports.getByLabel('Metric for Seafood store · Temperature'),
+        ).toHaveValue('store|tempC');
+        await imports.scrollIntoViewIfNeeded();
+        await shot(imports, 'import-readings');
+        await imports.getByRole('button', { name: 'Import 1 series' }).click();
+        const item = imports
+            .getByRole('list', { name: 'Imports' })
+            .getByRole('listitem', { name: 'store-logger.csv' });
+        await expect(item.getByRole('status')).toHaveText('Importing…');
+        artisan('queue:work', '--stop-when-empty');
+        await expect(item.getByRole('status')).toContainText(
+            'readings in 1 series',
+            { timeout: 30_000 },
+        );
+        await page.getByRole('button', { name: 'Close layout' }).click();
+        await page
+            .getByRole('button', { name: /Seafood store/ })
+            .first()
+            .click();
+        const recorded = page.getByRole('region', {
+            name: 'Recorded readings',
+        });
+        await recorded.getByRole('button', { name: '30 days' }).click();
+        await expect(
+            recorded.getByRole('img', { name: 'Temperature, recorded' }),
+        ).toBeVisible();
+        await page.waitForTimeout(1000);
+        await shot(recorded, 'import-history');
+    });
+
     await test.step('members and account', async () => {
         await page.goto('/organisation/members');
         await expect(page.getByText('viewer@example.com')).toBeVisible();
