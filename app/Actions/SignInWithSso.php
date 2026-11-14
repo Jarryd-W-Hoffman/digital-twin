@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\AuditAction;
+use App\Enums\OrganisationRole;
 use App\Models\SsoConnection;
 use App\Models\SsoIdentity;
 use App\Models\User;
@@ -45,7 +46,26 @@ final readonly class SignInWithSso
             return $user;
         }
 
-        throw_if(User::query()->where('email', $claims['email'])->exists(), ValidationException::withMessages([
+        $existing = User::query()->where('email', $claims['email'])->first();
+
+        // An account this provider made through provisioning is linked on
+        // first sign-in: it has no password, and the provider vouched for it.
+        if ($existing instanceof User && $connection->scimUsers()->where('user_id', $existing->id)->where('created_account', true)->exists()) {
+            throw_if(! $existing->roleIn($organisation) instanceof OrganisationRole, ValidationException::withMessages([
+                'email' => __("You're no longer a member of :organisation. Ask one of its admins to add you again.", ['organisation' => $organisation->name]),
+            ]));
+
+            $connection->identities()->create([
+                'user_id' => $existing->id,
+                'subject' => $claims['subject'],
+                'email' => $claims['email'],
+                'last_signed_in_at' => now(),
+            ]);
+
+            return $existing;
+        }
+
+        throw_if($existing instanceof User, ValidationException::withMessages([
             'email' => __("You already have a Meridian account. Sign in with your password or passkey, then link :organisation's single sign-on under Settings, Single sign-on.", ['organisation' => $organisation->name]),
         ]));
 

@@ -149,6 +149,39 @@ opening anything in the organisation (a page, an action, a twin's stream):
         → refused; its pages go to "Single sign-on required"
 ```
 
+### Provision people automatically
+
+The identity provider can also add people to the organisation, and take them out again when they leave or change jobs, so nobody has to do it in Meridian. This uses **SCIM**, which Microsoft Entra ID, Okta, OneLogin, JumpCloud and most others speak.
+
+1. On **Single sign-on**, under **3. Provision people automatically**, copy the **SCIM base URL**.
+2. Choose **Make provisioning token**, and copy the token straight away: it's shown once.
+3. In the identity provider, turn on provisioning (in Entra: the enterprise application's **Provisioning**, mode **Automatic**). Give it the base URL as the **Tenant URL** or **SCIM connector base URL**, and the token as the **Secret token** or **API token** (bearer token).
+4. Assign the people or groups to provision, and start it.
+
+What the identity provider does then:
+
+| It… | Meridian… |
+| --- | --- |
+| Provisions someone new | Adds them as a member with the **role for new people**. If no account has their address, one is made; they sign in to it through single sign-on (it has no password) |
+| Provisions someone who already has an account | Adds that account as it is. It doesn't change their name or link their single sign-on: they link it themselves |
+| Deactivates or deletes someone | Removes them from the organisation at once. Their next click is refused. Their account stays, as for anyone removed |
+| Reactivates someone | Adds them back with the role for new people |
+| Renames someone | Changes the name on accounts it made. An account's email address never changes |
+
+- Only addresses in the **Email domains** above can be provisioned.
+- **Owners are never removed** this way, so the identity provider can't lock out the people who manage it. Deactivating an owner is noted in the audit log, and they stay.
+- Roles other than the role for new people are still changed under **Members**, and stay as you set them.
+- What it does appears in the audit log as **Provisioning (API)**. The page shows when the token was last used and how many people it has active.
+- **Make a new token** replaces the old one at once; **Revoke** stops provisioning, and everyone it added stays.
+
+```
+the identity provider, with the token:            Meridian:
+    POST   /Users  {userName, emails, active}  → account (made if new) + membership, default role
+    PATCH  /Users/{id}  active: false          → membership removed (owners kept)
+    PATCH  /Users/{id}  active: true           → membership back
+    DELETE /Users/{id}                         → membership removed, link forgotten
+```
+
 ## The audit log
 
 The **audit log** keeps who did what in the organisation, so that months later you can still answer *who removed that device?* or *when did OPC UA writes get turned on, and by whom?* Owners and admins read it: choose **Audit log** in the sidebar.
@@ -159,7 +192,7 @@ Each entry gives **when** it happened, **who** did it, from which address, and *
 
 | Area                                   | What's kept                                                                                                                       |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Members, API tokens and single sign-on | Members added (also by single sign-on), roles changed, members removed; API tokens made (with their access and expiry) and revoked; single sign-on set up (whether it's required), turned off, and linked or unlinked by people |
+| Members, API tokens and single sign-on | Members added (also by single sign-on), roles changed, members removed; API tokens made (with their access and expiry) and revoked; single sign-on set up (whether it's required), turned off, and linked or unlinked by people; provisioning tokens made and revoked, and owners the identity provider deactivated but who were kept |
 | Projects, uploads and types            | Projects created and deleted; uploads added to and deleted from a library; types saved to and deleted from the type library       |
 | Twins and versions                     | Twins created, renamed or described, and deleted; versions saved, with their note; the opening view changed                       |
 | Gateways, devices, OPC UA and channels | Gateway tokens issued and revoked; devices added, their passwords reset, deleted; OPC UA servers added and deleted, and writes turned on or off; notification channels added and deleted |
@@ -185,7 +218,7 @@ flowchart LR
 
 - **Give people the smallest role that works.** A control room that only needs to watch and respond to alerts can be operators; people who only need to look can be viewers.
 - **Keep shared equipment in the library.** Save a type from the twin where you got it right, and other twins can take it from there.
-- **Use single sign-on for a large team, and require it.** People leaving at the identity provider can no longer sign in, and their second factor is the one they already use. Requiring it means an old password gets nobody in either.
+- **Use single sign-on for a large team, require it, and provision through it.** People leaving at the identity provider can no longer sign in, and their second factor is the one they already use. Requiring it means an old password gets nobody in either, and provisioning takes them out of the organisation the moment they're deactivated.
 - **Check the audit log after a surprise.** If a device stops reporting or a twin looks different, the log says who last changed it and when.
 - **Use separate organisations for separate clients.** Nothing is shared between organisations, so a consultant can keep each client's sites apart and switch between them.
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Http\Middleware\AuthenticateApiToken;
+use App\Http\Middleware\AuthenticateScimToken;
 use App\Support\DirectUploads;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -34,6 +35,8 @@ final class AppServiceProvider extends ServiceProvider
         // limited per username instead.
         // Per token: the limiter runs after the token is checked.
         RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(120)->by('api:'.AuthenticateApiToken::token($request)->id));
+        // An identity provider provisioning a whole directory at once.
+        RateLimiter::for('scim', fn (Request $request): Limit => Limit::perMinute(600)->by('scim:'.AuthenticateScimToken::connection($request)->id));
         // Single sign-on starts and answers, each counted on its own per address.
         RateLimiter::for('sso', fn (Request $request): Limit => Limit::perMinute(10)->by('sso:'.$request->ip()));
         RateLimiter::for('sso-callback', fn (Request $request): Limit => Limit::perMinute(20)->by('sso-callback:'.$request->ip()));

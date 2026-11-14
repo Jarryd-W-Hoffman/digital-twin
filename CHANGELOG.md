@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Automatic provisioning** ([#45]): on **Single sign-on**, owners can **Make provisioning token** and give it, with the SCIM base URL, to the identity provider (Entra ID, Okta and others). It then adds people in the organisation's email domains as members with the role for new people, making accounts they sign in to through single sign-on if they have none, and removes them the moment it deactivates or deletes them. Owners are never removed. Its changes appear in the audit log as **Provisioning (API)**. Roadmap item 16.
 - **Requiring single sign-on** ([#43]): owners can **Require single sign-on for everyone but owners**. Members who signed in with a password or passkey then can't open the organisation's pages, take its actions or follow links into it until they've signed in through its identity provider in that session; **Single sign-on required** takes them through it (linking their account if need be) and back to where they were going. Owners are exempt, so a broken identity provider can't lock everyone out. Roadmap item 15.
 - **Single sign-on** ([#42]): owners connect the organisation's OpenID Connect identity provider (Microsoft Entra ID, Okta, Google Workspace, Keycloak and others) under **Single sign-on**, for its email domains. **Sign in with single sign-on** on the sign-in page takes a work email to the provider and back, with PKCE, state and nonce checked. Someone new can join with a chosen role (viewer or operator); someone with an account links it under **Settings**, **Single sign-on**, so a provider never takes over an account by email. The provider must be on a public `https://` address unless `MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS` allows otherwise. Setting it up, turning it off, linking and joining are in the audit log. Roadmap item 14 is done.
 - **Audit log** ([#41]): **Audit log** in the sidebar, for owners and admins, keeps who did what in the organisation: members added, re-roled and removed, API tokens made and revoked, projects, uploads, types, twins and versions, gateway tokens, devices, OPC UA servers and writes, notification channels, acknowledged alerts and issues. Each entry names who did it (a person, an API token, or Meridian for the scheduler), from which address, what it was done to and where, with the names things had, so it still reads right after they're deleted. It filters by area, pages 50 at a time, is kept for two years (`MERIDIAN_AUDIT_RETENTION_DAYS`), and is readable at `GET /api/v1/audit`. Roadmap item 14, **Single sign-on and an audit log**, starts here.
@@ -242,6 +243,7 @@ Dates are when the change was merged into `main` (UTC).
 [#41]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/41
 [#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#43]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/43
+[#45]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/45
 [#36]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/36
 [#34]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/34
 [#33]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/33

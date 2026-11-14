@@ -24,6 +24,8 @@ declare module '@inertiajs/core' {
                 tokenId: string;
                 token: string;
             };
+            /** A new provisioning (SCIM) token, shown once. */
+            scimToken?: string;
             /** A new webhook channel's signing secret. */
             channelSecret?: {
                 channelId: string;

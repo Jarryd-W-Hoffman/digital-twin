@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\AuthenticateApiToken;
+use App\Http\Middleware\AuthenticateScimToken;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // token, and before route models are found, so a caller without one
         // can't tell which ids exist.
         $middleware->prependToPriorityList(ThrottleRequests::class, AuthenticateApiToken::class);
+        $middleware->prependToPriorityList(ThrottleRequests::class, AuthenticateScimToken::class);
 
         $middleware->web(append: [
             HandleAppearance::class,

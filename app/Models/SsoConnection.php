@@ -26,13 +26,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read string $client_secret
  * @property-read bool $required
  * @property-read bool $auto_join
+ * @property-read string|null $scim_token_hash
+ * @property-read string|null $scim_token_hint
+ * @property-read CarbonInterface|null $scim_token_used_at
  * @property-read OrganisationRole $default_role
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Organisation $organisation
  * @property-read Collection<int, SsoDomain> $domains
  */
-#[Hidden(['client_secret'])]
+#[Hidden(['client_secret', 'scim_token_hash'])]
 final class SsoConnection extends Model
 {
     /** @use HasFactory<SsoConnectionFactory> */
@@ -54,6 +57,9 @@ final class SsoConnection extends Model
             'required' => 'boolean',
             'auto_join' => 'boolean',
             'default_role' => OrganisationRole::class,
+            'scim_token_hash' => 'string',
+            'scim_token_hint' => 'string',
+            'scim_token_used_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -81,6 +87,14 @@ final class SsoConnection extends Model
     public function identities(): HasMany
     {
         return $this->hasMany(SsoIdentity::class);
+    }
+
+    /**
+     * @return HasMany<ScimUser, $this>
+     */
+    public function scimUsers(): HasMany
+    {
+        return $this->hasMany(ScimUser::class);
     }
 
     /**

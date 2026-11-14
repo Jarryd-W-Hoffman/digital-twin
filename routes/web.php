@@ -6,6 +6,7 @@ use App\Http\Controllers\OrganisationApiTokenController;
 use App\Http\Controllers\OrganisationAuditController;
 use App\Http\Controllers\OrganisationController;
 use App\Http\Controllers\OrganisationMemberController;
+use App\Http\Controllers\OrganisationScimTokenController;
 use App\Http\Controllers\OrganisationSsoController;
 use App\Http\Controllers\OrganisationTypeController;
 use App\Http\Controllers\ProjectAssetController;
@@ -128,6 +129,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     Route::get('organisation/sso', [OrganisationSsoController::class, 'show'])->name('organisation.sso.show');
     Route::put('organisation/sso', [OrganisationSsoController::class, 'update'])->middleware('throttle:10,1')->name('organisation.sso.update');
     Route::delete('organisation/sso', [OrganisationSsoController::class, 'destroy'])->name('organisation.sso.destroy');
+    Route::post('organisation/sso/scim-token', [OrganisationScimTokenController::class, 'store'])->name('organisation.sso.scim-token.store');
+    Route::delete('organisation/sso/scim-token', [OrganisationScimTokenController::class, 'destroy'])->name('organisation.sso.scim-token.destroy');
     Route::get('organisation/api-tokens', [OrganisationApiTokenController::class, 'index'])->name('organisation.api-tokens.index');
     Route::post('organisation/api-tokens', [OrganisationApiTokenController::class, 'store'])->middleware('throttle:20,1')->name('organisation.api-tokens.store');
     Route::delete('organisation/api-tokens/{apiToken}', [OrganisationApiTokenController::class, 'destroy'])->name('organisation.api-tokens.destroy');

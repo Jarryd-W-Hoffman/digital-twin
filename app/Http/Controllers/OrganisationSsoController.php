@@ -39,8 +39,14 @@ final readonly class OrganisationSsoController
                 'autoJoin' => $connection->auto_join,
                 'defaultRole' => $connection->default_role->value,
                 'linked' => $connection->identities()->count(),
+                'scim' => [
+                    'hint' => $connection->scim_token_hint,
+                    'usedAt' => $connection->scim_token_used_at?->toIso8601String(),
+                    'provisioned' => $connection->scimUsers()->where('active', true)->count(),
+                ],
             ] : null,
             'redirectUri' => route('sso.callback'),
+            'scimUrl' => url('/api/scim/v2'),
             'roles' => collect([OrganisationRole::Viewer, OrganisationRole::Operator])->map(fn (OrganisationRole $role): array => ['value' => $role->value, 'label' => $role->label()]),
         ]);
     }

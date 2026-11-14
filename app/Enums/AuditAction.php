@@ -18,6 +18,9 @@ enum AuditAction: string
     case SsoRemoved = 'sso.removed';
     case SsoLinked = 'sso.linked';
     case SsoUnlinked = 'sso.unlinked';
+    case ScimTokenCreated = 'scim.token_created';
+    case ScimTokenRevoked = 'scim.token_revoked';
+    case ScimOwnerKept = 'scim.owner_kept';
     case ProjectCreated = 'project.created';
     case ProjectDeleted = 'project.deleted';
     case UploadAdded = 'upload.added';
@@ -80,6 +83,9 @@ enum AuditAction: string
             self::SsoRemoved => 'Turned off single sign-on',
             self::SsoLinked => 'Linked single sign-on',
             self::SsoUnlinked => 'Unlinked single sign-on',
+            self::ScimTokenCreated => 'Made a provisioning token',
+            self::ScimTokenRevoked => 'Revoked the provisioning token',
+            self::ScimOwnerKept => 'Kept an owner the identity provider deactivated',
             self::ProjectCreated => 'Created a project',
             self::ProjectDeleted => 'Deleted a project',
             self::UploadAdded => 'Uploaded to the library',
@@ -117,7 +123,8 @@ enum AuditAction: string
     {
         return match ($this) {
             self::MemberAdded, self::MemberRoleChanged, self::MemberRemoved, self::ApiTokenCreated, self::ApiTokenRevoked,
-            self::SsoSaved, self::SsoRemoved, self::SsoLinked, self::SsoUnlinked => 'access',
+            self::SsoSaved, self::SsoRemoved, self::SsoLinked, self::SsoUnlinked,
+            self::ScimTokenCreated, self::ScimTokenRevoked, self::ScimOwnerKept => 'access',
             self::ProjectCreated, self::ProjectDeleted, self::UploadAdded, self::UploadDeleted, self::TypeSaved, self::TypeDeleted => 'projects',
             self::DeviceAdded, self::DevicePasswordReset, self::DeviceDeleted, self::OpcUaServerAdded, self::OpcUaServerDeleted,
             self::GatewayTokenIssued, self::GatewayTokenRevoked, self::OpcUaWritesChanged, self::ChannelAdded, self::ChannelDeleted => 'connections',
