@@ -9,6 +9,7 @@ use App\Actions\UnlinkSsoIdentity;
 use App\Models\SsoConnection;
 use App\Models\SsoIdentity;
 use App\Models\User;
+use App\Support\SsoRequirement;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -52,11 +53,12 @@ final readonly class UserSsoIdentityController
         return Inertia::location($url);
     }
 
-    public function destroy(#[CurrentUser] User $user, SsoIdentity $identity, UnlinkSsoIdentity $action): RedirectResponse
+    public function destroy(#[CurrentUser] User $user, SsoIdentity $identity, UnlinkSsoIdentity $action, SsoRequirement $requirement): RedirectResponse
     {
         abort_unless($identity->user_id === $user->id, 404);
 
         $action->handle($identity);
+        $requirement->forget($identity->connection);
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Unlinked. Sign in with your password or passkey from now on.')]);
 
         return to_route('user-sso.index');

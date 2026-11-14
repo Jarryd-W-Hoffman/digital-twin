@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\OrganisationRole;
+use App\Support\SsoRequirement;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -90,6 +91,18 @@ final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function roleIn(Organisation $organisation): ?OrganisationRole
     {
         return $organisation->roleOf($this);
+    }
+
+    /**
+     * Their role in an organisation for what they may do there now: none
+     * while it requires single sign-on and this session hasn't signed in
+     * through it. Policies ask this; roleIn is plain membership.
+     */
+    public function accessIn(Organisation $organisation): ?OrganisationRole
+    {
+        $role = $this->roleIn($organisation);
+
+        return $role instanceof OrganisationRole && resolve(SsoRequirement::class)->blocks($this, $organisation, $role) ? null : $role;
     }
 
     /**

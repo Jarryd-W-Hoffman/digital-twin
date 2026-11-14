@@ -35,6 +35,7 @@ final readonly class OrganisationSsoController
                 'issuer' => $connection->issuer,
                 'clientId' => $connection->client_id,
                 'domains' => $connection->domains->map(fn (SsoDomain $domain): string => $domain->domain)->implode(', '),
+                'required' => $connection->required,
                 'autoJoin' => $connection->auto_join,
                 'defaultRole' => $connection->default_role->value,
                 'linked' => $connection->identities()->count(),

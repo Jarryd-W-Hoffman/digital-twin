@@ -41,6 +41,6 @@ final readonly class IssuePolicy
 
     private function role(User $user, Issue $issue): ?OrganisationRole
     {
-        return $user->roleIn($issue->twin->organisation);
+        return $user->accessIn($issue->twin->organisation);
     }
 }

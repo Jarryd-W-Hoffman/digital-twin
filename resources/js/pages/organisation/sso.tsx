@@ -14,6 +14,7 @@ type Connection = {
     issuer: string;
     clientId: string;
     domains: string;
+    required: boolean;
     autoJoin: boolean;
     defaultRole: string;
     linked: number;
@@ -46,6 +47,7 @@ export default function Sso({
         client_id: connection?.clientId ?? '',
         client_secret: '',
         domains: connection?.domains ?? '',
+        required: connection?.required ?? false,
         auto_join: connection?.autoJoin ?? false,
         default_role: connection?.defaultRole ?? 'viewer',
     });
@@ -159,6 +161,25 @@ export default function Sso({
                             }
                         />
                         <InputError message={form.errors.domains} />
+                    </div>
+                    <div className="grid gap-1">
+                        <div className="flex items-center gap-3">
+                            <Checkbox
+                                id="sso-required"
+                                checked={form.data.required}
+                                onCheckedChange={(checked) =>
+                                    form.setData('required', checked === true)
+                                }
+                            />
+                            <Label htmlFor="sso-required">
+                                Require single sign-on for everyone but owners
+                            </Label>
+                        </div>
+                        <p className="pl-7 text-sm text-muted-foreground">
+                            Members who signed in with a password or passkey go
+                            through the identity provider before they can work
+                            here. Owners can always come in, in case it breaks.
+                        </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
                         <Checkbox

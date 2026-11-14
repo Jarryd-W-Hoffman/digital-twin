@@ -23,6 +23,7 @@ use App\Http\Controllers\ProjectUploadController;
 use App\Http\Controllers\ProjectUploadPartController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SsoCallbackController;
+use App\Http\Controllers\SsoRequiredController;
 use App\Http\Controllers\SsoSessionController;
 use App\Http\Controllers\TwinAlertAcknowledgementController;
 use App\Http\Controllers\TwinAlertController;
@@ -52,6 +53,7 @@ use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSsoIdentityController;
 use App\Http\Controllers\UserTwoFactorAuthenticationController;
 use App\Http\Middleware\EnsureCurrentOrganisation;
+use App\Http\Middleware\EnsureSsoSignIn;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -60,7 +62,7 @@ Route::get('/', fn () => Inertia::render('welcome'))->name('home');
 // The sample twins run in the browser without an account.
 Route::get('demo', fn () => Inertia::render('demo'))->name('demo');
 
-Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group(function (): void {
+Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureSsoSignIn::class])->group(function (): void {
     Route::get('dashboard', fn () => to_route('projects.index'))->name('dashboard');
 
     // Projects and their libraries...
@@ -164,6 +166,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         ->name('user-passkey.index');
 
     // Single sign-on...
+    Route::get('sso/required', [SsoRequiredController::class, 'show'])->middleware(EnsureCurrentOrganisation::class)->name('sso.required');
+    Route::post('sso/required', [SsoRequiredController::class, 'store'])->middleware([EnsureCurrentOrganisation::class, 'throttle:sso'])->name('sso.required.store');
     Route::get('settings/sso', [UserSsoIdentityController::class, 'index'])->name('user-sso.index');
     Route::post('settings/sso', [UserSsoIdentityController::class, 'store'])->middleware('throttle:sso')->name('user-sso.store');
     Route::delete('settings/sso/{identity}', [UserSsoIdentityController::class, 'destroy'])->name('user-sso.destroy');

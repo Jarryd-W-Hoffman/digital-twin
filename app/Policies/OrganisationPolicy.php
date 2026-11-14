@@ -12,12 +12,12 @@ final readonly class OrganisationPolicy
 {
     public function view(User $user, Organisation $organisation): bool
     {
-        return $user->roleIn($organisation) instanceof OrganisationRole;
+        return $user->accessIn($organisation) instanceof OrganisationRole;
     }
 
     public function manageMembers(User $user, Organisation $organisation): bool
     {
-        return $user->roleIn($organisation)?->canManageMembers() ?? false;
+        return $user->accessIn($organisation)?->canManageMembers() ?? false;
     }
 
     /**
@@ -25,7 +25,7 @@ final readonly class OrganisationPolicy
      */
     public function manageTypes(User $user, Organisation $organisation): bool
     {
-        return $user->roleIn($organisation)?->canEditTwins() ?? false;
+        return $user->accessIn($organisation)?->canEditTwins() ?? false;
     }
 
     /**
@@ -34,7 +34,7 @@ final readonly class OrganisationPolicy
      */
     public function manageApiTokens(User $user, Organisation $organisation): bool
     {
-        return $user->roleIn($organisation)?->canManageMembers() ?? false;
+        return $user->accessIn($organisation)?->canManageMembers() ?? false;
     }
 
     /**
@@ -43,7 +43,7 @@ final readonly class OrganisationPolicy
      */
     public function viewAudit(User $user, Organisation $organisation): bool
     {
-        return $user->roleIn($organisation)?->canManageMembers() ?? false;
+        return $user->accessIn($organisation)?->canManageMembers() ?? false;
     }
 
     /**
@@ -52,6 +52,6 @@ final readonly class OrganisationPolicy
      */
     public function manageSso(User $user, Organisation $organisation): bool
     {
-        return $user->roleIn($organisation) === OrganisationRole::Owner;
+        return $user->accessIn($organisation) === OrganisationRole::Owner;
     }
 }

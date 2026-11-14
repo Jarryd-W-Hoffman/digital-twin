@@ -23,7 +23,7 @@ final readonly class SaveSsoConnection
     public function __construct(private OpenIdConnect $oidc, private RecordAuditEvent $audit) {}
 
     /**
-     * @param  array{issuer: string, client_id: string, client_secret: string|null, domains: list<string>, auto_join: bool, default_role: OrganisationRole}  $settings
+     * @param  array{issuer: string, client_id: string, client_secret: string|null, domains: list<string>, required: bool, auto_join: bool, default_role: OrganisationRole}  $settings
      */
     public function handle(Organisation $organisation, array $settings): SsoConnection
     {
@@ -38,6 +38,7 @@ final readonly class SaveSsoConnection
             $connection->fill([
                 'issuer' => $settings['issuer'],
                 'client_id' => $settings['client_id'],
+                'required' => $settings['required'],
                 'auto_join' => $settings['auto_join'],
                 'default_role' => $settings['default_role'],
                 ...($settings['client_secret'] === null ? [] : ['client_secret' => $settings['client_secret']]),
@@ -50,6 +51,7 @@ final readonly class SaveSsoConnection
 
             $this->audit->handle(AuditAction::SsoSaved, $organisation, $settings['issuer'], [
                 'domains' => implode(', ', $settings['domains']),
+                'required' => $settings['required'] ? 'yes' : 'no',
                 'autoJoin' => $settings['auto_join'] ? $settings['default_role']->value : 'off',
             ]);
 

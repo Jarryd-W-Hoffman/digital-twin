@@ -16,17 +16,17 @@ final readonly class ProjectPolicy
 {
     public function create(User $user, Organisation $organisation): bool
     {
-        return $user->roleIn($organisation)?->canEditTwins() ?? false;
+        return $user->accessIn($organisation)?->canEditTwins() ?? false;
     }
 
     public function view(User $user, Project $project): bool
     {
-        return $user->roleIn($project->organisation) instanceof OrganisationRole;
+        return $user->accessIn($project->organisation) instanceof OrganisationRole;
     }
 
     public function update(User $user, Project $project): bool
     {
-        return $user->roleIn($project->organisation)?->canEditTwins() ?? false;
+        return $user->accessIn($project->organisation)?->canEditTwins() ?? false;
     }
 
     public function delete(User $user, Project $project): bool

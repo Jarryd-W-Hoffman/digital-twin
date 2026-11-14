@@ -25,11 +25,11 @@ final readonly class StartSsoSignIn
     public function __construct(private OpenIdConnect $oidc) {}
 
     /**
-     * @return array{string, array{connection: string, state: string, nonce: string, verifier: string, link: string|null}}
+     * @return array{string, array{connection: string, state: string, nonce: string, verifier: string, link: string|null, then: string|null}}
      *
      * @throws ValidationException when the provider can't be reached
      */
-    public function handle(SsoConnection $connection, ?string $email = null, ?User $linking = null): array
+    public function handle(SsoConnection $connection, ?string $email = null, ?User $linking = null, ?string $then = null): array
     {
         $flow = [
             'connection' => $connection->id,
@@ -37,6 +37,7 @@ final readonly class StartSsoSignIn
             'nonce' => Str::random(40),
             'verifier' => Str::random(64),
             'link' => $linking?->id,
+            'then' => $then,
         ];
 
         try {
