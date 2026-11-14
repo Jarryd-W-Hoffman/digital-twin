@@ -19,6 +19,7 @@ flowchart LR
 
 - The converter that turns [point clouds](04-point-clouds.md) into tiles also does terrain. Each zoom level is a mesh that keeps the ground's shape to within a fraction of the DEM's cell size, so flat ground costs almost nothing and detail goes where the ground changes.
 - Heights are used as the DEM gives them, usually metres above sea level.
+- The DEM's heights are also kept as they were, beside the tiles, so it can be [compared with other surveys](17-comparing-surveys.md) of the same ground.
 - A twin has **one** terrain. Choosing another replaces it.
 - Terrain is **hillshaded**: lit from the north-west, as on a map, so slopes facing north-west are lighter and those facing south-east darker, whatever the time of day. Flat ground keeps its colour.
 
@@ -33,10 +34,10 @@ The item shows **Converting** while it works. Open **Log** to see what was made:
 ```text
 Downloaded depot-ground.tif
 EPSG:2193, 43 tiles to zoom 14, heights 0 to 96.77 m
-44 files written
+45 files written
 ```
 
-When it's done, the item reads **Terrain · 44 files · EPSG:2193**.
+When it's done, the item reads **Terrain · 45 files · EPSG:2193**.
 
 ![A DEM in the library, converted to terrain.](../images/library-terrain.png)
 
@@ -68,5 +69,6 @@ Meridian looks up the ground's height at the twin's **origin** and builds the wh
 
 - [Projects and the library](03-projects-and-the-library.md): uploading.
 - [Point clouds](04-point-clouds.md): the same converter, for scans.
+- [Comparing surveys](17-comparing-surveys.md): cut and fill between this DEM and others.
 - [Map layers and imagery](16-map-layers-and-imagery.md): a GeoTIFF orthophoto, chosen as **Imagery**, laid over the terrain.
 - [Running Meridian](14-running-meridian.md#the-converter): the converter service.

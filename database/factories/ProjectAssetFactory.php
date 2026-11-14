@@ -65,6 +65,23 @@ final class ProjectAssetFactory extends Factory
         ]);
     }
 
+    /**
+     * Terrain converted from a DEM that kept its heights, so it can be
+     * compared with other surveys.
+     */
+    public function survey(string $name = 'Ground survey'): self
+    {
+        return $this->state([
+            'kind' => ProjectAssetKind::Terrain,
+            'name' => $name,
+            'original_name' => 'ground.tif',
+            'entry' => 'layer.json',
+            'files' => 3,
+            'crs' => 'EPSG:2193',
+            'details' => ['surface' => 'surface.tif'],
+        ]);
+    }
+
     public function processing(): self
     {
         return $this->state(['status' => ProjectAssetStatus::Processing, 'entry' => '', 'files' => 0]);

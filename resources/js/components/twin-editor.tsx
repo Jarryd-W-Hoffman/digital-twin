@@ -44,6 +44,8 @@ export type TwinAssetSummary = {
     bytes: number;
     files: number;
     url: string;
+    /** Terrain or a point cloud that kept its heights, so surveys can be compared. */
+    survey: boolean;
 };
 
 /** A type in the organisation's library, and how it compares with this twin's type of that id. */

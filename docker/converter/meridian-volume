@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""
+Measures how the ground changed between two surveys inside an area: the
+volume cut (lowered) and filled (raised), from two height grids (GeoTIFFs in
+any coordinate system) and a polygon in longitude and latitude:
+
+    pick a grid in metres centred on the area (azimuthal equidistant)
+    resample both surveys onto it at --cell metres, masked to the area
+    for each cell where both surveys have a height:
+        change = after - before
+        below -tolerance: cut;  above +tolerance: fill
+    cut  = sum of the cells' lowering × cell area
+    fill = sum of the cells' raising × cell area
+    draw the change, red for cut and blue for fill, as a PNG in longitude and latitude
+
+Prints a one-line JSON summary: the volumes, the areas and the image's bounds.
+"""
+
+import argparse
+import json
+import math
+import sys
+
+import numpy as np
+from osgeo import gdal, ogr, osr
+
+gdal.UseExceptions()
+ogr.UseExceptions()
+osr.UseExceptions()
+
+NODATA = -9999.0
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    sys.exit(2)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Measures cut and fill between two surveys inside an area.")
+    parser.add_argument("before")
+    parser.add_argument("after")
+    parser.add_argument("image", help="Where to write the change as a PNG")
+    parser.add_argument("--area", required=True, help="The area as a JSON list of [longitude, latitude]")
+    parser.add_argument("--cell", type=float, default=0.5, help="Grid size in metres")
+    parser.add_argument("--tolerance", type=float, default=0.05, help="Changes smaller than this (m) are no change")
+    parser.add_argument("--max-cells", type=int, default=25_000_000)
+    args = parser.parse_args()
+
+    ring = json.loads(args.area)
+    if len(ring) < 3:
+        fail("The area needs at least three points.")
+    if ring[0] != ring[-1]:
+        ring = [*ring, ring[0]]
+    wgs84 = osr.SpatialReference()
+    wgs84.ImportFromEPSG(4326)
+    wgs84.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    area = ogr.CreateGeometryFromJson(json.dumps({"type": "Polygon", "coordinates": [ring]}))
+    area.AssignSpatialReference(wgs84)
+    if not area.IsValid():
+        fail("The area crosses itself. Draw it again.")
+
+    centre = area.Centroid()
+    local = osr.SpatialReference()
+    local.SetFromUserInput(f"+proj=aeqd +lat_0={centre.GetY()} +lon_0={centre.GetX()} +datum=WGS84 +units=m +no_defs")
+    local.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    projected = area.Clone()
+    projected.TransformTo(local)
+    area_m2 = projected.GetArea()
+    minx, maxx, miny, maxy = projected.GetEnvelope()
+    cell = args.cell
+    minx, miny = math.floor(minx / cell) * cell, math.floor(miny / cell) * cell
+    maxx, maxy = math.ceil(maxx / cell) * cell, math.ceil(maxy / cell) * cell
+    width, height = round((maxx - minx) / cell), round((maxy - miny) / cell)
+    if width * height > args.max_cells:
+        fail(f"The area is too big for {cell:g} m cells. Draw a smaller one.")
+
+    # The area as a mask on the grid.
+    mask_ds = gdal.GetDriverByName("MEM").Create("", width, height, 1, gdal.GDT_Byte)
+    mask_ds.SetGeoTransform((minx, cell, 0, maxy, 0, -cell))
+    mask_ds.SetProjection(local.ExportToWkt())
+    shapes = ogr.GetDriverByName("MEM").CreateDataSource("area")
+    layer = shapes.CreateLayer("area", local, ogr.wkbPolygon)
+    feature = ogr.Feature(layer.GetLayerDefn())
+    feature.SetGeometry(projected)
+    layer.CreateFeature(feature)
+    gdal.RasterizeLayer(mask_ds, [1], layer, burn_values=[1], options=["ALL_TOUCHED=FALSE"])
+    inside = mask_ds.GetRasterBand(1).ReadAsArray().astype(bool)
+
+    def heights(path: str, which: str) -> np.ndarray:
+        try:
+            source = gdal.Open(path)
+        except RuntimeError:
+            fail(f"The {which} survey's heights can't be read.")
+        if not source.GetProjection():
+            fail(f"The {which} survey has no coordinate system.")
+        grid = gdal.Warp(
+            "", source, format="MEM", dstSRS=local.ExportToWkt(),
+            outputBounds=(minx, miny, maxx, maxy), width=width, height=height,
+            srcNodata=source.GetRasterBand(1).GetNoDataValue(), dstNodata=NODATA,
+            outputType=gdal.GDT_Float32, resampleAlg="bilinear",
+        )
+        values = grid.GetRasterBand(1).ReadAsArray().astype(np.float64)
+        values[(values == NODATA) | ~np.isfinite(values)] = np.nan
+        return values
+
+    before = heights(args.before, "earlier")
+    after = heights(args.after, "later")
+
+    both = inside & np.isfinite(before) & np.isfinite(after)
+    covered = int(both.sum())
+    if covered == 0:
+        fail("The two surveys don't both cover any of the area.")
+    change = np.where(both, after - before, 0.0)
+    cell_area = cell * cell
+    lowered = both & (change < -args.tolerance)
+    raised = both & (change > args.tolerance)
+    cut = float(-change[lowered].sum() * cell_area)
+    fill = float(change[raised].sum() * cell_area)
+
+    # The change as colour: red where lowered, blue where raised, stronger with depth.
+    scale = max(float(np.percentile(np.abs(change[both]), 98)), args.tolerance * 2)
+    strength = np.clip(np.abs(change) / scale, 0, 1)
+    rgba = np.zeros((4, height, width), dtype=np.uint8)
+    for mask, colour in ((lowered, (220, 50, 47)), (raised, (38, 110, 220))):
+        for band, value in enumerate(colour):
+            rgba[band][mask] = value
+        rgba[3][mask] = (90 + 165 * strength[mask]).astype(np.uint8)
+    rgba[3][both & ~lowered & ~raised] = 40
+    rgba[0:3, both & ~lowered & ~raised] = 200
+
+    drawn = gdal.GetDriverByName("MEM").Create("", width, height, 4, gdal.GDT_Byte)
+    drawn.SetGeoTransform((minx, cell, 0, maxy, 0, -cell))
+    drawn.SetProjection(local.ExportToWkt())
+    for band in range(4):
+        drawn.GetRasterBand(band + 1).WriteArray(rgba[band])
+    geographic = gdal.Warp("", drawn, format="MEM", dstSRS="EPSG:4326", resampleAlg="near", dstAlpha=False)
+    gdal.Translate(args.image, geographic, format="PNG")
+    transform = geographic.GetGeoTransform()
+    west, north = transform[0], transform[3]
+    east = west + transform[1] * geographic.RasterXSize
+    south = north + transform[5] * geographic.RasterYSize
+
+    print(json.dumps({
+        "cut": round(cut, 2),
+        "fill": round(fill, 2),
+        "net": round(fill - cut, 2),
+        "areaM2": round(area_m2, 1),
+        "coveredM2": round(covered * cell_area, 1),
+        "cutM2": round(int(lowered.sum()) * cell_area, 1),
+        "fillM2": round(int(raised.sum()) * cell_area, 1),
+        "deepestCut": round(float(-change[both].min()), 3) if lowered.any() else 0,
+        "highestFill": round(float(change[both].max()), 3) if raised.any() else 0,
+        "cell": cell,
+        "bounds": [round(west, 7), round(south, 7), round(east, 7), round(north, 7)],
+    }))
+
+
+if __name__ == "__main__":
+    main()

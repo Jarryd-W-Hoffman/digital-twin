@@ -8,6 +8,7 @@ use App\Actions\CreateTwin;
 use App\Actions\DeleteTwin;
 use App\Actions\IssueGatewayTicket;
 use App\Actions\UpdateTwin;
+use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
@@ -20,6 +21,7 @@ use App\Models\IssueComment;
 use App\Models\OpcUaWrite;
 use App\Models\ProjectAsset;
 use App\Models\SavedView;
+use App\Models\SurveyComparison;
 use App\Models\Twin;
 use App\Models\TwinShareLink;
 use App\Models\TwinVersion;
@@ -125,6 +127,8 @@ final readonly class TwinController
                 'bytes' => $asset->bytes,
                 'files' => $asset->files,
                 'url' => $asset->url(),
+                // Terrain or a point cloud that kept its heights, so it can be compared.
+                'survey' => in_array($asset->kind, [ProjectAssetKind::Terrain, ProjectAssetKind::PointCloud], true) && isset($asset->details['surface']),
             ]),
             // The organisation's type library, and how each compares with this twin's type of that id.
             'types' => $twin->organisation->assetTypes()->orderBy('name')->get()->map(fn (AssetType $type): array => [
@@ -202,6 +206,21 @@ final readonly class TwinController
             ],
             // The metrics watched for anomalies, how far each has learned, and what's open.
             'anomalies' => fn (): array => $this->anomalies($twin),
+            // Areas where surveys of the ground are compared, and what was measured.
+            'comparisons' => fn (): array => $twin->surveyComparisons()->latest()->limit(100)->get()
+                ->map(fn (SurveyComparison $comparison): array => [
+                    'id' => $comparison->id,
+                    'name' => $comparison->name,
+                    'area' => $comparison->area,
+                    'surveys' => $comparison->surveys,
+                    'status' => $comparison->status->value,
+                    'error' => $comparison->error,
+                    'measuredAt' => $comparison->measured_at?->toIso8601String(),
+                    'results' => array_map(fn (array $result, int $index): array => [
+                        ...$result,
+                        'image' => route('twins.survey-comparisons.images.show', [$twin, $comparison, $index + 1]),
+                    ], $comparison->results ?? [], array_keys($comparison->results ?? [])),
+                ])->all(),
             // The links showing it outside the organisation, for those who make them.
             'shareLinks' => fn (): array => $user->can('share', $twin) ? $twin->shareLinks()->with('creator:id,name')->latest()->limit(50)->get()
                 ->map(fn (TwinShareLink $link): array => [

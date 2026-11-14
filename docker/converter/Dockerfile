@@ -3,7 +3,8 @@
 # thins) and py3dtiles (tiles the result as 3D Tiles). Terrain: GDAL (reads
 # and reprojects DEMs), pydelatin (triangulates) and quantized-mesh-encoder,
 # driven by meridian-terrain. Map layers and imagery: GDAL, driven by
-# meridian-vector and meridian-imagery. IFC: IfcOpenShell from PyPI (its wheel bundles
+# meridian-vector and meridian-imagery. Survey volumes: GDAL and numpy, driven by
+# meridian-volume. IFC: IfcOpenShell from PyPI (its wheel bundles
 # OpenCascade; the conda-forge build can't share an environment with PDAL
 # and GDAL, and doubles the image), driven by meridian-ifc. Alpine's PDAL has no E57 reader and
 # py3dtiles' numba doesn't build on musl, and Debian doesn't package PDAL,
@@ -56,6 +57,7 @@ COPY meridian-terrain /usr/local/bin/meridian-terrain
 COPY meridian-ifc /usr/local/bin/meridian-ifc
 COPY meridian-vector /usr/local/bin/meridian-vector
 COPY meridian-imagery /usr/local/bin/meridian-imagery
+COPY meridian-volume /usr/local/bin/meridian-volume
 
 USER www
 

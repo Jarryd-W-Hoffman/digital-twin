@@ -152,7 +152,7 @@ function fakeDirectUploads(array $results = [], int $partBytes = 5 * 1024 * 1024
 /**
  * Stands in for PDAL and py3dtiles. `pdal info` reports $points points in
  * $epsg (null: no coordinate system), `pdal pipeline` writes the LAS its
- * pipeline names, and `py3dtiles convert` writes a two-file tileset to --out.
+ * pipeline names (and the height grid, for a georeferenced cloud), and `py3dtiles convert` writes a two-file tileset to --out.
  * A command named in $fail exits 1 with that text on stderr.
  *
  * @param  array<string, string>  $fail  'info', 'pipeline' or 'py3dtiles' to its error.
@@ -173,7 +173,12 @@ function fakeConverter(?int $epsg = 2193, int $points = 1200, array $fail = []):
             $command = $process->command;
             /** @var list<array<string, mixed>> $stages */
             $stages = json_decode((string) file_get_contents($command[2]), true);
-            file_put_contents((string) end($stages)['filename'], 'LASF prepared');
+
+            foreach ($stages as $stage) {
+                if (str_starts_with((string) ($stage['type'] ?? ''), 'writers.')) {
+                    file_put_contents((string) $stage['filename'], $stage['type'] === 'writers.gdal' ? "II*\0 heights" : 'LASF prepared');
+                }
+            }
 
             return $failed('pipeline') ?? '';
         },
@@ -195,7 +200,7 @@ function fakeConverter(?int $epsg = 2193, int $points = 1200, array $fail = []):
 }
 
 /**
- * Fakes meridian-terrain: it writes a layer.json and one tile, then prints
+ * Fakes meridian-terrain: it writes a layer.json, one tile and the surface asked for, then prints
  * its summary, unless $fail gives it error output to fail with.
  */
 function fakeTerrainTiler(?string $fail = null, bool $writes = true, string $summary = '{"crs": "EPSG:2193", "tiles": 120, "maxZoom": 16, "bounds": [174.74, -36.86, 174.77, -36.84], "heights": [20.04, 100]}'): void
@@ -212,6 +217,10 @@ function fakeTerrainTiler(?string $fail = null, bool $writes = true, string $sum
                 File::ensureDirectoryExists($command[2].'/0/1');
                 file_put_contents($command[2].'/layer.json', '{"format": "quantized-mesh-1.0"}');
                 file_put_contents($command[2].'/0/1/0.terrain', 'mesh');
+
+                if (in_array('--surface', $command, true)) {
+                    file_put_contents($command[(int) array_search('--surface', $command, true) + 1], "II*\0 heights");
+                }
             }
 
             return "progress\n".$summary;
@@ -356,6 +365,34 @@ function fakeImageryTiler(?string $fail = null, bool $writes = true, string $sum
                 File::ensureDirectoryExists($command[2].'/20/1/');
                 file_put_contents($command[2].'/imagery.json', '{"format": "png", "minZoom": 12, "maxZoom": 20}');
                 file_put_contents($command[2].'/20/1/2.png', 'png');
+            }
+
+            return $summary;
+        },
+    ]);
+}
+
+/**
+ * Stands in for meridian-volume: draws an image and prints the volumes,
+ * unless $fail gives it error output to fail with. Each run's two surveys
+ * are noted in $runs.
+ *
+ * @param  ArrayObject<int, array{0: string, 1: string}>|null  $runs
+ */
+function fakeVolumeTool(?string $fail = null, bool $draws = true, string $summary = '{"cut": 120.5, "fill": 450.25, "net": 329.75, "areaM2": 3000.0, "coveredM2": 2950.0, "cutM2": 400.0, "fillM2": 900.0, "deepestCut": 0.8, "highestFill": 2.4, "cell": 0.5, "bounds": [174.785, -36.8398, 174.7856, -36.8392]}', ?ArrayObject $runs = null): void
+{
+    Process::fake([
+        "'meridian-volume'*" => function (PendingProcess $process) use ($fail, $draws, $summary, $runs): ProcessResult|string {
+            /** @var list<string> $command */
+            $command = $process->command;
+            $runs?->append([(string) file_get_contents($command[1]), (string) file_get_contents($command[2])]);
+
+            if ($fail !== null) {
+                return Process::result(errorOutput: $fail, exitCode: 2);
+            }
+
+            if ($draws) {
+                file_put_contents($command[3], "\x89PNG change");
             }
 
             return $summary;

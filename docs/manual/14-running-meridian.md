@@ -71,7 +71,7 @@ Direct uploads need the bucket to allow cross-origin `PUT` requests from Meridia
 
 ## The converter
 
-Point clouds, DEMs, map layers, imagery and IFC models are converted by a worker on the `conversions` queue, in its own image because PDAL, GDAL and py3dtiles are large. In Docker it's the `converter` service and starts with the stack. Without Docker, install PDAL, GDAL, pydelatin and quantized-mesh-encoder (from conda-forge) and `pip install "py3dtiles[las]"`, put [`docker/converter/meridian-terrain`](../../docker/converter/meridian-terrain), [`meridian-vector`](../../docker/converter/meridian-vector) and [`meridian-imagery`](../../docker/converter/meridian-imagery) on the path, then run:
+Point clouds, DEMs, map layers, imagery and IFC models are converted, and surveys compared, by a worker on the `conversions` queue, in its own image because PDAL, GDAL and py3dtiles are large. In Docker it's the `converter` service and starts with the stack. Without Docker, install PDAL, GDAL, pydelatin and quantized-mesh-encoder (from conda-forge) and `pip install "py3dtiles[las]"`, put [`docker/converter/meridian-terrain`](../../docker/converter/meridian-terrain), [`meridian-vector`](../../docker/converter/meridian-vector), [`meridian-imagery`](../../docker/converter/meridian-imagery) and [`meridian-volume`](../../docker/converter/meridian-volume) on the path, then run:
 
 ```bash
 php artisan queue:work conversions --queue=conversions --timeout=14400
@@ -91,6 +91,10 @@ php artisan queue:work conversions --queue=conversions --timeout=14400
 | `MERIDIAN_IMAGERY_TILER`               | Where the imagery tiler is, default `meridian-imagery` on the path |
 | `MERIDIAN_IMAGERY_JOBS`                | Processes imagery tiles are made with, default 2                   |
 | `MERIDIAN_IMAGERY_TIMEOUT_MINUTES`     | Longest an imagery conversion may run, default 240                 |
+| `MERIDIAN_VOLUME_TOOL`                 | Where the survey comparer is, default `meridian-volume` on the path |
+| `MERIDIAN_SURVEY_CELL_M`               | Grid volumes are measured on, and point clouds' heights kept on, default 0.5 m |
+| `MERIDIAN_SURVEY_MAX`                  | Most surveys in one comparison, default 12                         |
+| `MERIDIAN_VOLUME_TIMEOUT_MINUTES`      | Longest measuring one pair of surveys may take, default 30         |
 
 Give the converter memory and shared memory to match your largest scans; the Docker service has 2 GB of `/dev/shm`.
 

@@ -151,6 +151,14 @@ final class Twin extends Model
     }
 
     /**
+     * @return HasMany<SurveyComparison, $this>
+     */
+    public function surveyComparisons(): HasMany
+    {
+        return $this->hasMany(SurveyComparison::class);
+    }
+
+    /**
      * @return HasMany<TwinShareLink, $this>
      */
     public function shareLinks(): HasMany

@@ -161,6 +161,17 @@ test.beforeAll(() => {
         `${ROOT}:/var/www/html`,
         CONVERTER,
         'python3',
+        'scripts/generate-survey.py',
+        'test-results/depot-ground.tif',
+        'test-results/depot-ground-may.tif',
+    ]);
+    run('docker', [
+        'run',
+        '--rm',
+        '-v',
+        `${ROOT}:/var/www/html`,
+        CONVERTER,
+        'python3',
         'scripts/generate-ifc.py',
         'test-results/shed.ifc',
         '--site',
@@ -283,6 +294,21 @@ test('screenshots', async ({ page, context }) => {
         convertOne('vector');
         await expect(plan).toContainText('Map layer', { timeout: 300_000 });
         await shot(library.getByRole('list').first(), 'library-map-layers');
+
+        // A later survey of the depot's ground, to compare with the first.
+        await page
+            .getByLabel(/^File \(/)
+            .setInputFiles(resolve(ROOT, 'test-results/depot-ground-may.tif'));
+        await page
+            .getByLabel('Name', { exact: true })
+            .fill('Depot ground, May');
+        await page.getByRole('button', { name: 'Upload', exact: true }).click();
+        const may = library
+            .getByRole('listitem')
+            .filter({ hasText: 'Depot ground, May' });
+        await expect(may).toBeVisible({ timeout: 60_000 });
+        convertOne('survey');
+        await expect(may).toContainText('Terrain', { timeout: 300_000 });
     });
 
     const devices = page.getByRole('region', { name: 'Devices' });
@@ -1365,6 +1391,75 @@ test('screenshots', async ({ page, context }) => {
         await page.waitForTimeout(10_000);
         await shot(page, 'map-layers');
         await page.getByLabel('Uploaded layers').uncheck();
+        await page.getByLabel('Uploaded layers').check();
+    });
+
+    await test.step('volumes', async () => {
+        await page.getByLabel('Uploaded layers').uncheck();
+        await page.getByRole('button', { name: 'Volumes' }).click();
+        const volumes = page.getByRole('complementary', { name: 'Volumes' });
+        await volumes.getByRole('button', { name: 'New comparison' }).click();
+        await volumes.getByLabel('Name').fill('North yard');
+        await page.evaluate(() =>
+            (
+                window as unknown as {
+                    __scene: {
+                        flyToView(view: Record<string, number>): void;
+                    };
+                }
+            ).__scene.flyToView({
+                lon: 174.7855,
+                lat: -36.8409,
+                height: 600,
+                heading: 0,
+                pitch: -70,
+                roll: 0,
+            }),
+        );
+        await page.waitForTimeout(4000);
+        await volumes.getByRole('button', { name: 'Draw in scene' }).click();
+        for (const point of [
+            [-120, 30],
+            [130, 30],
+            [130, 115],
+            [-120, 115],
+        ] as [number, number][])
+            await clickGround(page, point);
+        await volumes.getByRole('button', { name: 'Done drawing' }).click();
+        await volumes.getByLabel('Depot ground survey').check();
+        await volumes.getByLabel('Depot ground, May').check();
+        await volumes.getByRole('button', { name: 'Compare' }).click();
+        const yard = volumes.getByRole('listitem', { name: 'North yard' });
+        await expect(yard.getByRole('status')).toHaveText('Measuring…');
+        convertOne('volume');
+        const changes = yard.getByRole('list', { name: 'North yard changes' });
+        await expect(changes).toBeVisible({ timeout: 300_000 });
+        await changes
+            .getByRole('button', {
+                name: 'Show the change to Depot ground, May',
+            })
+            .click();
+        await expect
+            .poll(
+                () =>
+                    page.evaluate(
+                        () =>
+                            (
+                                window as unknown as {
+                                    __scene: {
+                                        surveyOverlay(): {
+                                            loaded: boolean;
+                                        } | null;
+                                    };
+                                }
+                            ).__scene.surveyOverlay()?.loaded,
+                    ),
+                { timeout: 30_000 },
+            )
+            .toBe(true);
+        await page.waitForTimeout(4000);
+        await shot(page, 'volumes');
+        await page.getByRole('button', { name: 'Close volumes' }).click();
         await page.getByLabel('Uploaded layers').check();
     });
 

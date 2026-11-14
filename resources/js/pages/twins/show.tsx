@@ -20,6 +20,10 @@ import {
 import { TwinSettings } from '@/components/twin-settings';
 import { TwinShare, type ShareLinkSummary } from '@/components/twin-share';
 import { TwinViews, type SavedViewSummary } from '@/components/twin-views';
+import {
+    TwinVolumes,
+    type SurveyComparisonSummary,
+} from '@/components/twin-volumes';
 import { show as showProject } from '@/routes/projects';
 import { index as alertLog } from '@/routes/twins/alerts';
 import { store as acknowledgeAlert } from '@/routes/twins/alerts/acknowledgement';
@@ -73,6 +77,8 @@ type Props = {
     startView: { id: string; state: unknown } | null;
     /** The metrics watched for anomalies, and the periods left out. */
     anomalies: Anomalies;
+    /** Areas where surveys of the ground are compared. */
+    comparisons: SurveyComparisonSummary[];
     /** The links showing it outside the organisation; empty unless they can share. */
     shareLinks: ShareLinkSummary[];
     can: {
@@ -100,6 +106,7 @@ export default function ShowTwin({
     views,
     startView,
     anomalies,
+    comparisons,
     shareLinks,
     can,
 }: Props) {
@@ -110,6 +117,7 @@ export default function ShowTwin({
         | 'issues'
         | 'views'
         | 'anomalies'
+        | 'volumes'
         | 'share'
         | null
     >(issue || raise ? 'issues' : null);
@@ -345,6 +353,19 @@ export default function ShowTwin({
                             Anomalies
                             {openAnomalies > 0 ? ` (${openAnomalies})` : ''}
                         </button>
+                        <button
+                            className={
+                                editing === 'volumes' ? 'primary' : 'ghost'
+                            }
+                            aria-expanded={editing === 'volumes'}
+                            onClick={() =>
+                                setEditing(
+                                    editing === 'volumes' ? null : 'volumes',
+                                )
+                            }
+                        >
+                            Volumes
+                        </button>
                         {can.share && (
                             <button
                                 className={
@@ -426,6 +447,16 @@ export default function ShowTwin({
                         twinId={twin.id}
                         definition={definition}
                         anomalies={anomalies}
+                        canEdit={can.update}
+                        onClose={() => setEditing(null)}
+                    />
+                )}
+                {editing === 'volumes' && (
+                    <TwinVolumes
+                        twinId={twin.id}
+                        definition={definition}
+                        assets={assets}
+                        comparisons={comparisons}
                         canEdit={can.update}
                         onClose={() => setEditing(null)}
                     />

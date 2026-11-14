@@ -182,6 +182,7 @@ def main() -> None:
     parser.add_argument("--srs", help="The DEM's coordinate system, when it carries none (EPSG:2193)")
     parser.add_argument("--max-zoom", type=int, default=MAX_ZOOM)
     parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument("--surface", help="Also keep the heights as a GeoTIFF here, in the DEM's own coordinate system, for measuring volumes")
     args = parser.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -225,6 +226,14 @@ def main() -> None:
     for name in os.listdir(work):
         os.remove(os.path.join(work, name))
     os.rmdir(work)
+
+    if args.surface:
+        # The heights as given, in the DEM's own grid, so volumes are measured from the survey itself.
+        gdal.Translate(
+            args.surface, args.source, format="GTiff", bandList=[1], outputSRS=args.srs,
+            outputType=gdal.GDT_Float32,
+            creationOptions=["TILED=YES", "COMPRESS=DEFLATE", "PREDICTOR=3", "BIGTIFF=IF_SAFER"],
+        )
 
     print(json.dumps({
         "crs": crs,
