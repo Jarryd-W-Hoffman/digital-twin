@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\ServeProjectAssetFile;
 use App\Models\ProjectAsset;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -16,34 +16,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 final readonly class ProjectAssetFileController
 {
-    private const array TYPES = [
-        'json' => 'application/json',
-        'glb' => 'model/gltf-binary',
-        'gltf' => 'model/gltf+json',
-        'png' => 'image/png',
-        'jpg' => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'webp' => 'image/webp',
-        'ktx2' => 'image/ktx2',
-        'terrain' => 'application/vnd.quantized-mesh',
-    ];
-
-    public function show(ProjectAsset $asset, string $path): StreamedResponse
+    public function show(ProjectAsset $asset, string $path, ServeProjectAssetFile $files): StreamedResponse
     {
         Gate::authorize('view', $asset->project);
 
-        abort_unless(array_all(explode('/', $path), fn (string $segment): bool => ! in_array($segment, ['', '.', '..'], true)), 404);
-
-        $disk = Storage::disk(config()->string('meridian.assets_disk'));
-        $file = $asset->directory.'/'.$path;
-
-        abort_unless($disk->fileExists($file), 404);
-
-        return $disk->response($file, null, [
-            'Content-Type' => self::TYPES[mb_strtolower(pathinfo($path, PATHINFO_EXTENSION))] ?? 'application/octet-stream',
-            'Cache-Control' => 'private, max-age=3600',
-            'X-Content-Type-Options' => 'nosniff',
-            'Content-Security-Policy' => "default-src 'none'; sandbox",
-        ]);
+        return $files->handle($asset, $path);
     }
 }

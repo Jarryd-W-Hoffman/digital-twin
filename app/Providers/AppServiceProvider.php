@@ -35,6 +35,9 @@ final class AppServiceProvider extends ServiceProvider
         // limited per username instead.
         // Per token: the limiter runs after the token is checked.
         RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(120)->by('api:'.AuthenticateApiToken::token($request)->id));
+        // Share links: the page, its ticket and history per address, and the many tiles a scene loads.
+        RateLimiter::for('share', fn (Request $request): Limit => Limit::perMinute(120)->by('share:'.$request->ip()));
+        RateLimiter::for('share-files', fn (Request $request): Limit => Limit::perMinute(3000)->by('share-files:'.$request->ip()));
         // An identity provider provisioning a whole directory at once.
         RateLimiter::for('scim', fn (Request $request): Limit => Limit::perMinute(600)->by('scim:'.AuthenticateScimToken::connection($request)->id));
         // Single sign-on starts and answers, each counted on its own per address.

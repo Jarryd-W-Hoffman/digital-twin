@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Share links** ([#46]): admins and owners choose **Share** on a twin to make a link that shows it to someone without an account, expiring in 1, 7, 30 or 90 days. It opens the twin's latest version at its opening view and, if **Show live readings and history** is on, follows the gateway and charts recorded readings. Nobody can change anything through it, and it shows no issues, alerts, views or versions. Each link is shown once, listed with when it was last opened, and revoking it stops it at once (a page already open stops following live within 10 minutes). Roadmap item 17.
 - **Automatic provisioning** ([#45]): on **Single sign-on**, owners can **Make provisioning token** and give it, with the SCIM base URL, to the identity provider (Entra ID, Okta and others). It then adds people in the organisation's email domains as members with the role for new people, making accounts they sign in to through single sign-on if they have none, and removes them the moment it deactivates or deletes them. Owners are never removed. Its changes appear in the audit log as **Provisioning (API)**. Roadmap item 16.
 - **Requiring single sign-on** ([#43]): owners can **Require single sign-on for everyone but owners**. Members who signed in with a password or passkey then can't open the organisation's pages, take its actions or follow links into it until they've signed in through its identity provider in that session; **Single sign-on required** takes them through it (linking their account if need be) and back to where they were going. Owners are exempt, so a broken identity provider can't lock everyone out. Roadmap item 15.
 - **Single sign-on** ([#42]): owners connect the organisation's OpenID Connect identity provider (Microsoft Entra ID, Okta, Google Workspace, Keycloak and others) under **Single sign-on**, for its email domains. **Sign in with single sign-on** on the sign-in page takes a work email to the provider and back, with PKCE, state and nonce checked. Someone new can join with a chosen role (viewer or operator); someone with an account links it under **Settings**, **Single sign-on**, so a provider never takes over an account by email. The provider must be on a public `https://` address unless `MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS` allows otherwise. Setting it up, turning it off, linking and joining are in the audit log. Roadmap item 14 is done.
@@ -244,6 +245,7 @@ Dates are when the change was merged into `main` (UTC).
 [#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#43]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/43
 [#45]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/45
+[#46]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/46
 [#36]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/36
 [#34]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/34
 [#33]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/33

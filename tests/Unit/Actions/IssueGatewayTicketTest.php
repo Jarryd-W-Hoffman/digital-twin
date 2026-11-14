@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\IssueGatewayTicket;
 use App\Models\Twin;
+use App\Models\TwinShareLink;
 use App\Models\User;
 use Illuminate\Support\Facades\Date;
 
@@ -44,3 +45,12 @@ it('carries the twin, the user, whether they may operate and edit, and an expiry
 it('needs a gateway token', function (): void {
     resolve(IssueGatewayTicket::class)->handle(Twin::factory()->create(), User::factory()->create(), false, false);
 })->throws(LogicException::class, 'The twin has no gateway token.');
+
+it('signs exactly the share ticket the gateway checks', function (): void {
+    $fixture = json_decode((string) file_get_contents(base_path('tests/fixtures/gateway-ticket.json')), true);
+    Date::setTestNow(Date::createFromTimestamp($fixture['issuedAt']));
+    $twin = Twin::factory()->create(['id' => $fixture['twin'], 'gateway_token_hash' => hash('sha256', $fixture['token'])]);
+    $link = TwinShareLink::factory()->for($twin)->create(['id' => $fixture['shareLink']]);
+
+    expect(resolve(IssueGatewayTicket::class)->forShare($link))->toBe($fixture['shareTicket']);
+});

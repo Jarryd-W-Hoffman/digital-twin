@@ -160,7 +160,7 @@ it('shows a twin with its definition, history, project library and abilities', f
             ->where('gateway', null)
             ->where('alerts', null)
             ->where('opcuaWrites', ['allowed' => false, 'recent' => []])
-            ->where('can', ['update' => $update, 'operate' => $operate, 'manageTypes' => $update]));
+            ->where('can', ['update' => $update, 'share' => $update, 'operate' => $operate, 'manageTypes' => $update]));
 })->with([
     [OrganisationRole::Owner, true, true],
     [OrganisationRole::Operator, false, true],

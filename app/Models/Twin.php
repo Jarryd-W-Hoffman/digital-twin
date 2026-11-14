@@ -135,6 +135,14 @@ final class Twin extends Model
     }
 
     /**
+     * @return HasMany<TwinShareLink, $this>
+     */
+    public function shareLinks(): HasMany
+    {
+        return $this->hasMany(TwinShareLink::class);
+    }
+
+    /**
      * The shared view it opens at, instead of the whole site.
      *
      * @return BelongsTo<SavedView, $this>

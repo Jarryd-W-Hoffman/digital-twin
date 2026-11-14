@@ -6,37 +6,59 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
  * only that hash, and the gateway can compute it from the token it holds.
  */
 export interface TicketAccess {
-  user: string;
-  operate: boolean;
-  /** May change the twin, so browse its servers. Tickets from before this claim can't. */
-  edit: boolean;
+    user: string;
+    operate: boolean;
+    /** May change the twin, so browse its servers. Tickets from before this claim can't. */
+    edit: boolean;
+    /**
+     * When the connection must end (Unix ms): a share link's ticket is short and
+     * holds only while the link does, so its viewer has to come back for another.
+     */
+    until?: number;
 }
 
-export const ticketKey = (token: string): string => createHash('sha256').update(token).digest('hex');
+export const ticketKey = (token: string): string =>
+    createHash('sha256').update(token).digest('hex');
 
 export function verifyTicket(
-  ticket: string | null | undefined,
-  key: string,
-  twinId: string,
-  nowMs = Date.now(),
+    ticket: string | null | undefined,
+    key: string,
+    twinId: string,
+    nowMs = Date.now(),
 ): TicketAccess | null {
-  const parts = (ticket ?? '').split('.');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
-  const [payload, signature] = parts as [string, string];
+    const parts = (ticket ?? '').split('.');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+    const [payload, signature] = parts as [string, string];
 
-  const expected = createHmac('sha256', key).update(payload).digest();
-  const given = Buffer.from(signature, 'base64url');
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
+    const expected = createHmac('sha256', key).update(payload).digest();
+    const given = Buffer.from(signature, 'base64url');
+    if (given.length !== expected.length || !timingSafeEqual(given, expected))
+        return null;
 
-  let data: unknown;
-  try {
-    data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-  } catch {
-    return null;
-  }
-  if (typeof data !== 'object' || data === null) return null;
-  const { twin, user, operate, edit = false, exp } = data as Record<string, unknown>;
-  if (twin !== twinId || typeof user !== 'string' || typeof operate !== 'boolean' || typeof edit !== 'boolean') return null;
-  if (typeof exp !== 'number' || exp * 1000 <= nowMs) return null;
-  return { user, operate, edit };
+    let data: unknown;
+    try {
+        data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    } catch {
+        return null;
+    }
+    if (typeof data !== 'object' || data === null) return null;
+    const {
+        twin,
+        user,
+        operate,
+        edit = false,
+        exp,
+        close = false,
+    } = data as Record<string, unknown>;
+    if (
+        twin !== twinId ||
+        typeof user !== 'string' ||
+        typeof operate !== 'boolean' ||
+        typeof edit !== 'boolean'
+    )
+        return null;
+    if (typeof exp !== 'number' || exp * 1000 <= nowMs) return null;
+    return close === true
+        ? { user, operate, edit, until: exp * 1000 }
+        : { user, operate, edit };
 }
