@@ -1,0 +1,22 @@
+{
+    "id": "empty",
+    "name": "Empty site",
+    "description": "",
+    "camera": { "headingDeg": 0, "pitchDeg": -35, "rangeM": 250 },
+    "zones": [
+        {
+            "id": "site",
+            "name": "Site",
+            "footprint": [
+                [-50, -50],
+                [50, -50],
+                [50, 50],
+                [-50, 50]
+            ]
+        }
+    ],
+    "assets": [],
+    "routes": [],
+    "rules": [],
+    "scenarios": []
+}

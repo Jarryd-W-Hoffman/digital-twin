@@ -1,0 +1,469 @@
+{
+    "id": "mine",
+    "name": "Mine site",
+    "description": "Trucks tip into a primary crusher, which feeds a run-of-mine stockpile along an overland conveyor; a reclaim feeder draws from it, and a pump keeps the pit dry. Add a survey of the pit as terrain or a point cloud, and connect the plant's PLC or sensors to replace the modelled readings.",
+    "camera": {
+        "headingDeg": 200,
+        "pitchDeg": -38,
+        "rangeM": 700
+    },
+    "types": [
+        {
+            "id": "crusher",
+            "name": "Crusher",
+            "primary": "feedTph",
+            "metrics": [
+                {
+                    "key": "rateTph",
+                    "label": "Target rate",
+                    "unit": "t/h",
+                    "decimals": 0,
+                    "default": 900,
+                    "setpoint": {
+                        "min": 0,
+                        "max": 1500,
+                        "step": 50
+                    }
+                },
+                {
+                    "key": "feedTph",
+                    "label": "Feed",
+                    "unit": "t/h",
+                    "decimals": 0,
+                    "expr": "running ? rateTph : 0"
+                },
+                {
+                    "key": "crushedT",
+                    "label": "Crushed",
+                    "unit": "t",
+                    "decimals": 0,
+                    "default": 0,
+                    "expr": "crushedT + feedTph * dt / 3600"
+                },
+                {
+                    "key": "bearingC",
+                    "label": "Bearing",
+                    "unit": "°C",
+                    "decimals": 1,
+                    "default": 25,
+                    "expr": "bearingC + ((running ? 45 + rateTph / 50 : ambientC) - bearingC) * dt / 1200"
+                },
+                {
+                    "key": "vibrationMms",
+                    "label": "Vibration",
+                    "unit": "mm/s",
+                    "decimals": 2,
+                    "default": 3.2
+                }
+            ],
+            "states": [
+                {
+                    "id": "stopped",
+                    "label": "Stopped",
+                    "status": "standby"
+                },
+                {
+                    "id": "running",
+                    "label": "Crushing",
+                    "status": "running"
+                }
+            ],
+            "transitions": [
+                {
+                    "from": "stopped",
+                    "to": "running",
+                    "when": "rateTph > 0 && {rom.tonnes} < {rom.capacityT}"
+                },
+                {
+                    "from": "running",
+                    "to": "stopped",
+                    "when": "rateTph <= 0 || {rom.tonnes} >= {rom.capacityT}"
+                }
+            ],
+            "visual": {
+                "color": "#a0643c",
+                "shape": "box",
+                "height": 14
+            }
+        },
+        {
+            "id": "belt",
+            "name": "Overland conveyor",
+            "primary": "loadTph",
+            "metrics": [
+                {
+                    "key": "speedMs",
+                    "label": "Belt speed",
+                    "unit": "m/s",
+                    "decimals": 1,
+                    "default": 3.5
+                },
+                {
+                    "key": "loadTph",
+                    "label": "Load",
+                    "unit": "t/h",
+                    "decimals": 0,
+                    "expr": "{crusher.feedTph}"
+                }
+            ],
+            "visual": {
+                "color": "#6b7f99",
+                "shape": "box",
+                "height": 2
+            }
+        },
+        {
+            "id": "feeder",
+            "name": "Reclaim feeder",
+            "primary": "feedTph",
+            "metrics": [
+                {
+                    "key": "rateTph",
+                    "label": "Target rate",
+                    "unit": "t/h",
+                    "decimals": 0,
+                    "default": 700,
+                    "setpoint": {
+                        "min": 0,
+                        "max": 1200,
+                        "step": 50
+                    }
+                },
+                {
+                    "key": "feedTph",
+                    "label": "Feed",
+                    "unit": "t/h",
+                    "decimals": 0,
+                    "expr": "{rom.tonnes} > 0 ? rateTph : 0"
+                }
+            ],
+            "visual": {
+                "color": "#6b7f99",
+                "shape": "box",
+                "height": 4
+            }
+        },
+        {
+            "id": "stockpile",
+            "name": "Stockpile",
+            "primary": "tonnes",
+            "metrics": [
+                {
+                    "key": "capacityT",
+                    "label": "Capacity",
+                    "unit": "t",
+                    "decimals": 0,
+                    "default": 40000
+                },
+                {
+                    "key": "tonnes",
+                    "label": "Stock",
+                    "unit": "t",
+                    "decimals": 0,
+                    "default": 18000,
+                    "expr": "clamp(tonnes + ({crusher.feedTph} - {reclaim.feedTph}) * dt / 3600, 0, capacityT)"
+                },
+                {
+                    "key": "fullPct",
+                    "label": "Full",
+                    "unit": "%",
+                    "decimals": 0,
+                    "expr": "100 * tonnes / capacityT"
+                }
+            ],
+            "visual": {
+                "color": "#7a6a58",
+                "shape": "cylinder",
+                "height": 12
+            }
+        },
+        {
+            "id": "pit-sump",
+            "name": "Pit sump",
+            "primary": "levelM",
+            "metrics": [
+                {
+                    "key": "inflowLs",
+                    "label": "Inflow",
+                    "unit": "L/s",
+                    "decimals": 0,
+                    "default": 35
+                },
+                {
+                    "key": "levelM",
+                    "label": "Water level",
+                    "unit": "m",
+                    "decimals": 2,
+                    "default": 1.2,
+                    "expr": "clamp(levelM + (inflowLs - {dewater.flowLs}) * dt / 1000 / 2500, 0, 8)"
+                }
+            ],
+            "visual": {
+                "color": "#3a7ca5",
+                "shape": "cylinder",
+                "height": 2
+            }
+        },
+        {
+            "id": "dewatering-pump",
+            "name": "Dewatering pump",
+            "primary": "flowLs",
+            "metrics": [
+                {
+                    "key": "startM",
+                    "label": "Start above",
+                    "unit": "m",
+                    "decimals": 1,
+                    "default": 2,
+                    "setpoint": {
+                        "min": 0.5,
+                        "max": 5,
+                        "step": 0.1
+                    }
+                },
+                {
+                    "key": "stopM",
+                    "label": "Stop below",
+                    "unit": "m",
+                    "decimals": 1,
+                    "default": 0.8,
+                    "setpoint": {
+                        "min": 0.2,
+                        "max": 4,
+                        "step": 0.1
+                    }
+                },
+                {
+                    "key": "flowLs",
+                    "label": "Flow",
+                    "unit": "L/s",
+                    "decimals": 0,
+                    "expr": "pumping ? 60 : 0"
+                },
+                {
+                    "key": "runH",
+                    "label": "Run hours",
+                    "unit": "h",
+                    "decimals": 1,
+                    "default": 0,
+                    "expr": "runH + (pumping ? dt / 3600 : 0)"
+                }
+            ],
+            "states": [
+                {
+                    "id": "idle",
+                    "label": "Idle",
+                    "status": "standby"
+                },
+                {
+                    "id": "pumping",
+                    "label": "Pumping",
+                    "status": "running"
+                }
+            ],
+            "transitions": [
+                {
+                    "from": "idle",
+                    "to": "pumping",
+                    "when": "{sump.levelM} > startM"
+                },
+                {
+                    "from": "pumping",
+                    "to": "idle",
+                    "when": "{sump.levelM} < stopM"
+                }
+            ],
+            "visual": {
+                "color": "#5b8fb9",
+                "shape": "box",
+                "height": 3
+            }
+        }
+    ],
+    "zones": [
+        {
+            "id": "pit",
+            "name": "Pit",
+            "footprint": [
+                [-300, -260],
+                [-40, -260],
+                [-40, 20],
+                [-300, 20]
+            ]
+        },
+        {
+            "id": "plant",
+            "name": "Crushing plant",
+            "footprint": [
+                [-20, -60],
+                [80, -60],
+                [80, 40],
+                [-20, 40]
+            ]
+        },
+        {
+            "id": "stockpiles",
+            "name": "Stockpiles",
+            "footprint": [
+                [120, -80],
+                [300, -80],
+                [300, 80],
+                [120, 80]
+            ]
+        }
+    ],
+    "assets": [
+        {
+            "id": "sump",
+            "name": "Pit sump",
+            "kind": "custom",
+            "type": "pit-sump",
+            "zone": "pit",
+            "position": [-220, -200]
+        },
+        {
+            "id": "dewater",
+            "name": "Dewatering pump",
+            "kind": "custom",
+            "type": "dewatering-pump",
+            "zone": "pit",
+            "position": [-205, -195]
+        },
+        {
+            "id": "crusher",
+            "name": "Primary crusher",
+            "kind": "custom",
+            "type": "crusher",
+            "zone": "plant",
+            "footprint": [
+                [0, -15],
+                [24, -15],
+                [24, 15],
+                [0, 15]
+            ]
+        },
+        {
+            "id": "overland",
+            "name": "Overland conveyor",
+            "kind": "custom",
+            "type": "belt",
+            "zone": "plant",
+            "footprint": [
+                [24, -2],
+                [170, -2],
+                [170, 2],
+                [24, 2]
+            ]
+        },
+        {
+            "id": "rom",
+            "name": "ROM stockpile",
+            "kind": "custom",
+            "type": "stockpile",
+            "zone": "stockpiles",
+            "position": [210, 0]
+        },
+        {
+            "id": "reclaim",
+            "name": "Reclaim feeder",
+            "kind": "custom",
+            "type": "feeder",
+            "zone": "stockpiles",
+            "footprint": [
+                [250, -4],
+                [262, -4],
+                [262, 4],
+                [250, 4]
+            ]
+        }
+    ],
+    "routes": [],
+    "rules": [
+        {
+            "id": "rom-full",
+            "name": "Stockpile nearly full",
+            "severity": "warning",
+            "asset": "rom",
+            "metric": "fullPct",
+            "op": "gt",
+            "threshold": 90,
+            "clearAt": 85,
+            "message": "{asset} is over 90% full: the crusher stops when it fills"
+        },
+        {
+            "id": "sump-high",
+            "name": "Pit water high",
+            "severity": "critical",
+            "asset": "sump",
+            "metric": "levelM",
+            "op": "gt",
+            "threshold": 4,
+            "clearAt": 3,
+            "message": "{asset} is over 4 m: check the dewatering pump"
+        },
+        {
+            "id": "crusher-bearing",
+            "name": "Crusher bearing hot",
+            "severity": "warning",
+            "asset": "crusher",
+            "metric": "bearingC",
+            "op": "gt",
+            "threshold": 75,
+            "forS": 120,
+            "clearAt": 68,
+            "message": "{asset}'s bearing is over 75 °C"
+        }
+    ],
+    "scenarios": [],
+    "kpis": [
+        {
+            "label": "Crusher feed",
+            "value": "{crusher.feedTph}",
+            "unit": "t/h"
+        },
+        {
+            "label": "Crushed",
+            "value": "{crusher.crushedT}",
+            "unit": "t"
+        },
+        {
+            "label": "ROM stockpile",
+            "value": "{rom.tonnes}",
+            "unit": "t"
+        },
+        {
+            "label": "Pit water",
+            "value": "{sump.levelM}",
+            "unit": "m",
+            "decimals": 2
+        }
+    ],
+    "panels": [
+        {
+            "title": "Stockpile",
+            "chart": {
+                "label": "ROM stockpile",
+                "value": "{rom.tonnes}",
+                "unit": "t"
+            },
+            "items": [
+                {
+                    "label": "In",
+                    "value": "{crusher.feedTph}",
+                    "unit": "t/h"
+                },
+                {
+                    "label": "Out",
+                    "value": "{reclaim.feedTph}",
+                    "unit": "t/h"
+                },
+                {
+                    "label": "Hours to full",
+                    "value": "{crusher.feedTph} > {reclaim.feedTph} ? ({rom.capacityT} - {rom.tonnes}) / ({crusher.feedTph} - {reclaim.feedTph}) : 0",
+                    "unit": "h",
+                    "decimals": 1
+                }
+            ]
+        }
+    ]
+}

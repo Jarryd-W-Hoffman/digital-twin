@@ -15,6 +15,7 @@ import type {
     FaultSpec,
     RouteDef,
     SimState,
+    Tariff,
     TwinDefinition,
     Values,
 } from './types.ts';
@@ -42,7 +43,8 @@ export interface Model {
     feedOrder: AssetDef[];
     /** Consumers that may be dropped under power shortage, shed first at the front. */
     sheddable: AssetDef[];
-    mainBusId: string;
+    /** Absent in a twin that doesn't model power. */
+    mainBusId?: string;
     /** Custom types' behaviour, by type id. */
     types: Map<string, CompiledType>;
 }
@@ -57,14 +59,15 @@ export function compile(def: TwinDefinition): Model {
             children.set(a.fedBy, [...(children.get(a.fedBy) ?? []), a]);
     }
     const main = (kinds.get('bus') ?? []).find((b) => !b.fedBy);
-    if (!main) throw new Error('Twin needs a main bus: one bus with no fedBy');
+    if (!main && children.size > 0)
+        throw new Error('Twin needs a main bus: one bus with no fedBy');
 
     const feedOrder: AssetDef[] = [];
     const walk = (a: AssetDef) => {
         feedOrder.push(a);
         for (const c of children.get(a.id) ?? []) walk(c);
     };
-    walk(main);
+    if (main) walk(main);
 
     return {
         def,
@@ -75,10 +78,27 @@ export function compile(def: TwinDefinition): Model {
         sheddable: def.assets
             .filter((a) => a.shedPriority !== undefined)
             .sort((a, b) => (b.shedPriority ?? 0) - (a.shedPriority ?? 0)),
-        mainBusId: main.id,
+        mainBusId: main?.id,
         types: compileTypes(def),
     };
 }
+
+/** Prices and emissions for a twin that doesn't set its own. */
+export const DEFAULT_TARIFF: Tariff = {
+    offPeakPerKwh: 0.15,
+    peakPerKwh: 0.3,
+    peakStartHour: 17,
+    peakEndHour: 21,
+    dieselPerLitre: 2,
+    gridKgCo2PerKwh: 0.4,
+    dieselKgCo2PerLitre: 2.68,
+};
+
+/** A mild climate for a twin that doesn't set its own. */
+export const DEFAULT_CLIMATE = { meanC: 15, swingC: 5 };
+
+const tariffOf = (def: TwinDefinition) => def.tariff ?? DEFAULT_TARIFF;
+const climateOf = (def: TwinDefinition) => def.climate ?? DEFAULT_CLIMATE;
 
 /** Deterministic noise in [-1, 1) for a channel at a step. */
 export function noise(seed: number, step: number, channel: number): number {
@@ -295,8 +315,8 @@ function step(model: Model, state: SimState): void {
     const heatwave = faultActive(state, 'heatwave');
     const overcast = faultActive(state, 'cloud-cover');
     const ambient =
-        def.climate.meanC +
-        def.climate.swingC * Math.sin(((hour - 9) / 24) * 2 * Math.PI) +
+        climateOf(def).meanC +
+        climateOf(def).swingC * Math.sin(((hour - 9) / 24) * 2 * Math.PI) +
         smoothNoise(state.seed, state.step, 1, stepsPerHour * 3) * 1.5 +
         (heatwave?.magnitude ?? 0);
     const baseCloud = clamp(
@@ -395,8 +415,10 @@ function step(model: Model, state: SimState): void {
     // Supply limits -------------------------------------------------------------
     const grid = model.byKind('grid')[0];
     const gridUp = !!grid && !faultActive(state, 'grid-outage');
-    const mainBus = model.byId.get(model.mainBusId)!;
-    const mainUp = !faultActive(state, 'trip', mainBus.id);
+    const mainBus = model.mainBusId
+        ? model.byId.get(model.mainBusId)
+        : undefined;
+    const mainUp = !!mainBus && !faultActive(state, 'trip', mainBus.id);
 
     const solarAssets = model.byKind('solar');
     const solarAvailable = new Map<string, number>();
@@ -456,7 +478,7 @@ function step(model: Model, state: SimState): void {
         energised.clear();
         if (!mainUp || supplyLimit <= 0) return;
         for (const a of model.feedOrder) {
-            if (a.id === mainBus.id) energised.add(a.id);
+            if (a.id === mainBus?.id) energised.add(a.id);
             else if (
                 !tripped.has(a.id) &&
                 !shed.has(a.id) &&
@@ -494,8 +516,8 @@ function step(model: Model, state: SimState): void {
                 ? p(battery, 'shaveAboveKw', Infinity)
                 : Infinity;
             const peak =
-                hour >= def.tariff.peakStartHour &&
-                hour < def.tariff.peakEndHour;
+                hour >= tariffOf(def).peakStartHour &&
+                hour < tariffOf(def).peakEndHour;
             const floor = peak
                 ? Math.min(shaveAbove, residual) * 0.4
                 : shaveAbove;
@@ -706,7 +728,7 @@ function step(model: Model, state: SimState): void {
     // Site roll-up ----------------------------------------------------------------
     const site = model.byKind('site')[0];
     if (site) {
-        const tariff = def.tariff;
+        const tariff = tariffOf(def);
         const peak = hour >= tariff.peakStartHour && hour < tariff.peakEndHour;
         const gridCost =
             Math.max(0, gridKw) *

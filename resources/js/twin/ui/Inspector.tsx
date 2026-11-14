@@ -60,40 +60,44 @@ function SiteOverview() {
                 <h2>{def.name}</h2>
                 <p className="muted">{def.description}</p>
             </div>
-            <h3>Site load</h3>
-            <LineChart
-                series={[
-                    {
-                        key: 'load',
-                        label: 'Load',
-                        color: LINE_COLOR,
-                        points: loadSeries,
-                    },
-                ]}
-                height={110}
-                formatValue={(x) => kw(x)}
-                formatTime={(t) => clock(t, def.utcOffsetHours)}
-                marker={view?.t}
-                label="Site load over time"
-            />
-            <h3>Cold stores</h3>
-            <div className="store-list">
-                {stores.map((s) => (
-                    <button
-                        key={s.id}
-                        className="store-row"
-                        onClick={() => select(s.id, true)}
-                    >
-                        <span>{s.name}</span>
-                        <strong>
-                            {(v[`${s.id}.tempC`] ?? 0).toFixed(1)} °C
-                        </strong>
-                        <span className="muted">
-                            limit {s.params?.limitC} °C
-                        </span>
-                    </button>
-                ))}
-            </div>
+            {site && <h3>Site load</h3>}
+            {site && (
+                <LineChart
+                    series={[
+                        {
+                            key: 'load',
+                            label: 'Load',
+                            color: LINE_COLOR,
+                            points: loadSeries,
+                        },
+                    ]}
+                    height={110}
+                    formatValue={(x) => kw(x)}
+                    formatTime={(t) => clock(t, def.utcOffsetHours)}
+                    marker={view?.t}
+                    label="Site load over time"
+                />
+            )}
+            {stores.length > 0 && <h3>Cold stores</h3>}
+            {stores.length > 0 && (
+                <div className="store-list">
+                    {stores.map((s) => (
+                        <button
+                            key={s.id}
+                            className="store-row"
+                            onClick={() => select(s.id, true)}
+                        >
+                            <span>{s.name}</span>
+                            <strong>
+                                {(v[`${s.id}.tempC`] ?? 0).toFixed(1)} °C
+                            </strong>
+                            <span className="muted">
+                                limit {s.params?.limitC} °C
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            )}
             {site && (
                 <>
                     <h3>Energy and cost</h3>

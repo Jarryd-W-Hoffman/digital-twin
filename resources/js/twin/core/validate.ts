@@ -228,10 +228,14 @@ export function validateDefinition(input: unknown): string[] {
             seen.add(cursor);
         }
     }
+    // Power is optional: only a twin with buses or fed assets needs a main bus.
     const mains = [...byId.values()].filter(
         (a) => a.kind === 'bus' && a.fedBy === undefined,
     );
-    if (mains.length !== 1)
+    const powered = [...byId.values()].some(
+        (a) => a.kind === 'bus' || a.fedBy !== undefined,
+    );
+    if (powered && mains.length !== 1)
         errors.push('Twin needs exactly one main bus (a bus with no fedBy)');
 
     for (const r of objects(def.routes)) {

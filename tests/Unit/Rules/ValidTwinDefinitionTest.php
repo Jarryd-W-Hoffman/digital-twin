@@ -17,7 +17,7 @@ it('passes a sound definition in any of its forms', function (mixed $value): voi
 it('reports every problem', function (): void {
     $validator = Validator::make(['d' => ['assets' => []]], ['d' => new ValidTwinDefinition()]);
 
-    expect(explode("\n", $validator->errors()->first('d')))->toContain('Missing id', 'Missing tariff', 'zones must be an array');
+    expect(explode("\n", $validator->errors()->first('d')))->toContain('Missing id', 'Missing camera', 'zones must be an array');
 });
 
 it('rejects text that is not JSON', function (): void {

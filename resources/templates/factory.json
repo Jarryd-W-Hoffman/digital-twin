@@ -1,0 +1,305 @@
+{
+    "id": "factory",
+    "name": "Factory line",
+    "description": "A conveyor feeds two machining cells, and a packer boxes what they make. Connect the line's PLC through OPC UA, or its sensors through MQTT, and the readings replace the modelled ones.",
+    "camera": { "headingDeg": 20, "pitchDeg": -40, "rangeM": 160 },
+    "types": [
+        {
+            "id": "conveyor",
+            "name": "Conveyor",
+            "primary": "speedMs",
+            "metrics": [
+                {
+                    "key": "speedMs",
+                    "label": "Belt speed",
+                    "unit": "m/s",
+                    "decimals": 2,
+                    "default": 0.6,
+                    "setpoint": { "min": 0, "max": 1.5, "step": 0.05 }
+                },
+                {
+                    "key": "itemsPerMin",
+                    "label": "Items",
+                    "unit": "/min",
+                    "decimals": 0,
+                    "expr": "running ? speedMs * 40 : 0"
+                },
+                {
+                    "key": "motorC",
+                    "label": "Motor",
+                    "unit": "°C",
+                    "decimals": 1,
+                    "default": 20,
+                    "expr": "motorC + ((running ? 40 + speedMs * 12 : ambientC) - motorC) * dt / 900"
+                }
+            ],
+            "states": [
+                { "id": "stopped", "label": "Stopped", "status": "standby" },
+                { "id": "running", "label": "Running", "status": "running" }
+            ],
+            "transitions": [
+                { "from": "stopped", "to": "running", "when": "speedMs > 0" },
+                { "from": "running", "to": "stopped", "when": "speedMs <= 0" }
+            ],
+            "visual": { "color": "#6b7f99", "shape": "box", "height": 1.2 }
+        },
+        {
+            "id": "machining-cell",
+            "name": "Machining cell",
+            "primary": "partsPerHour",
+            "metrics": [
+                {
+                    "key": "cycleS",
+                    "label": "Cycle time",
+                    "unit": "s",
+                    "decimals": 0,
+                    "default": 48,
+                    "setpoint": { "min": 30, "max": 120, "step": 1 }
+                },
+                {
+                    "key": "partsPerHour",
+                    "label": "Rate",
+                    "unit": "parts/h",
+                    "decimals": 0,
+                    "expr": "running ? 3600 / cycleS : 0"
+                },
+                {
+                    "key": "partsTotal",
+                    "label": "Parts made",
+                    "unit": "parts",
+                    "decimals": 0,
+                    "default": 0,
+                    "expr": "partsTotal + partsPerHour * dt / 3600"
+                },
+                {
+                    "key": "spindleC",
+                    "label": "Spindle",
+                    "unit": "°C",
+                    "decimals": 1,
+                    "default": 22,
+                    "expr": "spindleC + ((running ? 38 + 1200 / cycleS : ambientC) - spindleC) * dt / 600"
+                },
+                {
+                    "key": "vibrationMms",
+                    "label": "Vibration",
+                    "unit": "mm/s",
+                    "decimals": 2,
+                    "default": 1.6
+                }
+            ],
+            "states": [
+                {
+                    "id": "idle",
+                    "label": "Waiting for parts",
+                    "status": "standby"
+                },
+                { "id": "running", "label": "Cutting", "status": "running" }
+            ],
+            "transitions": [
+                {
+                    "from": "idle",
+                    "to": "running",
+                    "when": "{infeed.itemsPerMin} > 0"
+                },
+                {
+                    "from": "running",
+                    "to": "idle",
+                    "when": "{infeed.itemsPerMin} <= 0"
+                }
+            ],
+            "visual": { "color": "#3a7ca5", "shape": "box", "height": 4 }
+        },
+        {
+            "id": "packer",
+            "name": "Packer",
+            "primary": "boxesTotal",
+            "metrics": [
+                {
+                    "key": "perBox",
+                    "label": "Parts a box",
+                    "unit": "parts",
+                    "decimals": 0,
+                    "default": 12,
+                    "setpoint": { "min": 1, "max": 48, "step": 1 }
+                },
+                {
+                    "key": "boxesTotal",
+                    "label": "Boxes packed",
+                    "unit": "boxes",
+                    "decimals": 0,
+                    "default": 0,
+                    "expr": "floor(({cell-1.partsTotal} + {cell-2.partsTotal}) / perBox)"
+                }
+            ],
+            "visual": { "color": "#8a6f3d", "shape": "box", "height": 3 }
+        }
+    ],
+    "zones": [
+        {
+            "id": "line",
+            "name": "Production line",
+            "footprint": [
+                [-45, -20],
+                [45, -20],
+                [45, 20],
+                [-45, 20]
+            ]
+        },
+        {
+            "id": "dispatch",
+            "name": "Dispatch",
+            "footprint": [
+                [45, -20],
+                [70, -20],
+                [70, 20],
+                [45, 20]
+            ]
+        }
+    ],
+    "assets": [
+        {
+            "id": "infeed",
+            "name": "Infeed conveyor",
+            "kind": "custom",
+            "type": "conveyor",
+            "zone": "line",
+            "footprint": [
+                [-40, -2],
+                [20, -2],
+                [20, 2],
+                [-40, 2]
+            ]
+        },
+        {
+            "id": "cell-1",
+            "name": "Cell 1",
+            "kind": "custom",
+            "type": "machining-cell",
+            "zone": "line",
+            "footprint": [
+                [-25, 5],
+                [-13, 5],
+                [-13, 15],
+                [-25, 15]
+            ]
+        },
+        {
+            "id": "cell-2",
+            "name": "Cell 2",
+            "kind": "custom",
+            "type": "machining-cell",
+            "zone": "line",
+            "footprint": [
+                [-5, 5],
+                [7, 5],
+                [7, 15],
+                [-5, 15]
+            ]
+        },
+        {
+            "id": "packer",
+            "name": "Packer",
+            "kind": "custom",
+            "type": "packer",
+            "zone": "dispatch",
+            "footprint": [
+                [50, -6],
+                [62, -6],
+                [62, 6],
+                [50, 6]
+            ]
+        }
+    ],
+    "routes": [],
+    "rules": [
+        {
+            "id": "cell-1-vibration",
+            "name": "Cell 1 vibrating",
+            "severity": "warning",
+            "asset": "cell-1",
+            "metric": "vibrationMms",
+            "op": "gt",
+            "threshold": 4.5,
+            "forS": 60,
+            "clearAt": 3.5,
+            "message": "{asset} is vibrating over 4.5 mm/s: check the spindle bearings"
+        },
+        {
+            "id": "cell-2-vibration",
+            "name": "Cell 2 vibrating",
+            "severity": "warning",
+            "asset": "cell-2",
+            "metric": "vibrationMms",
+            "op": "gt",
+            "threshold": 4.5,
+            "forS": 60,
+            "clearAt": 3.5,
+            "message": "{asset} is vibrating over 4.5 mm/s: check the spindle bearings"
+        },
+        {
+            "id": "conveyor-hot",
+            "name": "Conveyor motor hot",
+            "severity": "critical",
+            "asset": "infeed",
+            "metric": "motorC",
+            "op": "gt",
+            "threshold": 80,
+            "clearAt": 70,
+            "message": "{asset}'s motor is over 80 °C"
+        }
+    ],
+    "scenarios": [],
+    "kpis": [
+        {
+            "label": "Line speed",
+            "value": "{infeed.speedMs}",
+            "unit": "m/s",
+            "decimals": 2
+        },
+        {
+            "label": "Throughput",
+            "value": "{cell-1.partsPerHour} + {cell-2.partsPerHour}",
+            "unit": "parts/h"
+        },
+        {
+            "label": "Parts made",
+            "value": "{cell-1.partsTotal} + {cell-2.partsTotal}",
+            "unit": "parts"
+        },
+        {
+            "label": "Boxes packed",
+            "value": "{packer.boxesTotal}",
+            "unit": "boxes"
+        }
+    ],
+    "panels": [
+        {
+            "title": "Machining",
+            "chart": {
+                "label": "Throughput",
+                "value": "{cell-1.partsPerHour} + {cell-2.partsPerHour}",
+                "unit": "parts/h"
+            },
+            "items": [
+                {
+                    "label": "Cell 1 spindle",
+                    "value": "{cell-1.spindleC}",
+                    "unit": "°C",
+                    "decimals": 1
+                },
+                {
+                    "label": "Cell 2 spindle",
+                    "value": "{cell-2.spindleC}",
+                    "unit": "°C",
+                    "decimals": 1
+                },
+                {
+                    "label": "Worst vibration",
+                    "value": "max({cell-1.vibrationMms}, {cell-2.vibrationMms})",
+                    "unit": "mm/s",
+                    "decimals": 2
+                }
+            ]
+        }
+    ]
+}

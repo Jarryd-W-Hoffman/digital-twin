@@ -46,7 +46,9 @@ it('offers the projects and samples when creating', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('twins/create')
             ->where('project', $project->id)
-            ->where('samples', [['id' => 'northshore', 'name' => 'Northshore Cold Chain Hub'], ['id' => 'harbour-depot', 'name' => 'Harbour Depot']]));
+            ->where('samples', [['id' => 'northshore', 'name' => 'Northshore Cold Chain Hub'], ['id' => 'harbour-depot', 'name' => 'Harbour Depot']])
+            ->has('templates', 5)
+            ->where('templates.0', ['id' => 'empty', 'name' => 'Empty', 'description' => "Nothing but the site's outline. Add models, scans and equipment from the Layout panel."]));
 });
 
 it('keeps operators and viewers from creating', function (OrganisationRole $role): void {
@@ -69,7 +71,7 @@ it('creates a twin from a sample', function (): void {
         ->and($twin->latestVersion?->definition['tilesets'][0]['id'])->toBe('context');
 });
 
-it('creates a blank twin at a place', function (): void {
+it('creates an empty twin at a place', function (): void {
     [$user, $organisation] = member();
     $project = Project::factory()->for($organisation)->create();
 
@@ -81,7 +83,28 @@ it('creates a blank twin at a place', function (): void {
     expect($definition['origin'])->toBe(['lon' => 174.76, 'lat' => -36.85])
         ->and($definition['utcOffsetHours'])->toEqual(13)
         ->and($definition['name'])->toBe('Quay')
-        ->and(array_column($definition['assets'], 'kind'))->toBe(['site', 'weather', 'grid', 'bus']);
+        ->and($definition['assets'])->toBe([]);
+});
+
+it('creates a twin from a template at a place', function (string $template, string $first): void {
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('twins.store'), [
+        'project' => $project->id, 'name' => 'Pit', 'source' => 'blank', 'template' => $template, 'lat' => '-31.95', 'lon' => '115.86',
+    ])->assertRedirect();
+
+    $definition = $project->twins()->sole()->latestVersion?->definition;
+    expect($definition['origin'])->toBe(['lon' => 115.86, 'lat' => -31.95])
+        ->and($definition['assets'][0]['id'])->toBe($first);
+})->with([['mine', 'sump'], ['factory', 'infeed'], ['survey', 'cp-1'], ['power', 'site']]);
+
+it('refuses a template it does not have', function (): void {
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('twins.store'), ['project' => $project->id, 'name' => 'X', 'source' => 'blank', 'template' => 'volcano', 'lat' => 0, 'lon' => 0])
+        ->assertSessionHasErrors(['template']);
 });
 
 it("guesses a blank twin's offset from its longitude, and checks the place", function (): void {

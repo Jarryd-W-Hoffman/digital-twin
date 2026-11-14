@@ -1,0 +1,27 @@
+[
+    {
+        "id": "empty",
+        "name": "Empty",
+        "description": "Nothing but the site's outline. Add models, scans and equipment from the Layout panel."
+    },
+    {
+        "id": "factory",
+        "name": "Factory line",
+        "description": "A conveyor feeding two machining cells and a packer, with throughput, temperature and vibration to watch."
+    },
+    {
+        "id": "mine",
+        "name": "Mine site",
+        "description": "A primary crusher, an overland conveyor, a run-of-mine stockpile and pit dewatering."
+    },
+    {
+        "id": "survey",
+        "name": "Survey and monitoring",
+        "description": "Survey control, slope-monitoring prisms and piezometers, ready for point clouds, terrain and map layers."
+    },
+    {
+        "id": "power",
+        "name": "Site power",
+        "description": "Weather, a grid connection and a main board, for a site whose energy is modelled."
+    }
+]

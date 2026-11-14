@@ -6,8 +6,6 @@
     "required": [
         "id",
         "name",
-        "tariff",
-        "climate",
         "camera",
         "assets",
         "zones",
@@ -28,11 +26,11 @@
         },
         "tariff": {
             "type": "object",
-            "x-message": "Missing tariff"
+            "x-message": "tariff must be an object"
         },
         "climate": {
             "type": "object",
-            "x-message": "Missing climate"
+            "x-message": "climate must be an object"
         },
         "camera": {
             "type": "object",

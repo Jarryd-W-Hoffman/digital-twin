@@ -137,7 +137,10 @@ final readonly class TwinDefinitionValidator
 
         $mains = array_filter($byId, fn (array $asset): bool => ($asset['kind'] ?? null) === 'bus' && ! array_key_exists('fedBy', $asset));
 
-        if (count($mains) !== 1) {
+        // Power is optional: only a twin with buses or fed assets needs a main bus.
+        $powered = array_filter($byId, fn (array $asset): bool => ($asset['kind'] ?? null) === 'bus' || array_key_exists('fedBy', $asset));
+
+        if ($powered !== [] && count($mains) !== 1) {
             $errors[] = 'Twin needs exactly one main bus (a bus with no fedBy)';
         }
 

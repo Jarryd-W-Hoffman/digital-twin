@@ -25,6 +25,7 @@ use App\Models\TwinShareLink;
 use App\Models\TwinVersion;
 use App\Models\User;
 use App\Support\SampleTwins;
+use App\Support\TwinTemplates;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -58,7 +59,7 @@ final readonly class TwinController
         ]);
     }
 
-    public function create(Request $request, #[CurrentUser] User $user, SampleTwins $samples): Response
+    public function create(Request $request, #[CurrentUser] User $user, SampleTwins $samples, TwinTemplates $templates): Response
     {
         $organisation = $user->organisation();
         Gate::authorize('create', [Twin::class, $organisation]);
@@ -67,6 +68,7 @@ final readonly class TwinController
             'projects' => $organisation->projects()->orderBy('name')->get(['id', 'name']),
             'project' => $request->filled('project') ? $request->string('project')->value() : null,
             'samples' => collect($samples->all())->map(fn (string $name, string $id): array => ['id' => $id, 'name' => $name])->values(),
+            'templates' => collect($templates->all())->map(fn (array $template, string $id): array => ['id' => $id, ...$template])->values(),
         ]);
     }
 

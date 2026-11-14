@@ -24,5 +24,5 @@ it('prints values the way JavaScript does', function (mixed $value, string $show
 ]);
 
 it('reads an empty array as an object where the schema wants one', function (): void {
-    expect(new DefinitionSchema()->errors(['tariff' => []]))->not->toContain('Missing tariff');
+    expect(new DefinitionSchema()->errors(['tariff' => []]))->not->toContain('tariff must be an object');
 });
