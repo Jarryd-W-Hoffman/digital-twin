@@ -188,6 +188,20 @@ test.beforeAll(() => {
         `${ROOT}:/var/www/html`,
         CONVERTER,
         'python3',
+        'scripts/generate-mesh.py',
+        'test-results/mesh-june',
+        '--mound',
+        '11',
+        '--zip',
+        'test-results/survey-june.zip',
+    ]);
+    run('docker', [
+        'run',
+        '--rm',
+        '-v',
+        `${ROOT}:/var/www/html`,
+        CONVERTER,
+        'python3',
         'scripts/generate-ifc.py',
         'test-results/shed.ifc',
         '--site',
@@ -1160,6 +1174,9 @@ test('screenshots', async ({ page, context }) => {
             .getByLabel(/^File \(/)
             .setInputFiles(resolve(ROOT, 'test-results/survey.zip'));
         await page.getByLabel('Name', { exact: true }).fill('Drone survey');
+        await page
+            .getByLabel('Captured on', { exact: true })
+            .fill('2026-03-10');
         await page.getByLabel('It is').selectOption('mesh');
         await page.getByRole('button', { name: 'Upload', exact: true }).click();
         const survey = library
@@ -1198,6 +1215,56 @@ test('screenshots', async ({ page, context }) => {
         await frameModel(page, 'Drone survey', 0, -0.6, 170, 'tilesets');
         await page.waitForTimeout(6000);
         await shot(page, 'mesh-in-twin');
+    });
+
+    await test.step('the site over time', async () => {
+        // A later survey of the same pad, its stockpile grown to 11 m.
+        await page.goto('/projects');
+        await page.getByRole('link', { name: /^Pilot sites/ }).click();
+        await page
+            .getByLabel(/^File \(/)
+            .setInputFiles(resolve(ROOT, 'test-results/survey-june.zip'));
+        await page
+            .getByLabel('Name', { exact: true })
+            .fill('June drone survey');
+        await page
+            .getByLabel('Captured on', { exact: true })
+            .fill('2026-06-18');
+        await page.getByLabel('It is').selectOption('mesh');
+        await page.getByRole('button', { name: 'Upload', exact: true }).click();
+        const june = library
+            .getByRole('listitem')
+            .filter({ hasText: 'June drone survey' });
+        await expect(june).toContainText('Converting', { timeout: 60_000 });
+        convertOne('mesh-june');
+        await expect(june).toContainText('Mesh · ', { timeout: 300_000 });
+
+        await page.goto('/twins');
+        await page.getByRole('link', { name: 'Survey pad' }).click();
+        await settle(page, 4000);
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+        await editor
+            .getByRole('list', { name: 'Library' })
+            .getByRole('listitem')
+            .filter({ hasText: 'June drone survey' })
+            .getByRole('button', { name: 'Add' })
+            .click();
+        await expect(versionChip).toHaveText('v3', { timeout: 60_000 });
+        await page.getByRole('button', { name: 'Close layout' }).click();
+        await settle(page, 4000);
+        await frameModel(page, 'June drone survey', 20, -0.45, 170, 'tilesets');
+        await page.waitForTimeout(6000);
+        await shot(page, 'site-over-time');
+
+        const slider = page.getByRole('slider', { name: 'Site on' });
+        await slider.focus();
+        await page.keyboard.press('Home');
+        await expect(
+            page.getByText('As captured on 10 Mar 2026'),
+        ).toBeVisible();
+        await page.waitForTimeout(4000);
+        await shot(page, 'site-over-time-march');
+        await page.keyboard.press('End');
     });
 
     await test.step('writing setpoints to OPC UA', async () => {

@@ -50,6 +50,8 @@ export type TwinAssetSummary = {
     bytes: number;
     files: number;
     url: string;
+    /** When it was captured (YYYY-MM-DD), if it's dated. */
+    capturedOn: string | null;
     /** Terrain or a point cloud that kept its heights, so surveys can be compared. */
     survey: boolean;
 };

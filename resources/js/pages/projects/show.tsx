@@ -94,6 +94,7 @@ export default function ShowProject({
         spacing: string;
         as: string;
         y_up: boolean;
+        captured_on: string;
     }>({
         name: '',
         file: null,
@@ -101,6 +102,7 @@ export default function ShowProject({
         spacing: '',
         as: '',
         y_up: false,
+        captured_on: '',
     });
     const filename = upload.data.file?.name ?? '';
     const isPointCloud = pointCloud.test(filename);
@@ -155,6 +157,9 @@ export default function ShowProject({
                     }),
                     ...(choices && upload.data.as && { as: upload.data.as }),
                     ...(isMesh && upload.data.y_up && { y_up: true }),
+                    ...(upload.data.captured_on && {
+                        captured_on: upload.data.captured_on,
+                    }),
                 },
                 signal: cancel.current.signal,
                 onProgress: (fraction) =>
@@ -176,6 +181,7 @@ export default function ShowProject({
                     epsg: errors.epsg,
                     spacing: errors.spacing,
                     as: errors.as,
+                    captured_on: errors.captured_on,
                     file:
                         errors.filename ??
                         errors.bytes ??
@@ -337,6 +343,25 @@ export default function ShowProject({
                                     }
                                 />
                                 <InputError message={upload.errors.name} />
+                            </div>
+                            <div className="grid w-40 gap-2">
+                                <Label htmlFor="upload-captured">
+                                    Captured on
+                                </Label>
+                                <Input
+                                    id="upload-captured"
+                                    type="date"
+                                    value={upload.data.captured_on}
+                                    onChange={(e) =>
+                                        upload.setData(
+                                            'captured_on',
+                                            e.target.value,
+                                        )
+                                    }
+                                />
+                                <InputError
+                                    message={upload.errors.captured_on}
+                                />
                             </div>
                             {choices && (
                                 <div className="grid w-64 gap-2">

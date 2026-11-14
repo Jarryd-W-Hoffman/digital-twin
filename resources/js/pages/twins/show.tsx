@@ -158,6 +158,19 @@ export default function ShowTwin({
         }
     }, [version, definition, can.operate, live, gatewayUrl]);
 
+    // When the library's uploads were captured, for the Site on slider.
+    useEffect(() => {
+        useTwin.setState({
+            captures: Object.fromEntries(
+                assets.flatMap((a) =>
+                    a.capturedOn
+                        ? [[a.id, { on: a.capturedOn, kind: a.kind }]]
+                        : [],
+                ),
+            ),
+        });
+    }, [assets]);
+
     // Recorded readings come from the control plane, whichever source runs.
     useEffect(() => {
         useTwin.setState({

@@ -69,6 +69,10 @@ An `.ifc` upload is converted on the server, like a point cloud, and shows **Con
 
 If the conversion fails, the reason is shown, as for a point cloud. The usual causes are a file that isn't IFC, or one with no elements that have a shape.
 
+## Capture dates
+
+Each upload can say when it was **captured**: fill in **Captured on** when you upload it, or change it under its name in the library later. A twin uses the dates to show the site as it was on each; see [The site over time](21-the-site-over-time.md).
+
 ## Large uploads
 
 If your Meridian stores files in object storage (S3, or RustFS in the Docker stack) and direct uploads are switched on, your browser sends files straight to storage in parts. Big scans never pass through the web server, so the limit is 20 GB rather than the server's own upload limit, which is 512 MB unless your administrator changes it.

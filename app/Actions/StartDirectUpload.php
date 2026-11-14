@@ -22,7 +22,7 @@ final readonly class StartDirectUpload
      * Adds the upload to the library as uploading and opens a multipart upload
      * for its bytes. The caller learns how to split the file.
      *
-     * @param  array{epsg?: int, spacing?: float, as?: string, y_up?: bool}  $options  Point cloud conversion options.
+     * @param  array{epsg?: int, spacing?: float, as?: string, y_up?: bool, captured_on?: string}  $options  Point cloud conversion options.
      * @return array{asset: ProjectAsset, partBytes: int, parts: int}
      */
     public function handle(Project $project, string $name, string $filename, int $bytes, array $options = []): array
@@ -40,7 +40,8 @@ final readonly class StartDirectUpload
                 'bytes' => $bytes,
                 'files' => 0,
                 'status' => ProjectAssetStatus::Uploading,
-                'options' => $kind->isConverted() ? Arr::except($options, 'as') : null,
+                'options' => $kind->isConverted() ? Arr::except($options, ['as', 'captured_on']) : null,
+                'captured_on' => $options['captured_on'] ?? null,
             ]);
 
             $asset->update(['upload_id' => $this->uploads->start($asset->sourceKey())]);

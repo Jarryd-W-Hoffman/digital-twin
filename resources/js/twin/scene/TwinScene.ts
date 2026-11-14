@@ -257,6 +257,8 @@ export class TwinScene {
         Cesium3DTileset | Model
     >();
     private contextShown = true;
+    /** Layers not shown at the site's date. */
+    private hiddenLayers = new Set<string>();
     /** Uploaded imagery over the basemap, and map layers draped on the ground. */
     private readonly mapImagery = new Map<string, ImageryLayer>();
     private readonly mapVectors = new Map<string, GeoJsonDataSource>();
@@ -1163,7 +1165,8 @@ export class TwinScene {
                 if (this.viewer.isDestroyed()) return;
                 if (t.placement)
                     tileset.modelMatrix = this.placementMatrix(t.placement);
-                tileset.show = this.contextShown;
+                tileset.show =
+                    this.contextShown && !this.hiddenLayers.has(t.id);
                 if (this.bound.has(t.id))
                     tileset.style = this.featureStyle(t.id, t.featureProperty);
                 this.viewer.scene.primitives.add(tileset);
@@ -1182,6 +1185,7 @@ export class TwinScene {
                     shadows: ShadowMode.ENABLED,
                 });
                 if (this.viewer.isDestroyed()) return;
+                model.show = !this.hiddenLayers.has(m.id);
                 if (this.bound.has(m.id))
                     model.style = this.featureStyle(m.id, m.featureProperty);
                 this.viewer.scene.primitives.add(model);
@@ -1210,7 +1214,7 @@ export class TwinScene {
                     }),
                 );
                 layer.alpha = i.opacity ?? 1;
-                layer.show = this.contextShown;
+                layer.show = this.contextShown && !this.hiddenLayers.has(i.id);
                 this.mapImagery.set(i.id, layer);
             } catch (error) {
                 console.warn(`Could not load imagery ${i.id}`, error);
@@ -1229,7 +1233,7 @@ export class TwinScene {
                     markerSize: 32,
                 });
                 if (this.viewer.isDestroyed()) return;
-                source.show = this.contextShown;
+                source.show = this.contextShown && !this.hiddenLayers.has(v.id);
                 await this.viewer.dataSources.add(source);
                 this.mapVectors.set(v.id, source);
             } catch (error) {
@@ -1639,16 +1643,34 @@ export class TwinScene {
         this.pulses.show = layers.flows;
         this.zones.show = layers.zones;
         this.contextShown = layers.context;
-        for (const primitive of this.layerPrimitives.values()) {
-            if (primitive instanceof Cesium3DTileset)
-                primitive.show = layers.context;
-        }
-        for (const layer of this.mapImagery.values())
-            layer.show = layers.context;
-        for (const source of this.mapVectors.values())
-            source.show = layers.context;
+        this.showLayers();
         this.shadowsWanted = layers.shadows;
         if (this.lastFrame) this.updateLight(this.lastFrame.t);
+    }
+
+    /** Shows the site as it was on a date: the layers to hide then. */
+    setHiddenLayers(hidden: Set<string>): void {
+        this.hiddenLayers = hidden;
+        this.showLayers();
+    }
+
+    /** Whether a layer is drawn, for tests. */
+    layerShown(id: string): boolean | null {
+        return (
+            this.layerPrimitives.get(id)?.show ??
+            this.mapImagery.get(id)?.show ??
+            this.mapVectors.get(id)?.show ??
+            null
+        );
+    }
+
+    private showLayers(): void {
+        const shown = (id: string, uploaded = true) =>
+            (!uploaded || this.contextShown) && !this.hiddenLayers.has(id);
+        for (const [id, primitive] of this.layerPrimitives)
+            primitive.show = shown(id, primitive instanceof Cesium3DTileset);
+        for (const [id, layer] of this.mapImagery) layer.show = shown(id);
+        for (const [id, source] of this.mapVectors) source.show = shown(id);
     }
 
     /** The colour actually written to an asset's geometry, for tests. */

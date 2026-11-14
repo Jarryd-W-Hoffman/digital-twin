@@ -15,11 +15,12 @@ it('starts a direct upload and plans its parts', function (): void {
     [$user, $organisation] = member();
     $project = Project::factory()->for($organisation)->create();
 
-    $response = $this->actingAs($user)->postJson(route('projects.uploads.store', $project), ['name' => 'Scan', 'filename' => 'scan.zip', 'bytes' => 3000]);
+    $response = $this->actingAs($user)->postJson(route('projects.uploads.store', $project), ['name' => 'Scan', 'filename' => 'scan.zip', 'bytes' => 3000, 'captured_on' => '2026-03-10']);
 
     $asset = $project->assets()->sole();
     $response->assertCreated()->assertExactJson(['id' => $asset->id, 'partBytes' => 1024, 'parts' => 3]);
-    expect($asset->status)->toBe(ProjectAssetStatus::Uploading);
+    expect($asset->status)->toBe(ProjectAssetStatus::Uploading)
+        ->and($asset->captured_on?->toDateString())->toBe('2026-03-10');
 });
 
 it('is not there unless direct uploads are on', function (): void {

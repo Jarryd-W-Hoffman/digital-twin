@@ -92,6 +92,7 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     // Projects and their libraries...
     Route::resource('projects', ProjectController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
     Route::post('projects/{project}/assets', [ProjectAssetController::class, 'store'])->name('projects.assets.store');
+    Route::patch('projects/{project}/assets/{asset}', [ProjectAssetController::class, 'update'])->scopeBindings()->name('projects.assets.update');
     Route::delete('projects/{project}/assets/{asset}', [ProjectAssetController::class, 'destroy'])->scopeBindings()->name('projects.assets.destroy');
     Route::post('projects/{project}/assets/{asset}/conversion', [ProjectAssetConversionController::class, 'store'])->scopeBindings()->name('projects.assets.conversion.store');
     Route::post('projects/{project}/devices', [ProjectDeviceController::class, 'store'])->name('projects.devices.store');

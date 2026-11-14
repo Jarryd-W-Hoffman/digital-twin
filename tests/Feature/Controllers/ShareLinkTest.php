@@ -153,6 +153,28 @@ it('loads terrain through the link too', function (): void {
     $this->get('/share/'.SHARE_TOKEN.'/assets/'.$terrain->id.'/files/layer.json')->assertOk();
 });
 
+it('loads map layers and imagery through the link, and says when the dated ones were captured', function (): void {
+    [$twin, , $model] = sharedTwin();
+    $plan = ProjectAsset::factory()->for($twin->project)->create(['kind' => 'vector', 'entry' => 'layer.geojson', 'captured_on' => '2026-03-10']);
+    $ortho = ProjectAsset::factory()->for($twin->project)->create(['kind' => 'imagery', 'entry' => 'imagery.json', 'captured_on' => '2026-05-12']);
+    ProjectAsset::factory()->for($twin->project)->create(['captured_on' => '2026-01-01']);
+    Storage::disk('local')->put($plan->directory.'/layer.geojson', '{}');
+    Storage::disk('local')->put($ortho->directory.'/imagery.json', '{}');
+    resolve(AddAssetToTwin::class)->handle($twin, null, $plan);
+    resolve(AddAssetToTwin::class)->handle($twin, null, $ortho);
+
+    $this->get('/share/'.SHARE_TOKEN)->assertInertia(fn ($page) => $page
+        ->where('definition.vectors.0.url', '/share/'.SHARE_TOKEN.'/assets/'.$plan->id.'/files/layer.geojson')
+        ->where('definition.imagery.0.url', '/share/'.SHARE_TOKEN.'/assets/'.$ortho->id.'/files/imagery.json')
+        ->where('captures', [
+            $plan->id => ['on' => '2026-03-10', 'kind' => 'vector'],
+            $ortho->id => ['on' => '2026-05-12', 'kind' => 'imagery'],
+        ]));
+    $this->get('/share/'.SHARE_TOKEN.'/assets/'.$plan->id.'/files/layer.geojson')->assertOk();
+    $this->get('/share/'.SHARE_TOKEN.'/assets/'.$ortho->id.'/files/imagery.json')->assertOk();
+    expect($model->captured_on)->toBeNull();
+});
+
 it('loads only the files the shared twin shows', function (): void {
     [$twin, , $asset] = sharedTwin();
     $elsewhere = ProjectAsset::factory()->for($twin->project)->create();

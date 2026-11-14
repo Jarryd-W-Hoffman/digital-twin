@@ -12,6 +12,7 @@ software exports projected coordinates), relative to an offset in NZTM2000
     --georeference pix4d      <name>_offset.xyz and <name>.prj, as Pix4D writes
     --georeference none       neither: a mesh in local metres
     --y-up                    vertices as (east, up, south), as some tools write
+    --mound METRES            the mound's height, 6 m unless given
 
 Usage: generate-mesh.py OUT_DIR [--georeference metadata|pix4d|none] [--zip FILE]
 """
@@ -35,10 +36,10 @@ NZTM_WKT = (
 WIDTH, DEPTH, STEP = 100, 60, 2
 
 
-def height(x: float, y: float) -> float:
-    """A 6 m mound in the middle of a level pad."""
+def height(x: float, y: float, peak: float = 6.0) -> float:
+    """A mound, 6 m high unless said, in the middle of a level pad."""
     r = math.hypot((x - WIDTH / 2) / 30, (y - DEPTH / 2) / 18)
-    return 6 * max(0.0, 1 - r * r)
+    return peak * max(0.0, 1 - r * r)
 
 
 def png(path: str, size: int = 256) -> None:
@@ -70,6 +71,7 @@ def main() -> None:
     parser.add_argument("--georeference", choices=["metadata", "pix4d", "none"], default="metadata")
     parser.add_argument("--zip")
     parser.add_argument("--y-up", action="store_true", help="write the OBJ y-up, as some tools do")
+    parser.add_argument("--mound", type=float, default=6.0, help="the mound's height in metres, say for a later survey")
     args = parser.parse_args()
     os.makedirs(args.out, exist_ok=True)
     name = "survey"
@@ -79,7 +81,7 @@ def main() -> None:
     for j in range(rows):
         for i in range(columns):
             x, y = i * STEP, j * STEP
-            z = height(x, y)
+            z = height(x, y, args.mound)
             lines.append(f"v {x:.3f} {z:.3f} {-y:.3f}" if args.y_up else f"v {x:.3f} {y:.3f} {z:.3f}")
     for j in range(rows):
         for i in range(columns):
