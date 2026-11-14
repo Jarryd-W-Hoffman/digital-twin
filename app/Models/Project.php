@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\ProjectAssetKind;
+use App\Enums\ProjectAssetStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -95,6 +97,20 @@ final class Project extends Model
     public function assets(): HasMany
     {
         return $this->hasMany(ProjectAsset::class);
+    }
+
+    /**
+     * The surveys of the ground in its library that can be compared: ready
+     * terrain and point clouds that kept their heights.
+     *
+     * @return HasMany<ProjectAsset, $this>
+     */
+    public function surveys(): HasMany
+    {
+        return $this->assets()
+            ->whereIn('kind', [ProjectAssetKind::Terrain, ProjectAssetKind::PointCloud])
+            ->where('status', ProjectAssetStatus::Ready)
+            ->whereNotNull('details->surface');
     }
 
     /**

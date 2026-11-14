@@ -134,6 +134,7 @@ export default function CesiumView() {
             scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
             scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
             scene.setSection(s.section);
+            void scene.setSurveyOverlay(s.surveyOverlay);
             showGizmo(s);
             showSight(s);
             pickFeatures(waitingFor(s));
@@ -163,6 +164,8 @@ export default function CesiumView() {
                 scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
             if (s.measureClear !== prev.measureClear) scene.measure.clear();
             if (s.section !== prev.section) scene.setSection(s.section);
+            if (s.surveyOverlay !== prev.surveyOverlay)
+                void scene.setSurveyOverlay(s.surveyOverlay);
             if (s.movingLayer !== prev.movingLayer || s.drafts !== prev.drafts)
                 showGizmo(s);
             if (s.sighting !== prev.sighting) showSight(s);

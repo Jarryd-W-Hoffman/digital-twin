@@ -19,7 +19,8 @@ use Throwable;
  *     check the file's signature
  *     meridian-terrain → reproject to WGS84, triangulate each tile, write
  *                        {z}/{x}/{y}.terrain and layer.json
- *     copy the tiles into the asset's directory, then drop the original
+ *     copy the tiles, and the heights as given (for comparing surveys), into
+ *     the asset's directory, then drop the original
  *
  * On failure the original is kept, so the conversion can be retried (say,
  * with the EPSG code a DEM without a coordinate system needs).
@@ -57,7 +58,7 @@ final readonly class ConvertTerrain
             $stored = $this->converter->store($disk, $tiles, $asset->directory, 'layer.json');
             $disk->deleteDirectory(dirname($asset->sourceKey()));
 
-            $asset->update([...$stored, 'crs' => $summary['crs'], 'status' => ProjectAssetStatus::Ready, 'progress' => 100, 'error' => null]);
+            $asset->update([...$stored, 'crs' => $summary['crs'], 'details' => ['surface' => ProjectAsset::SURFACE], 'status' => ProjectAssetStatus::Ready, 'progress' => 100, 'error' => null]);
             $this->converter->note($asset, 100, __(':files files written', ['files' => number_format($stored['files'])]));
 
             return $asset;
@@ -94,6 +95,7 @@ final readonly class ConvertTerrain
         $command = [
             config()->string('meridian.terrain.tiler'), $source, $tiles,
             '--jobs', (string) config()->integer('meridian.terrain.jobs'),
+            '--surface', $tiles.'/'.ProjectAsset::SURFACE,
         ];
 
         if (isset($asset->options['epsg'])) {

@@ -7,10 +7,14 @@ use App\Actions\ConvertImagery;
 use App\Actions\ConvertPointCloud;
 use App\Actions\ConvertTerrain;
 use App\Actions\ConvertVector;
+use App\Actions\MeasureSurveys;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
+use App\Enums\SurveyComparisonStatus;
 use App\Exceptions\ConversionFailed;
 use App\Models\ProjectAsset;
+use App\Models\SurveyComparison;
+use App\Models\Twin;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
@@ -18,7 +22,7 @@ use Illuminate\Support\Str;
 
 /*
  * Runs the real PDAL, py3dtiles, meridian-terrain, meridian-ifc, meridian-vector
- * and meridian-imagery, so it only runs
+ * meridian-imagery and meridian-volume, so it only runs
  * inside the converter image:
  *
  *     docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 \
@@ -85,7 +89,9 @@ it('tiles a LAS scan where it is on the globe', function (): void {
         ->and($asset->crs)->toBe('EPSG:2193')
         ->and($asset->files)->toBeGreaterThan(1)
         ->and($lat)->toEqualWithDelta(-36.852, 0.01)
-        ->and($lon)->toEqualWithDelta(174.751, 0.01);
+        ->and($lon)->toEqualWithDelta(174.751, 0.01)
+        ->and($asset->details)->toBe(['surface' => 'surface.tif'])
+        ->and(mb_substr((string) Storage::disk('local')->get($asset->directory.'/surface.tif'), 0, 4, '8bit'))->toBeIn(["II*\0", "II+\0"]);
 })->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs PDAL and py3dtiles (the converter image).');
 
 it('tiles an E57 scan, georeferenced by the EPSG code given and thinned', function (): void {
@@ -206,6 +212,7 @@ it('tiles a GeoTIFF DEM as quantized-mesh terrain', function (): void {
     expect($asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
         ->and($asset->crs)->toBe('EPSG:2193')
         ->and($asset->log)->toContain('to 100 m')
+        ->and($asset->details)->toBe(['surface' => 'surface.tif'])
         ->and($layer['format'])->toBe('quantized-mesh-1.0')
         ->and($layer['extensions'])->toBe(['octvertexnormals'])
         ->and($layer['maxzoom'])->toBe(16)
@@ -467,3 +474,43 @@ it('tiles a GeoTIFF orthophoto as web map tiles, from the bands it has', functio
     'RGB bytes' => [3, 1],
     'one 16-bit band' => [1, 2],
 ])->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-imagery (the converter image).');
+
+it('measures the fill between two DEMs inside an area, and draws where', function (): void {
+    $before = demOfAuckland($this->work);
+    // The same ground with a 100 m square, 2 m higher: 20,000 m³ of fill.
+    $script = <<<'PY'
+        import sys
+        from osgeo import gdal
+        gdal.UseExceptions()
+        d = gdal.Translate(sys.argv[2], sys.argv[1])
+        b = d.GetRasterBand(1)
+        z = b.ReadAsArray()
+        z[600:650, 400:450] += 2
+        b.WriteArray(z)
+        d = None
+        PY;
+    File::put($this->work.'/raise.py', $script);
+    Process::run(['python3', $this->work.'/raise.py', $before, $this->work.'/after.tif'])->throw();
+    $twin = Twin::factory()->create();
+    [$march, $april] = array_map(function (string $path) use ($twin): ProjectAsset {
+        $survey = ProjectAsset::factory()->for($twin->project)->survey()->create();
+        Storage::disk('local')->put($survey->directory.'/surface.tif', File::get($path));
+
+        return $survey;
+    }, [$before, $this->work.'/after.tif']);
+    // A 300 m square in NZTM around the raised one, in longitude and latitude.
+    $corners = Process::run(['python3', '-c', 'import json; from pyproj import Transformer; t = Transformer.from_crs(2193, 4326, always_xy=True); print(json.dumps([t.transform(e, n) for e, n in [(1756700, 5919900), (1757000, 5919900), (1757000, 5919600), (1756700, 5919600)]]))'])->throw()->output();
+    /** @var list<array{0: float, 1: float}> $area */
+    $area = json_decode($corners, true);
+    $comparison = SurveyComparison::factory()->for($twin)->create(['area' => $area, 'surveys' => [$march->id, $april->id]]);
+
+    resolve(MeasureSurveys::class)->handle($comparison);
+
+    $result = $comparison->refresh()->results[0] ?? [];
+    expect($comparison->status)->toBe(SurveyComparisonStatus::Ready)
+        ->and($result['fill'] ?? null)->toEqualWithDelta(20_000, 200)
+        ->and($result['cut'] ?? null)->toEqualWithDelta(0, 1)
+        ->and($result['areaM2'] ?? null)->toEqualWithDelta(90_000, 500)
+        ->and($result['highestFill'] ?? null)->toEqualWithDelta(2, 0.01)
+        ->and(mb_substr((string) Storage::disk('local')->get($comparison->imageKey(1)), 1, 3, '8bit'))->toBe('PNG');
+})->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-volume (the converter image).');

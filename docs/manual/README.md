@@ -24,6 +24,7 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 | 🛠️  | [Running Meridian](14-running-meridian.md)                       | The Docker stack, workers, the broker, configuration and upgrading                                                                                  |
 | 🔑  | [The API](15-the-api.md)                                         | API tokens, reading from other systems, and raising issues and acknowledging alerts from them                                                          |
 | 🗺️  | [Map layers and imagery](16-map-layers-and-imagery.md)           | Uploading GeoJSON, KML, shapefiles, DXF and GeoPackages as map layers, and GeoTIFF orthophotos as imagery, and drawing them in a twin                 |
+| ⛏️  | [Comparing surveys](17-comparing-surveys.md)                     | Cut and fill between surveys of the ground inside an area, over time, for stockpiles, pits and earthworks                                            |
 
 ## Conventions
 
@@ -39,7 +40,7 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 
 ## About the screenshots
 
-The screenshots are taken by a Playwright walkthrough of a freshly seeded app, using the real MQTT broker, the OPC UA simulator and the converter (for a point cloud, a DEM, an orthophoto, a site plan and an IFC model), so they can be brought up to date whenever the app changes:
+The screenshots are taken by a Playwright walkthrough of a freshly seeded app, using the real MQTT broker, the OPC UA simulator and the converter (for a point cloud, two DEMs, an orthophoto, a site plan, an IFC model and a comparison of surveys), so they can be brought up to date whenever the app changes:
 
 ```bash
 npm run build

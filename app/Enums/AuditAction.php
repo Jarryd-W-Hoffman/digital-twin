@@ -54,6 +54,8 @@ enum AuditAction: string
     case IssueClosed = 'issue.closed';
     case IssueReopened = 'issue.reopened';
     case IssueDeleted = 'issue.deleted';
+    case SurveyComparisonSaved = 'survey_comparison.saved';
+    case SurveyComparisonDeleted = 'survey_comparison.deleted';
 
     /**
      * @return array<string, string>
@@ -125,6 +127,8 @@ enum AuditAction: string
             self::IssueClosed => 'Closed an issue',
             self::IssueReopened => 'Reopened an issue',
             self::IssueDeleted => 'Deleted an issue',
+            self::SurveyComparisonSaved => 'Compared surveys',
+            self::SurveyComparisonDeleted => 'Deleted a survey comparison',
         };
     }
 
@@ -142,7 +146,7 @@ enum AuditAction: string
             self::GatewayTokenIssued, self::GatewayTokenRevoked, self::OpcUaWritesChanged, self::ChannelAdded, self::ChannelDeleted,
             self::AnomalyMonitorSaved, self::AnomalyMonitorRemoved, self::AnomalyExclusionAdded, self::AnomalyExclusionRemoved => 'connections',
             self::TwinCreated, self::TwinRenamed, self::TwinDeleted, self::VersionSaved, self::OpeningViewChanged,
-            self::ShareLinkCreated, self::ShareLinkRevoked => 'twins',
+            self::ShareLinkCreated, self::ShareLinkRevoked, self::SurveyComparisonSaved, self::SurveyComparisonDeleted => 'twins',
             self::AlertAcknowledged, self::IssueRaised, self::IssueAssigned, self::IssueClosed, self::IssueReopened, self::IssueDeleted => 'operations',
         };
     }

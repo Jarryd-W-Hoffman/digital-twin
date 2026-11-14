@@ -100,6 +100,9 @@ export interface TwinStore {
     /** A footprint or path being drawn on the ground, by the editor field that owns it. */
     sketch: Sketching | null;
     setSketch: (sketch: Sketching | null) => void;
+    /** The survey change shown in the scene, from the Volumes panel. */
+    surveyOverlay: SurveyOverlay | null;
+    setSurveyOverlay: (overlay: SurveyOverlay | null) => void;
     /** The editor field waiting for a click on a layer's feature, and what was clicked. */
     featurePick: { owner: string; picked?: FeatureRef } | null;
     setFeaturePick: (
@@ -200,6 +203,13 @@ export function sightEnds(line: Sighting['line']): [Vec3, Vec3] | null {
         [line.from[0], line.from[1], line.from[2] + line.eye],
         [line.to[0], line.to[1], line.to[2] + line.target],
     ];
+}
+
+/** The change between two surveys to lay over the ground, in longitude and latitude. */
+export interface SurveyOverlay {
+    image: string;
+    bounds: [number, number, number, number];
+    area: [number, number][];
 }
 
 export interface Sketching {
@@ -354,6 +364,8 @@ export const useTwin = create<TwinStore>((set, get) => ({
             }
             return {};
         }),
+    surveyOverlay: null,
+    setSurveyOverlay: (surveyOverlay) => set({ surveyOverlay }),
     sketch: null,
     setSketch: (sketch) =>
         set((s) => ({

@@ -21,18 +21,20 @@ beforeEach(function (): void {
     Storage::disk('local')->put($this->asset->sourceKey(), 'LASF1.4 points');
 });
 
-it('tiles a georeferenced cloud into the library and drops the original', function (): void {
+it('tiles a georeferenced cloud into the library, keeps its heights and drops the original', function (): void {
     fakeConverter(epsg: 2193, points: 1_234_567);
 
     $asset = resolve(ConvertPointCloud::class)->handle($this->asset);
 
     expect($asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
         ->and($asset->entry)->toBe('tileset.json')
-        ->and($asset->files)->toBe(2)
-        ->and($asset->bytes)->toBe(mb_strlen(tilesetJson(), '8bit') + 4)
+        ->and($asset->files)->toBe(3)
+        ->and($asset->bytes)->toBe(mb_strlen(tilesetJson(), '8bit') + 4 + 12)
+        ->and($asset->details)->toBe(['surface' => 'surface.tif'])
+        ->and(Storage::disk('local')->get($asset->directory.'/surface.tif'))->toBe("II*\0 heights")
         ->and($asset->crs)->toBe('EPSG:2193')
         ->and($asset->progress)->toBe(100)
-        ->and($asset->log)->toBe("Downloaded Quay Scan.LAZ\n1,234,567 points, EPSG:2193\nPrepared for tiling\nTiled\n2 files written")
+        ->and($asset->log)->toBe("Downloaded Quay Scan.LAZ\n1,234,567 points, EPSG:2193\nPrepared for tiling\nTiled\n3 files written")
         ->and(Storage::disk('local')->exists($asset->directory.'/tileset.json'))->toBeTrue()
         ->and(Storage::disk('local')->exists($asset->directory.'/r/0.pnts'))->toBeTrue()
         ->and(Storage::disk('local')->exists($asset->sourceKey()))->toBeFalse()
@@ -50,6 +52,8 @@ it('keeps a cloud without a coordinate system in local metres', function (): voi
     $asset = resolve(ConvertPointCloud::class)->handle($this->asset);
 
     expect($asset->crs)->toBeNull()
+        ->and($asset->details)->toBeNull()
+        ->and(Storage::disk('local')->exists($asset->directory.'/surface.tif'))->toBeFalse()
         ->and($asset->log)->toContain('no coordinate system (placed as local metres)');
     Process::assertRan(fn (PendingProcess $process): bool => $process->command[0] === 'py3dtiles' && ! in_array('--srs_out', $process->command, true));
 });
@@ -70,7 +74,9 @@ it('assigns the given EPSG code and thins to the given spacing', function (): vo
     expect($asset->crs)->toBe('EPSG:2193')
         ->and($pipeline[0]['override_srs'])->toBe('EPSG:2193')
         ->and($pipeline[1])->toBe(['type' => 'filters.voxelcenternearestneighbor', 'cell' => 0.05])
-        ->and($pipeline[2]['type'])->toBe('writers.las');
+        ->and($pipeline[2]['type'])->toBe('writers.las')
+        ->and($pipeline[3])->toMatchArray(['type' => 'writers.gdal', 'resolution' => 0.5, 'output_type' => 'mean', 'data_type' => 'float32', 'nodata' => -9999])
+        ->and($pipeline[3]['filename'])->toEndWith('/surface.tif');
 });
 
 it('names a CRS PDAL describes without an authority code', function (array $srs, string $crs): void {

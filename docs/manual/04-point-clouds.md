@@ -20,7 +20,7 @@ flowchart LR
 ```
 
 - The original file is kept until the conversion succeeds, so a failed conversion can be retried without uploading again.
-- A scan with a **coordinate system** (most LAS and LAZ files from a surveyor carry one) is placed on the globe exactly where it was measured.
+- A scan with a **coordinate system** (most LAS and LAZ files from a surveyor carry one) is placed on the globe exactly where it was measured. Its points' mean height in each half-metre cell is also kept, so it can be [compared with other surveys](17-comparing-surveys.md) of the ground.
 - A scan **without** one (common for E57 from terrestrial scanners) is tiled in its own metres and starts at the twin's origin. You then move it into place like a model.
 
 ## Upload a scan
@@ -38,10 +38,10 @@ Downloaded wharf.las
 491,189 points, EPSG:2193
 Prepared for tiling
 Tiled
-73 files written
+74 files written
 ```
 
-When it's done, the item reads **Point cloud · 73 files · EPSG:2193** (or **local metres** when it had no coordinate system).
+When it's done, the item reads **Point cloud · 74 files · EPSG:2193** (or **local metres** when it had no coordinate system).
 
 ![The library after the conversion: the wharf scan is ready, with its log.](../images/library.png)
 

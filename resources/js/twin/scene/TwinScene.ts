@@ -45,6 +45,7 @@ import {
     ScreenSpaceEventHandler,
     ScreenSpaceEventType,
     ShadowMode,
+    SingleTileImageryProvider,
     sampleTerrainMostDetailed,
     SunLight,
     TileMapServiceImageryProvider,
@@ -87,7 +88,13 @@ import type {
     TwinDefinition,
 } from '../core/types.ts';
 import { State } from '../core/types.ts';
-import type { Basemap, CameraView, ColorBy, Layers } from '../state/store.ts';
+import type {
+    Basemap,
+    CameraView,
+    ColorBy,
+    Layers,
+    SurveyOverlay,
+} from '../state/store.ts';
 import {
     BODY_COLOR,
     INERT_COLOR,
@@ -253,6 +260,10 @@ export class TwinScene {
     /** Uploaded imagery over the basemap, and map layers draped on the ground. */
     private readonly mapImagery = new Map<string, ImageryLayer>();
     private readonly mapVectors = new Map<string, GeoJsonDataSource>();
+    /** The change between two surveys, laid over the ground, and its area's outline. */
+    private surveyLayer: ImageryLayer | undefined;
+    private surveyOutline: Entity | undefined;
+    private surveyShown: SurveyOverlay | null = null;
     /**
      * The terrain's height at the origin. The site is built level at that
      * height, so it sits on the ground; 0 on the plain ellipsoid.
@@ -628,6 +639,58 @@ export class TwinScene {
         // The twin's own imagery stays over whichever basemap.
         for (const layer of this.mapImagery.values())
             this.viewer.imageryLayers.raiseToTop(layer);
+        if (this.surveyLayer)
+            this.viewer.imageryLayers.raiseToTop(this.surveyLayer);
+    }
+
+    /**
+     * Lays the change between two surveys over everything on the ground, with
+     * the area it was measured in outlined; null takes it away.
+     */
+    async setSurveyOverlay(overlay: SurveyOverlay | null): Promise<void> {
+        this.surveyShown = overlay;
+        if (this.surveyLayer) {
+            this.viewer.imageryLayers.remove(this.surveyLayer);
+            this.surveyLayer = undefined;
+        }
+        if (this.surveyOutline) {
+            this.viewer.entities.remove(this.surveyOutline);
+            this.surveyOutline = undefined;
+        }
+        if (!overlay) return;
+        this.surveyOutline = this.viewer.entities.add({
+            polyline: {
+                positions: Cartesian3.fromDegreesArray(
+                    [...overlay.area, overlay.area[0]].flat(),
+                ),
+                clampToGround: true,
+                width: 3,
+                material: Color.WHITE.withAlpha(0.9),
+            },
+        });
+        try {
+            const provider = await SingleTileImageryProvider.fromUrl(
+                overlay.image,
+                { rectangle: Rectangle.fromDegrees(...overlay.bounds) },
+            );
+            // Another overlay may have been asked for while this one loaded.
+            if (this.surveyShown !== overlay || this.viewer.isDestroyed())
+                return;
+            this.surveyLayer =
+                this.viewer.imageryLayers.addImageryProvider(provider);
+        } catch (error) {
+            console.warn('Could not load the survey change', error);
+        }
+    }
+
+    /** Test hook: the survey change shown, if it has loaded. */
+    surveyOverlay(): { bounds: number[]; loaded: boolean } | null {
+        return this.surveyShown
+            ? {
+                  bounds: this.surveyShown.bounds,
+                  loaded: this.surveyLayer !== undefined,
+              }
+            : null;
     }
 
     private buildZones(): void {

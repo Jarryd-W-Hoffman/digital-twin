@@ -748,7 +748,7 @@ function useFeaturePick(onPicked: (feature: FeatureRef) => void) {
  * reported as they change, and leaving the field (another item, or closing
  * the editor) ends its sketch.
  */
-function useSketch(onPoints: (points: Point[]) => void) {
+export function useSketch(onPoints: (points: Point[]) => void) {
     const owner = useId();
     const sketch = useTwin((s) =>
         s.sketch?.owner === owner ? s.sketch : null,

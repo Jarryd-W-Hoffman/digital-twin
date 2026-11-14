@@ -28,11 +28,13 @@ it('tiles a DEM into the library and drops the original', function (): void {
 
     expect($asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
         ->and($asset->entry)->toBe('layer.json')
-        ->and($asset->files)->toBe(2)
-        ->and($asset->bytes)->toBe(36)
+        ->and($asset->files)->toBe(3)
+        ->and($asset->bytes)->toBe(36 + 12)
+        ->and($asset->details)->toBe(['surface' => 'surface.tif'])
+        ->and(Storage::disk('local')->get($asset->directory.'/surface.tif'))->toBe("II*\0 heights")
         ->and($asset->crs)->toBe('EPSG:2193')
         ->and($asset->progress)->toBe(100)
-        ->and($asset->log)->toBe("Downloaded Quay DEM.TIF\nEPSG:2193, 120 tiles to zoom 16, heights 20.04 to 100 m\n2 files written")
+        ->and($asset->log)->toBe("Downloaded Quay DEM.TIF\nEPSG:2193, 120 tiles to zoom 16, heights 20.04 to 100 m\n3 files written")
         ->and(Storage::disk('local')->exists($asset->directory.'/layer.json'))->toBeTrue()
         ->and(Storage::disk('local')->exists($asset->directory.'/0/1/0.terrain'))->toBeTrue()
         ->and(Storage::disk('local')->exists($asset->sourceKey()))->toBeFalse()
@@ -41,6 +43,7 @@ it('tiles a DEM into the library and drops the original', function (): void {
     Process::assertRan(fn (PendingProcess $process): bool => $process->command[0] === 'meridian-terrain'
         && $process->command[1] === storage_path('app/conversions/'.$asset->id.'/source.tif')
         && $process->command[3] === '--jobs'
+        && array_slice((array) $process->command, 5, 2) === ['--surface', storage_path('app/conversions/'.$asset->id.'/tiles/surface.tif')]
         && ! in_array('--srs', (array) $process->command, true));
 });
 

@@ -34,7 +34,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read int|null $progress
  * @property-read string|null $log
  * @property-read string|null $crs
- * @property-read array{elements?: int, georeference?: array{lon: float, lat: float, headingDeg: float, source: string}|null, features?: int, bounds?: list<float>, zooms?: list<int>}|null $details
+ * @property-read array{surface?: string, elements?: int, georeference?: array{lon: float, lat: float, headingDeg: float, source: string}|null, features?: int, bounds?: list<float>, zooms?: list<int>}|null $details
  * @property-read Project $project
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -45,6 +45,12 @@ final class ProjectAsset extends Model
     use HasFactory;
 
     use HasUuids;
+
+    /**
+     * The heights a terrain or point cloud survey keeps beside its tiles,
+     * as a GeoTIFF in its own coordinate system, for comparing surveys.
+     */
+    public const string SURFACE = 'surface.tif';
 
     /**
      * @return array<string, string>

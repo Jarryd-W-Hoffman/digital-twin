@@ -50,6 +50,8 @@ From left to right:
 - **Simulator / Live**: shown while a [gateway](09-gateways-and-live-data.md) is running the twin. **Live** follows the gateway; **Simulator** runs the model in your browser instead.
 - **Issues**: opens the [Issues panel](#issues-in-the-scene), with how many are open. Everyone who can see the twin has it.
 - **Views**: opens the [Views panel](#saved-views-and-links), to save how the twin looks or copy a link to it. Everyone who can see the twin has it.
+- **Anomalies**: opens the [Anomalies panel](07-alerts-time-and-what-if.md#anomalies), with how many metrics are unusual now.
+- **Volumes**: opens the Volumes panel, for the cut and fill between surveys of the ground; see [Comparing surveys](17-comparing-surveys.md). Everyone who can see the twin has it; editors make comparisons.
 - **Layout** (editors only): opens the [Layout panel](08-layout-and-versions.md).
 - **Definition** (editors only): opens the [definition editor](12-twin-definitions.md#edit-a-definition), for zones, assets and everything else in the twin.
 - **Settings** (editors only): renames, describes or deletes the twin; see [Rename or delete a twin](#rename-or-delete-a-twin).

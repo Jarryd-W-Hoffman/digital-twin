@@ -49,17 +49,22 @@ final readonly class ConvertPointCloud
                 'crs' => $crs ?? __('no coordinate system (placed as local metres)'),
             ]));
 
-            $prepared = $this->prepare($asset, $source, $work);
+            $prepared = $this->prepare($asset, $source, $work, $crs !== null);
             $this->converter->note($asset, 45, __('Prepared for tiling'));
 
             $tiles = $this->tile($prepared, $work, $crs !== null);
             $this->converter->note($asset, 85, __('Tiled'));
+            $surface = File::exists($work.'/'.ProjectAsset::SURFACE);
+
+            if ($surface) {
+                File::move($work.'/'.ProjectAsset::SURFACE, $tiles.'/'.ProjectAsset::SURFACE);
+            }
 
             $disk->deleteDirectory($asset->directory);
             $stored = $this->converter->store($disk, $tiles, $asset->directory, 'tileset.json');
             $disk->deleteDirectory(dirname($asset->sourceKey()));
 
-            $asset->update([...$stored, 'crs' => $crs, 'status' => ProjectAssetStatus::Ready, 'progress' => 100, 'error' => null]);
+            $asset->update([...$stored, 'crs' => $crs, 'details' => $surface ? ['surface' => ProjectAsset::SURFACE] : null, 'status' => ProjectAssetStatus::Ready, 'progress' => 100, 'error' => null]);
             $this->converter->note($asset, 100, __(':files files written', ['files' => number_format($stored['files'])]));
 
             return $asset;
@@ -116,7 +121,12 @@ final readonly class ConvertPointCloud
         return [$points, isset($id['authority'], $id['code']) ? $id['authority'].':'.$id['code'] : ($srs['name'] ?? 'Custom')];
     }
 
-    private function prepare(ProjectAsset $asset, string $source, string $work): string
+    /**
+     * Reads, assigns a coordinate system and thins the points; and, for a
+     * cloud that is somewhere on Earth, keeps their mean height in each cell
+     * as a grid, for comparing surveys.
+     */
+    private function prepare(ProjectAsset $asset, string $source, string $work, bool $georeferenced): string
     {
         $prepared = $work.'/prepared.las';
         $reader = ['filename' => $source];
@@ -132,6 +142,20 @@ final readonly class ConvertPointCloud
         }
 
         $stages[] = ['type' => 'writers.las', 'filename' => $prepared];
+
+        if ($georeferenced) {
+            $stages[] = [
+                'type' => 'writers.gdal',
+                'filename' => $work.'/'.ProjectAsset::SURFACE,
+                'resolution' => config()->float('meridian.surveys.cell_m'),
+                'output_type' => 'mean',
+                'data_type' => 'float32',
+                'nodata' => -9999,
+                'window_size' => 2,
+                'gdalopts' => 'TILED=YES,COMPRESS=DEFLATE,PREDICTOR=3,BIGTIFF=IF_SAFER',
+            ];
+        }
+
         File::put($work.'/pipeline.json', (string) json_encode($stages, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         $this->run([config()->string('meridian.point_clouds.pdal'), 'pipeline', $work.'/pipeline.json'], __('PDAL could not prepare the points'));

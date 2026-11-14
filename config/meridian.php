@@ -73,6 +73,14 @@ return [
         'timeout_minutes' => (int) env('MERIDIAN_VECTOR_TIMEOUT_MINUTES', 30),
     ],
 
+    'surveys' => [
+        'tool' => env('MERIDIAN_VOLUME_TOOL', 'meridian-volume'),
+        // The grid a point cloud's heights are kept on, and volumes measured on.
+        'cell_m' => (float) env('MERIDIAN_SURVEY_CELL_M', 0.5),
+        'max_surveys' => (int) env('MERIDIAN_SURVEY_MAX', 12),
+        'timeout_minutes' => (int) env('MERIDIAN_VOLUME_TIMEOUT_MINUTES', 30),
+    ],
+
     'imagery' => [
         'tiler' => env('MERIDIAN_IMAGERY_TILER', 'meridian-imagery'),
         'jobs' => (int) env('MERIDIAN_IMAGERY_JOBS', 2),

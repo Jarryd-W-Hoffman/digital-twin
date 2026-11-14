@@ -1,0 +1,5 @@
+#!/bin/sh
+# Stands in for meridian-volume in the browser tests, where the converter
+# image isn't running: draws a one-pixel change and prints fixed volumes.
+printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' | base64 -d > "$3"
+echo '{"cut": 120.4, "fill": 450.2, "net": 329.8, "areaM2": 3000.0, "coveredM2": 2950.0, "cutM2": 400.0, "fillM2": 900.0, "deepestCut": 0.8, "highestFill": 2.4, "cell": 0.5, "bounds": [174.785, -36.8398, 174.7856, -36.8392]}'
