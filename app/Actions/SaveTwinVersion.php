@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Models\Twin;
 use App\Models\TwinVersion;
 use App\Models\User;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class SaveTwinVersion
 {
+    public function __construct(private RecordAuditEvent $audit) {}
+
     /**
      * Versions are immutable: every save appends one. The definition's id and
      * name always follow the twin record so the viewer never shows stale ones.
@@ -24,12 +27,19 @@ final readonly class SaveTwinVersion
             Twin::query()->whereKey($twin->id)->lockForUpdate()->first();
             $latest = TwinVersion::query()->where('twin_id', $twin->id)->max('number');
 
-            return $twin->versions()->create([
+            $version = $twin->versions()->create([
                 'number' => (is_numeric($latest) ? (int) $latest : 0) + 1,
                 'definition' => [...$definition, 'id' => $twin->id, 'name' => $twin->name],
                 'user_id' => $user?->id,
                 'note' => $note,
             ]);
+
+            // A new twin's first version is noted as the twin being created.
+            if ($version->number > 1) {
+                $this->audit->handle(AuditAction::VersionSaved, $twin, __('Version :number', ['number' => $version->number]), ['note' => $note]);
+            }
+
+            return $version;
         });
     }
 }

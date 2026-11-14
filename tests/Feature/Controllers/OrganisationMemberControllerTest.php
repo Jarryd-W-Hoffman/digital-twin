@@ -13,7 +13,7 @@ it('lists members and roles', function (OrganisationRole $role, bool $manage): v
     $this->actingAs($user)->get(route('organisation.members.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('organisation/members')
-            ->where('organisation.id', $organisation->id)
+            ->where('currentOrganisation.id', $organisation->id)
             ->has('members', 2)
             ->where('members.0.isYou', true)
             ->where('members.1.name', 'Bo')

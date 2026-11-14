@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Enums\IssueEvent;
 use App\Models\ApiToken;
 use App\Models\Issue;
@@ -16,7 +17,7 @@ use App\Support\Actor;
  */
 final readonly class CloseIssue
 {
-    public function __construct(private NotifyIssue $notify)
+    public function __construct(private NotifyIssue $notify, private RecordAuditEvent $audit)
     {
         //
     }
@@ -29,6 +30,7 @@ final readonly class CloseIssue
             ->update(['closed_at' => now(), 'closed_by' => Actor::columns($user)[0], 'closed_by_api' => Actor::columns($user)[1], 'updated_at' => now()]);
 
         if ($closed > 0) {
+            $this->audit->handle(AuditAction::IssueClosed, $issue->twin, sprintf('#%d %s', $issue->number, $issue->title));
             $this->notify->handle($issue, IssueEvent::Closed, $user);
         }
     }

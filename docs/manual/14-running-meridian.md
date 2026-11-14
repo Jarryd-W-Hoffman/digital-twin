@@ -137,9 +137,15 @@ Notifications are delivered by the queue worker, so it must run for alerts to re
 
 Webhooks may only reach public `https://` addresses. For development, with a receiver on the same machine, `MERIDIAN_ALLOW_PRIVATE_WEBHOOKS=true` allows private addresses and plain `http://`; never set it in production.
 
+## Single sign-on
+
+Meridian talks to an organisation's identity provider itself, to find its endpoints and swap sign-in codes for who signed in, so, like webhooks, it only reaches public `https://` addresses. An identity provider on your own network, such as an on-premises Keycloak or AD FS, needs `MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS=true`, which also allows plain `http://`; set it only when the people who can be owners are trusted with what Meridian's server can reach. The redirect URI an identity provider needs is `APP_URL` followed by `/sso/callback`, so set `APP_URL` to the address people use.
+
 ## Readings and history
 
 Readings are kept for `MERIDIAN_READINGS_RETENTION_DAYS` (365 by default). On TimescaleDB they're stored in day chunks, compressed after a week, and old chunks are dropped automatically. On plain Postgres or SQLite, the scheduler trims them each day, so make sure the scheduler runs.
+
+The [audit log](02-organisations-and-members.md#the-audit-log) is kept for `MERIDIAN_AUDIT_RETENTION_DAYS` (730 by default), and the scheduler removes older entries each day.
 
 ## Basemaps
 

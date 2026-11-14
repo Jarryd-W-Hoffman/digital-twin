@@ -59,6 +59,7 @@ curl -H "Authorization: Bearer mrd_…" -H "Accept: application/json" \
 | `GET /api/v1/twins/{twin}/issues` | The twin's issues, newest first: `?state=open` (the default), `closed` or `all` |
 | `GET /api/v1/twins/{twin}/issues/{issue}` | One issue with its comments |
 | `GET /api/v1/twins/{twin}/issues/{issue}/comments/{comment}/photo` | A comment's photo |
+| `GET /api/v1/audit` | The organisation's [audit log](#the-audit-log), newest first. `?since=` for entries since a time; `?area=` for one area: `access`, `projects`, `twins`, `connections` or `operations` |
 
 Every answer has its content under `data`. Times are ISO 8601 in UTC, except readings, which use Unix milliseconds like the [recorded history](10-devices-and-mqtt.md#see-what-was-recorded).
 
@@ -115,6 +116,23 @@ while url:
     url = page.links.next
 ```
 
+### The audit log
+
+The organisation's [audit log](02-organisations-and-members.md#the-audit-log) comes newest first, by cursor, so a security system (SIEM) can collect it. Each entry names who did it (`actor`, and `viaApi` when it was a token), what (`action` and its `label`), what it was done to (`subject`), where (`project` and `twin`, with the names they had), and `details`:
+
+```json
+{
+  "data": [ { "id": "…", "at": "2026-11-14T03:12:40+00:00",
+              "actor": "Test User", "actorId": "…", "viaApi": false,
+              "action": "member.role_changed", "label": "Changed a role", "area": "access",
+              "subject": "operator@example.com", "project": null, "twin": null,
+              "details": { "from": "viewer", "to": "operator" }, "ip": "203.0.113.7" } ],
+  "links": { "next": "https://meridian.example.com/api/v1/audit?cursor=…" }
+}
+```
+
+A token reads the log whatever its access, so give one that collects it **Read only** access, and a name like *SIEM*.
+
 ## Write through the API
 
 A token with **Read and write** access can also:
@@ -161,7 +179,7 @@ curl -X POST -H "Authorization: Bearer mrd_…" -H "Accept: application/json" \
 - **Write only where needed.** A BI tool needs **Read only**; keep **Read and write** for the systems that act on issues and alerts.
 - **One token per system.** Name it after what uses it, so **Last used** tells you whether it's still needed, and revoking one doesn't break the others.
 - **Let tokens expire.** A token that expires in 90 days limits the harm if it leaks; set a reminder to make the next one.
-- **Poll the alert log with `since`.** Remember when you last asked, and ask only for what's new.
+- **Poll the alert log and audit log with `since`.** Remember when you last asked, and ask only for what's new.
 - **Open issues where they live.** Each issue's `url` opens the twin flown to it, so a work order can link straight back to the scene.
 
 ## See also

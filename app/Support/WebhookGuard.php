@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Enums\NotificationChannelKind;
+use Illuminate\Http\Client\PendingRequest;
 use InvalidArgumentException;
 
 /**
@@ -18,6 +19,19 @@ final readonly class WebhookGuard
 {
     /** The hosts Teams workflow webhooks live under. */
     private const array TEAMS_HOSTS = ['.webhook.office.com', '.logic.azure.com', '.environment.api.powerplatform.com'];
+
+    /**
+     * A request pinned to an address, so it connects there whatever the
+     * host resolves to by then.
+     */
+    public static function pin(PendingRequest $request, string $url, string $address): PendingRequest
+    {
+        $parts = parse_url($url);
+        $host = is_array($parts) ? mb_strtolower(mb_trim($parts['host'] ?? '', '[]')) : '';
+        $port = is_array($parts) ? ($parts['port'] ?? (($parts['scheme'] ?? '') === 'http' ? 80 : 443)) : 443;
+
+        return $request->withOptions(['curl' => [CURLOPT_RESOLVE => [sprintf('%s:%d:%s', $host, $port, $address)]]]);
+    }
 
     /**
      * Checks a URL for a kind of channel, and returns the address to connect
@@ -46,16 +60,36 @@ final readonly class WebhookGuard
             return null;
         }
 
+        return $this->address($url, $private, __(":host is on a private network, which webhooks can't reach."));
+    }
+
+    /**
+     * The address to connect to for a URL: one its host resolves to, all of
+     * which must be public unless private ones are allowed. Pin the request
+     * to it, so the host can't resolve elsewhere in between.
+     *
+     * @param  string  $privateMessage  why a private address is refused, with :host
+     *
+     * @throws InvalidArgumentException with the reason, for people to read
+     */
+    public function address(string $url, bool $allowPrivate, string $privateMessage): string
+    {
+        $parts = parse_url($url);
+        $host = is_array($parts) ? mb_strtolower(mb_trim($parts['host'] ?? '', '[]')) : '';
+        $scheme = is_array($parts) ? mb_strtolower($parts['scheme'] ?? '') : '';
+
+        throw_if($host === '' || ! in_array($scheme, $allowPrivate ? ['https', 'http'] : ['https'], true), InvalidArgumentException::class, __('The URL must start with https://.'));
+
         $addresses = filter_var($host, FILTER_VALIDATE_IP) !== false ? [$host] : (gethostbynamel($host) ?: []);
 
         throw_if($addresses === [], InvalidArgumentException::class, __(":host can't be found.", ['host' => $host]));
 
-        if (! $private) {
+        if (! $allowPrivate) {
             foreach ($addresses as $address) {
                 throw_if(
                     filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false,
                     InvalidArgumentException::class,
-                    __(":host is on a private network, which webhooks can't reach.", ['host' => $host]),
+                    str_replace(':host', $host, $privateMessage),
                 );
             }
         }

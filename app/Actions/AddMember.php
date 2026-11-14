@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Enums\OrganisationRole;
 use App\Models\Membership;
 use App\Models\Organisation;
@@ -12,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 
 final readonly class AddMember
 {
+    public function __construct(private RecordAuditEvent $audit) {}
+
     /**
      * Adds an existing user to the organisation. Invitations by email for
      * people without an account come later.
@@ -28,9 +31,13 @@ final readonly class AddMember
             'email' => __('They are already a member.'),
         ]));
 
-        return $organisation->memberships()->create([
+        $membership = $organisation->memberships()->create([
             'user_id' => $user->id,
             'role' => $role,
         ]);
+
+        $this->audit->handle(AuditAction::MemberAdded, $organisation, $user->email, ['role' => $role->value]);
+
+        return $membership;
     }
 }

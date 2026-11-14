@@ -46,13 +46,13 @@ const day = (iso: string) =>
  * are kept for the list.
  */
 export default function ApiTokens({
-    organisation,
+    currentOrganisation: organisation,
     tokens,
     accessLevels,
     baseUrl,
     canManage,
 }: {
-    organisation: { id: string; name: string };
+    currentOrganisation: { id: string; name: string };
     tokens: Token[];
     accessLevels: { value: string; label: string }[];
     baseUrl: string;

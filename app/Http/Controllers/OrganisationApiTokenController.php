@@ -28,7 +28,7 @@ final readonly class OrganisationApiTokenController
         Gate::authorize('view', $organisation);
 
         return Inertia::render('organisation/api-tokens', [
-            'organisation' => ['id' => $organisation->id, 'name' => $organisation->name],
+            'currentOrganisation' => ['id' => $organisation->id, 'name' => $organisation->name],
             'tokens' => $organisation->apiTokens()->with('creator:id,name')->latest()->latest('id')->get()
                 ->map(fn (ApiToken $token): array => [
                     'id' => $token->id,
