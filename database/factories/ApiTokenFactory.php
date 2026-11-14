@@ -40,7 +40,8 @@ final class ApiTokenFactory extends Factory
     }
 
     /**
-     * May raise, comment on and close issues, and acknowledge alerts.
+     * May add readings, raise, comment on and close issues, and acknowledge
+     * alerts.
      */
     public function writes(): self
     {

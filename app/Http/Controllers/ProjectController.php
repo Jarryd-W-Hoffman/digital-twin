@@ -8,6 +8,7 @@ use App\Actions\CreateProject;
 use App\Actions\DeleteProject;
 use App\Http\Requests\StoreProjectRequest;
 use App\Models\Device;
+use App\Models\ModbusDevice;
 use App\Models\NotificationChannel;
 use App\Models\OpcUaServer;
 use App\Models\Project;
@@ -100,6 +101,7 @@ final readonly class ProjectController
                 'crs' => $asset->crs,
                 'elements' => $asset->details['elements'] ?? null,
                 'features' => $asset->details['features'] ?? null,
+                'capturedOn' => $asset->captured_on?->toDateString(),
                 'createdAt' => $asset->created_at->toIso8601String(),
             ]),
             'devices' => $project->devices()->orderBy('name')->get()->map(fn (Device $device): array => [
@@ -115,6 +117,13 @@ final readonly class ProjectController
                 'securityMode' => $server->security_mode->value,
                 'securityPolicy' => $server->security_policy->value,
                 'username' => $server->username,
+            ]),
+            'modbusDevices' => $project->modbusDevices()->orderBy('name')->get()->map(fn (ModbusDevice $device): array => [
+                'id' => $device->id,
+                'name' => $device->name,
+                'host' => $device->host,
+                'port' => $device->port,
+                'unitId' => $device->unit_id,
             ]),
             'mqtt' => [
                 'brokerUrl' => config()->string('meridian.mqtt.broker_url'),

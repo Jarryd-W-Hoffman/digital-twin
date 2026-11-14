@@ -1533,6 +1533,38 @@
     color: var(--accent);
     font-weight: 600;
 }
+/* Importing readings. */
+.twin-root .import-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.twin-root .import-grid select,
+.twin-root .import-series select {
+    width: 100%;
+    min-width: 0;
+}
+.twin-root .import-series {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.twin-root .import-series th,
+.twin-root .import-series td {
+    padding: 3px 4px;
+    border-top: 1px solid var(--line);
+    text-align: left;
+}
+.twin-root .import-series thead th {
+    color: var(--ink-2);
+    font-weight: 500;
+    border-top: none;
+}
+.twin-root .import-series th[scope='row'] {
+    color: var(--ink);
+    font-weight: 400;
+    overflow-wrap: anywhere;
+}
 /* Survey volumes. */
 .twin-root .volumes {
     list-style: none;

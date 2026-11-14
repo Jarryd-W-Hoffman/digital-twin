@@ -62,6 +62,17 @@ return [
     ],
 
     /*
+    | Photogrammetry meshes (OBJ, or a zipped export with its MTL, textures
+    | and georeference) are reprojected by meridian-mesh and tiled by
+    | Obj2Tiles on the same queue.
+    */
+    'mesh' => [
+        'converter' => env('MERIDIAN_MESH_CONVERTER', 'meridian-mesh'),
+        'max_extracted_mb' => (int) env('MERIDIAN_MESH_MAX_EXTRACTED_MB', 20_480),
+        'timeout_minutes' => (int) env('MERIDIAN_MESH_TIMEOUT_MINUTES', 240),
+    ],
+
+    /*
     | Map layers (GeoJSON, KML, KMZ, zipped shapefiles, DXF, GeoPackage) are
     | converted to GeoJSON in WGS84 by meridian-vector, and georeferenced images
     | (GeoTIFF orthophotos) to web map tiles by meridian-imagery, both GDAL, on
@@ -94,6 +105,9 @@ return [
     */
     'readings' => [
         'retention_days' => (int) env('MERIDIAN_READINGS_RETENTION_DAYS', 365),
+        // CSV files of readings imported into a twin's history.
+        'import_max_mb' => (int) env('MERIDIAN_READINGS_IMPORT_MAX_MB', 50),
+        'import_max_readings' => (int) env('MERIDIAN_READINGS_IMPORT_MAX', 2_000_000),
     ],
 
     /*

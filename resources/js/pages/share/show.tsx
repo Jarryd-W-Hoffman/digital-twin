@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { readings, ticket } from '@/routes/share';
+import type { Captures } from '@/twin/core/layers';
 import type { TwinDefinition } from '@/twin/core/types';
 import { parseView } from '@/twin/core/views';
 import {
@@ -21,6 +22,8 @@ type Props = {
     live: boolean;
     expiresAt: string;
     definition: TwinDefinition;
+    /** When the twin's dated uploads were captured. */
+    captures: Captures;
     startView: unknown;
 };
 
@@ -46,7 +49,12 @@ export default function SharedTwin({
     expiresAt,
     definition,
     startView,
+    captures,
 }: Props) {
+    useEffect(() => {
+        useTwin.setState({ captures });
+    }, [captures]);
+
     useEffect(() => {
         let cancelled = false;
         runDefinition(definition, { canOperate: false });

@@ -26,6 +26,7 @@ final readonly class IssueGatewayToken
             'gateway_seen_at' => null,
             'gateway_mqtt' => null,
             'gateway_opcua' => null,
+            'gateway_modbus' => null,
         ]);
 
         $this->audit->handle(AuditAction::GatewayTokenIssued, $twin, $twin->name);

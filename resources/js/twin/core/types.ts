@@ -275,6 +275,40 @@ export interface OpcUaMapping {
     write?: boolean;
 }
 
+/** Where a Modbus value lives, and how it's encoded. */
+export type ModbusTable = 'holding' | 'input' | 'coil' | 'discrete';
+export type ModbusType =
+    | 'uint16'
+    | 'int16'
+    | 'uint32'
+    | 'int32'
+    | 'float32'
+    | 'float64'
+    | 'bool';
+
+export interface ModbusMapping {
+    /** The name of a Modbus device registered in the twin's project. */
+    device: string;
+    /** Holding registers unless given; coils and discrete inputs are bits. */
+    table?: ModbusTable;
+    /** The register or bit's address, from 0 (40001 is holding register 0). */
+    address: number;
+    /** How the registers are read; uint16 unless given, bool for bits. */
+    type?: ModbusType;
+    /** For 32- and 64-bit values: which register comes first. Big unless given. */
+    wordOrder?: 'big' | 'little';
+    /** One bit of a register, read as 1 or 0. */
+    bit?: number;
+    asset: string;
+    metric: string;
+    scale?: number;
+    offset?: number;
+    /** How long each reading holds, in simulated seconds. */
+    ttlS?: number;
+    /** How often the device is asked; 1000 unless given. */
+    pollMs?: number;
+}
+
 /** A quantized-mesh terrain tileset: the URL of its layer.json. */
 /**
  * A map layer (converted to GeoJSON in longitude and latitude) draped on the
@@ -356,6 +390,8 @@ export interface TwinDefinition {
     types?: AssetTypeDef[];
     telemetry?: TelemetryMapping[];
     opcua?: OpcUaMapping[];
+    /** Registers of Modbus TCP devices the gateway polls for metrics. */
+    modbus?: ModbusMapping[];
     /** Replaces the built-in figures in the top bar. */
     kpis?: ReadoutDef[];
     /** Added to the site summary in the inspector. */

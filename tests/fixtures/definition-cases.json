@@ -183,6 +183,53 @@
             "errors": ["opcua must be an array"]
         },
         {
+            "name": "a Modbus mapping",
+            "ops": [
+                {
+                    "set": "modbus",
+                    "value": [
+                        { "device": "Main meter", "table": "input", "address": 30001, "type": "float32", "wordOrder": "little", "asset": "store", "metric": "tempC", "scale": 0.1, "offset": -40, "ttlS": 60, "pollMs": 500 },
+                        { "device": "Main meter", "address": 12, "bit": 3, "asset": "store", "metric": "doorPct" }
+                    ]
+                }
+            ],
+            "errors": []
+        },
+        {
+            "name": "Modbus mappings that are malformed or point nowhere",
+            "ops": [
+                {
+                    "set": "modbus",
+                    "value": [
+                        { "device": "Meter", "address": 1.5, "asset": "store", "metric": "tempC" },
+                        "nope",
+                        { "device": "", "address": 2, "asset": "store", "metric": "tempC", "scale": "x", "offset": "y", "ttlS": 0 },
+                        { "device": "Meter", "address": 3, "table": "register", "type": "char", "wordOrder": "middle", "bit": 16, "asset": "pump", "metric": "Temp", "pollMs": 10 }
+                    ]
+                }
+            ],
+            "errors": [
+                "A Modbus mapping's address must be a whole number from 0 to 65535",
+                "A Modbus mapping has no address",
+                "Modbus 2: needs a device",
+                "Modbus 2: offset must be a number",
+                "Modbus 2: scale must be a number",
+                "Modbus 2: ttlS must be positive",
+                "Modbus 3: bit must be from 0 to 15",
+                "Modbus 3: metric must be a camelCase identifier",
+                "Modbus 3: pollMs must be at least 100",
+                "Modbus 3: table must be holding, input, coil or discrete",
+                "Modbus 3: type must be uint16, int16, uint32, int32, float32, float64 or bool",
+                "Modbus 3: wordOrder must be big or little",
+                "Modbus 3: unknown asset pump"
+            ]
+        },
+        {
+            "name": "modbus not a list",
+            "ops": [{ "set": "modbus", "value": { "address": 1 } }],
+            "errors": ["modbus must be an array"]
+        },
+        {
             "name": "shapes: a wind vector and a radar fan",
             "ops": [
                 {

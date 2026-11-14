@@ -1165,6 +1165,93 @@
                 }
             }
         },
+        "modbus": {
+            "type": "array",
+            "x-message": "modbus must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "A Modbus mapping has no address",
+                "required": ["address"],
+                "properties": {
+                    "address": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535,
+                        "x-message": "A Modbus mapping's address must be a whole number from 0 to 65535",
+                        "title": "Address"
+                    }
+                },
+                "if": {
+                    "required": ["address"],
+                    "properties": {
+                        "address": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 65535
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["device", "metric"],
+                    "properties": {
+                        "device": {
+                            "type": "string",
+                            "minLength": 1,
+                            "x-message": "Modbus {0:address}: needs a device"
+                        },
+                        "table": {
+                            "enum": ["holding", "input", "coil", "discrete"],
+                            "x-message": "Modbus {0:address}: table must be holding, input, coil or discrete"
+                        },
+                        "type": {
+                            "enum": [
+                                "uint16",
+                                "int16",
+                                "uint32",
+                                "int32",
+                                "float32",
+                                "float64",
+                                "bool"
+                            ],
+                            "x-message": "Modbus {0:address}: type must be uint16, int16, uint32, int32, float32, float64 or bool"
+                        },
+                        "wordOrder": {
+                            "enum": ["big", "little"],
+                            "x-message": "Modbus {0:address}: wordOrder must be big or little"
+                        },
+                        "bit": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 15,
+                            "x-message": "Modbus {0:address}: bit must be from 0 to 15"
+                        },
+                        "metric": {
+                            "type": "string",
+                            "pattern": "^[a-z][A-Za-z0-9_]{0,63}$",
+                            "x-message": "Modbus {0:address}: metric must be a camelCase identifier"
+                        },
+                        "scale": {
+                            "type": "number",
+                            "x-message": "Modbus {0:address}: scale must be a number"
+                        },
+                        "offset": {
+                            "type": "number",
+                            "x-message": "Modbus {0:address}: offset must be a number"
+                        },
+                        "ttlS": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "x-message": "Modbus {0:address}: ttlS must be positive"
+                        },
+                        "pollMs": {
+                            "type": "number",
+                            "minimum": 100,
+                            "x-message": "Modbus {0:address}: pollMs must be at least 100"
+                        }
+                    }
+                }
+            }
+        },
         "kpis": {
             "type": "array",
             "x-message": "kpis must be an array",

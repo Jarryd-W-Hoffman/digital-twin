@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\DateProjectAsset;
 use App\Actions\DeleteProjectAsset;
 use App\Actions\StoreProjectAsset;
 use App\Enums\ProjectAssetKind;
 use App\Http\Requests\StoreProjectAssetRequest;
+use App\Http\Requests\UpdateProjectAssetRequest;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use App\Models\User;
@@ -40,6 +42,19 @@ final readonly class ProjectAssetController
             $asset->kind === ProjectAssetKind::Imagery => __(':name uploaded. Tiling the image…', ['name' => $asset->name]),
             default => __(':name uploaded. Converting it to 3D Tiles…', ['name' => $asset->name]),
         }]);
+
+        return to_route('projects.show', $project);
+    }
+
+    public function update(UpdateProjectAssetRequest $request, Project $project, ProjectAsset $asset, DateProjectAsset $action): RedirectResponse
+    {
+        Gate::authorize('update', $project);
+
+        $action->handle($asset, $request->filled('captured_on') ? $request->string('captured_on')->value() : null);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $request->filled('captured_on')
+            ? __(':name dated :date.', ['name' => $asset->name, 'date' => $request->string('captured_on')->value()])
+            : __(':name is no longer dated.', ['name' => $asset->name])]);
 
         return to_route('projects.show', $project);
     }

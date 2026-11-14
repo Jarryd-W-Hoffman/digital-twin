@@ -139,6 +139,7 @@ A token with **Read and write** access can also:
 
 | Address | What it does |
 | --- | --- |
+| `POST /api/v1/twins/{twin}/readings` | Adds readings to the twin's history: `readings`, up to 1,000, each with `asset`, `metric`, `value` and `at` (Unix milliseconds, within the time readings are kept). Answers `202` with how many were stored. See [Importing readings](18-importing-readings.md#add-readings-through-the-api) |
 | `POST /api/v1/twins/{twin}/issues` | Raises an issue: `title`, `at` (`lon`, `lat`, `height`), and optionally `view` (the camera: `lon`, `lat`, `height`, `heading`, `pitch`, `roll`), a first comment's `body` and `photo`, and the `alert` it follows up. Answers `201` with the issue |
 | `POST /api/v1/twins/{twin}/issues/{issue}/comments` | Adds a comment: `body`, `photo`, or both. Answers `201` with the comment |
 | `POST /api/v1/twins/{twin}/issues/{issue}/closure` | Closes the issue. If it's already closed, whoever closed it first is kept |
@@ -176,7 +177,7 @@ curl -X POST -H "Authorization: Bearer mrd_…" -H "Accept: application/json" \
 
 ## Tips
 
-- **Write only where needed.** A BI tool needs **Read only**; keep **Read and write** for the systems that act on issues and alerts.
+- **Write only where needed.** A BI tool needs **Read only**; keep **Read and write** for the systems that add readings or act on issues and alerts.
 - **One token per system.** Name it after what uses it, so **Last used** tells you whether it's still needed, and revoking one doesn't break the others.
 - **Let tokens expire.** A token that expires in 90 days limits the harm if it leaks; set a reminder to make the next one.
 - **Poll the alert log and audit log with `since`.** Remember when you last asked, and ask only for what's new.

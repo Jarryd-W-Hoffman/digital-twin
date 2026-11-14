@@ -1,0 +1,302 @@
+#!/usr/bin/env python3
+"""
+Converts a textured mesh, as photogrammetry software exports it (OBJ with
+its MTL and textures), to 3D Tiles with Obj2Tiles:
+
+    find the OBJ (the largest, if an export has several)
+    find where it is: an EPSG code given, ContextCapture's and DJI Terra's
+        metadata.xml (SRS and SRSOrigin), or Pix4D's <name>_offset.xyz and
+        <name>.prj; the OBJ's coordinates are offsets from that origin
+    georeferenced: reproject every vertex exactly (GDAL, through ECEF) to
+        metres east, north and up of the mesh's centre, so the grid's
+        convergence and scale don't turn or stretch it
+    otherwise: the vertices are local metres, z up unless --y-up
+    write that copy y-up beside the original, so its MTL and textures resolve
+        (Obj2Tiles reads OBJ as y-up: x east, y up, z south)
+    Obj2Tiles → tileset.json, b3dm tiles in levels of detail, georeferenced
+        at the centre (or local, to be placed in a twin)
+
+Prints a one-line JSON summary.
+"""
+
+import argparse
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import shutil
+import xml.etree.ElementTree as ElementTree
+import zipfile
+
+import numpy as np
+from osgeo import osr
+
+osr.UseExceptions()
+
+OBJ2TILES = os.environ.get("OBJ2TILES", "Obj2Tiles")
+PREPARED = ".meridian-mesh.obj"
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    sys.exit(1)
+
+
+def extract(archive: str, into: str, max_bytes: int) -> None:
+    """A zipped export, unpacked with nothing outside the folder, no links, and a size limit."""
+    try:
+        with zipfile.ZipFile(archive) as z:
+            entries = z.infolist()
+            if sum(e.file_size for e in entries) > max_bytes:
+                fail(f"The zip unpacks to more than {max_bytes // 1024 // 1024:,} MB.")
+            if len(entries) > 50_000:
+                fail("The zip has more than 50,000 files.")
+            root = os.path.realpath(into)
+            for entry in entries:
+                target = os.path.realpath(os.path.join(into, entry.filename))
+                if os.path.isabs(entry.filename) or not target.startswith(root + os.sep):
+                    fail(f"The zip has a file outside its folder: {entry.filename}")
+                if (entry.external_attr >> 16) & 0o170000 == 0o120000:
+                    fail(f"The zip has a link, which isn't allowed: {entry.filename}")
+            z.extractall(into)
+    except zipfile.BadZipFile:
+        fail("The zip file can't be read.")
+
+
+def find_obj(source: str) -> str:
+    if os.path.isfile(source):
+        return source
+    found = []
+    for root, dirs, files in os.walk(source):
+        dirs[:] = [d for d in dirs if not d.startswith((".", "__MACOSX"))]
+        found += [os.path.join(root, f) for f in files if f.lower().endswith(".obj") and f != PREPARED]
+    if not found:
+        fail("The upload has no OBJ file.")
+    return max(found, key=os.path.getsize)
+
+
+def srs_from(text: str) -> osr.SpatialReference:
+    srs = osr.SpatialReference()
+    srs.SetFromUserInput(text)
+    srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    return srs
+
+
+def georeference(obj: str, epsg: int | None):
+    """(srs or None, offset, where it came from); an ENU frame is ('enu', lat, lon)."""
+    folder = os.path.dirname(os.path.abspath(obj))
+    stem = os.path.splitext(os.path.basename(obj))[0]
+    search = list(dict.fromkeys([folder, os.path.dirname(folder)]))
+    offset, srs, source = (0.0, 0.0, 0.0), None, None
+
+    for place in search:
+        metadata = os.path.join(place, "metadata.xml")
+        if os.path.isfile(metadata):
+            try:
+                root = ElementTree.parse(metadata).getroot()
+            except ElementTree.ParseError:
+                fail("The upload's metadata.xml can't be read.")
+            text = (root.findtext("SRS") or "").strip()
+            origin = (root.findtext("SRSOrigin") or "0,0,0").strip()
+            values = [float(v) for v in re.split(r"[,\s]+", origin) if v]
+            offset = tuple((values + [0.0, 0.0, 0.0])[:3])
+            if text.upper().startswith("ENU:"):
+                lat, lon = (float(v) for v in text[4:].split(","))
+                return ("enu", lat, lon), offset, "metadata.xml"
+            if text:
+                try:
+                    srs = srs_from(text)
+                except RuntimeError:
+                    fail(f"The upload's metadata.xml names {text}, which GDAL doesn't know.")
+            source = "metadata.xml"
+            break
+
+    if source is None:
+        for place in search:
+            names = os.listdir(place)
+            offsets = [n for n in names if n.lower().endswith("_offset.xyz") or n.lower() == "offset.xyz"]
+            prjs = [n for n in names if n.lower().endswith(".prj")]
+            preferred = [n for n in offsets if n.lower().startswith(stem.lower())] or offsets
+            if preferred:
+                with open(os.path.join(place, preferred[0])) as f:
+                    values = [float(v) for v in f.read().split()[:3]]
+                offset = tuple((values + [0.0, 0.0, 0.0])[:3])
+                source = preferred[0]
+            if prjs:
+                with open(os.path.join(place, ([n for n in prjs if n.lower().startswith(stem.lower())] or prjs)[0])) as f:
+                    try:
+                        srs = srs_from(f.read())
+                    except RuntimeError:
+                        fail("The upload's .prj file can't be read.")
+                source = source or prjs[0]
+            if source:
+                break
+
+    if epsg is not None:
+        try:
+            srs = srs_from(f"EPSG:{epsg}")
+        except RuntimeError:
+            fail(f"EPSG:{epsg} isn't a coordinate system GDAL knows.")
+        source = f"EPSG:{epsg}" if source is None else f"EPSG:{epsg} and {source}"
+
+    if srs is not None and srs.IsGeographic():
+        fail("The mesh is in longitude and latitude. Export it in a projected coordinate system, in metres.")
+    return srs, offset, source
+
+
+def read_vertices(obj: str) -> np.ndarray:
+    vertices = []
+    with open(obj, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if line.startswith("v "):
+                parts = line.split()
+                vertices.append((float(parts[1]), float(parts[2]), float(parts[3])))
+    if not vertices:
+        fail("The OBJ file has no vertices.")
+    return np.array(vertices, dtype=np.float64)
+
+
+def ecef_srs() -> osr.SpatialReference:
+    return srs_from("EPSG:4978")
+
+
+def enu_rotation(lat: float, lon: float) -> np.ndarray:
+    phi, lam = math.radians(lat), math.radians(lon)
+    return np.array([
+        [-math.sin(lam), math.cos(lam), 0.0],
+        [-math.sin(phi) * math.cos(lam), -math.sin(phi) * math.sin(lam), math.cos(phi)],
+        [math.cos(phi) * math.cos(lam), math.cos(phi) * math.sin(lam), math.sin(phi)],
+    ])
+
+
+def to_enu(vertices: np.ndarray, srs: osr.SpatialReference, offset) -> tuple[np.ndarray, dict]:
+    """Every vertex in metres east, north and up of the mesh's centre, and where that centre is."""
+    absolute = vertices + np.array(offset)
+    low, high = absolute.min(axis=0), absolute.max(axis=0)
+    centre = (low + high) / 2
+    ecef = osr.CoordinateTransformation(srs, ecef_srs())
+    points = np.array(ecef.TransformPoints(absolute.tolist()), dtype=np.float64)
+    geographic = srs_from("EPSG:4979")
+    lon, lat, height = osr.CoordinateTransformation(srs, geographic).TransformPoint(*centre.tolist())
+    origin = np.array(ecef.TransformPoint(*centre.tolist()), dtype=np.float64)
+    enu = (points - origin) @ enu_rotation(lat, lon).T
+    return enu, {"lon": lon, "lat": lat, "height": height}
+
+
+def write_prepared(obj: str, enu: np.ndarray) -> tuple[str, int, bool]:
+    """
+    The OBJ again, its vertices replaced (y-up: east, up, south), beside the
+    original, and whether it kept its materials: an OBJ uploaded without its
+    MTL is tiled untextured.
+    """
+    folder = os.path.dirname(os.path.abspath(obj))
+    prepared = os.path.join(folder, PREPARED)
+    faces, index = 0, 0
+    with open(obj, encoding="utf-8", errors="replace") as f:
+        libraries = [line.split(None, 1)[1].strip() for line in f if line.startswith("mtllib ") and len(line.split()) > 1]
+    textured = bool(libraries) and all(os.path.isfile(os.path.join(folder, name)) for name in libraries)
+    with open(obj, encoding="utf-8", errors="replace") as source, open(prepared, "w") as out:
+        for line in source:
+            if not textured and line.startswith(("mtllib ", "usemtl ")):
+                continue
+            if line.startswith("v "):
+                e, n, u = enu[index]
+                rest = line.split()[4:]  # per-vertex colours, if any
+                out.write(f"v {e:.4f} {u:.4f} {-n:.4f}{' ' + ' '.join(rest) if rest else ''}\n")
+                index += 1
+            else:
+                if line.startswith("f "):
+                    faces += max(len(line.split()) - 3, 0)
+                out.write(line)
+    if faces == 0:
+        os.remove(prepared)
+        fail("The OBJ file has no faces.")
+    return prepared, faces, textured
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("source", help="an OBJ file, or a folder holding an export")
+    parser.add_argument("out")
+    parser.add_argument("--epsg", type=int)
+    parser.add_argument("--y-up", action="store_true", help="a mesh in local metres with y up")
+    parser.add_argument("--lods", type=int, default=3)
+    parser.add_argument("--divisions", type=int, default=2)
+    parser.add_argument("--max-bytes", type=int, default=20 * 1024**3, help="the most a zip may unpack to")
+    args = parser.parse_args()
+
+    source = args.source
+    unpacked = None
+    if source.lower().endswith(".zip"):
+        unpacked = args.out.rstrip("/") + ".source"
+        shutil.rmtree(unpacked, ignore_errors=True)
+        os.makedirs(unpacked)
+        extract(source, unpacked, args.max_bytes)
+        source = unpacked
+    try:
+        convert(args, source)
+    finally:
+        if unpacked:
+            shutil.rmtree(unpacked, ignore_errors=True)
+
+
+def convert(args, source: str) -> None:
+    obj = find_obj(source)
+    vertices = read_vertices(obj)
+    srs, offset, source = georeference(obj, args.epsg)
+
+    place = None
+    if isinstance(srs, tuple):  # an ENU frame: the vertices are already east, north, up
+        _, lat, lon = srs
+        enu = vertices + np.array(offset)
+        place = {"lon": lon, "lat": lat, "height": 0.0}
+        crs = f"ENU:{lat},{lon}"
+        centre = (enu.min(axis=0) + enu.max(axis=0)) / 2
+        centre[2] = 0.0
+        enu = enu - centre
+        place["lat"] += math.degrees(centre[1] / 6378137.0)
+        place["lon"] += math.degrees(centre[0] / (6378137.0 * math.cos(math.radians(lat))))
+    elif srs is not None:
+        enu, place = to_enu(vertices, srs, offset)
+        crs = (srs.GetAuthorityName(None) or "") + (":" + srs.GetAuthorityCode(None) if srs.GetAuthorityCode(None) else "")
+        crs = crs if crs not in ("", ":") else srs.GetName()
+    else:
+        # Local metres: x east and z up, or with y up, z towards the viewer (south).
+        enu = np.column_stack([vertices[:, 0], -vertices[:, 2], vertices[:, 1]]) if args.y_up else vertices.copy()
+        crs = None
+
+    low, high = enu.min(axis=0), enu.max(axis=0)
+    prepared, faces, textured = write_prepared(obj, enu)
+
+    command = [OBJ2TILES, "--lods", str(args.lods), "--divisions", str(args.divisions)]
+    if place is None:
+        command += ["--local"]
+    else:
+        command += ["--lat", f"{place['lat']:.9f}", "--lon", f"{place['lon']:.9f}", "--alt", f"{place['height']:.3f}"]
+    run = subprocess.run([*command, prepared, args.out], capture_output=True, text=True)
+    os.remove(prepared)
+    if run.returncode != 0 or not os.path.isfile(os.path.join(args.out, "tileset.json")):
+        tail = "\n".join((run.stderr or run.stdout).strip().splitlines()[-5:])
+        fail(f"Obj2Tiles couldn't tile the mesh: {tail}" if tail else "Obj2Tiles wrote no tileset.")
+
+    # Obj2Tiles embeds each tile's textures in it.
+    tiles = sum(1 for _, _, files in os.walk(args.out) for f in files if f.endswith(".b3dm"))
+    print(json.dumps({
+        "obj": os.path.basename(obj),
+        "vertices": len(vertices),
+        "triangles": faces,
+        "size": [round(float(v), 2) for v in (high - low)],
+        "crs": crs,
+        "georeference": None if place is None else {
+            "lon": round(place["lon"], 9), "lat": round(place["lat"], 9),
+            "height": round(place["height"], 3), "source": source,
+        },
+        "tiles": tiles,
+        "textured": textured,
+    }))
+
+
+if __name__ == "__main__":
+    main()

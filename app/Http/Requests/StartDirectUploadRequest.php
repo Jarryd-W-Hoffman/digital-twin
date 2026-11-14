@@ -17,7 +17,7 @@ final class StartDirectUploadRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'filename' => ['required', 'string', 'max:200', 'regex:/^[^\/\\\\]+\.(glb|zip|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i'],
+            'filename' => ['required', 'string', 'max:200', 'regex:/^[^\/\\\\]+\.(glb|zip|obj|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i'],
             'bytes' => ['required', 'integer', 'min:1', 'max:'.config()->integer('meridian.direct_uploads.max_upload_gb') * 1024 ** 3],
             ...PointCloudOptions::rules(),
         ];
@@ -28,6 +28,6 @@ final class StartDirectUploadRequest extends FormRequest
      */
     public function messages(): array
     {
-        return ['filename.regex' => __('Upload a .glb model, a zipped 3D Tiles tileset or shapefile, a LAS, LAZ or E57 point cloud, a GeoTIFF or ASCII grid, an IFC model, or a GeoJSON, KML, KMZ, DXF or GeoPackage map layer.')];
+        return ['filename.regex' => __('Upload a .glb model, a zipped 3D Tiles tileset, shapefile or photogrammetry export, an OBJ mesh, a LAS, LAZ or E57 point cloud, a GeoTIFF or ASCII grid, an IFC model, or a GeoJSON, KML, KMZ, DXF or GeoPackage map layer.')];
     }
 }

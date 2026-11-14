@@ -284,6 +284,7 @@ const RANGES = [
     { label: '24 h', ms: 86_400_000 },
     { label: '7 days', ms: 7 * 86_400_000 },
     { label: '30 days', ms: 30 * 86_400_000 },
+    { label: '1 year', ms: 365 * 86_400_000 },
 ];
 
 /**
@@ -365,8 +366,9 @@ function RecordedReadings({
                 <p className="muted hint">{shown.error}</p>
             ) : shown.data.points.length === 0 ? (
                 <p className="muted hint">
-                    No readings recorded in this range. Map an MQTT topic to
-                    this metric, or post to the gateway's /ingest.
+                    No readings recorded in this range. Map an MQTT topic or OPC
+                    UA node to this metric, post to the gateway's /ingest, or
+                    import a CSV file in Layout.
                 </p>
             ) : (
                 <LineChart

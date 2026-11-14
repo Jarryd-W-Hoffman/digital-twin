@@ -369,6 +369,15 @@ export function validateDefinition(input: unknown): string[] {
                 );
         }
     }
+    // Modbus: which devices' registers feed which metrics. The devices belong
+    // to the project, so only the gateway knows whether one exists.
+    for (const m of objects(def.modbus)) {
+        if (!Number.isInteger(m.address)) continue;
+        if (!ids.has(show(m.asset)))
+            errors.push(
+                `Modbus ${show(m.address)}: unknown asset ${show(m.asset)}`,
+            );
+    }
     return unique(errors);
 }
 

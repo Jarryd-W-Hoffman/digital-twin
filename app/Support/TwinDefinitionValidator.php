@@ -330,6 +330,18 @@ final readonly class TwinDefinitionValidator
             }
         }
 
+        // Modbus: which devices' registers feed which metrics. The devices belong
+        // to the project, so only the gateway knows whether one exists.
+        foreach ($this->objects($definition['modbus'] ?? null) as $mapping) {
+            if (! is_int($mapping['address'] ?? null)) {
+                continue;
+            }
+
+            if (! array_key_exists($this->describe($mapping, 'asset'), $byId)) {
+                $errors[] = sprintf('Modbus %d: unknown asset %s', $mapping['address'], $this->describe($mapping, 'asset'));
+            }
+        }
+
         return $this->unique($errors);
     }
 

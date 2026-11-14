@@ -71,7 +71,7 @@ Direct uploads need the bucket to allow cross-origin `PUT` requests from Meridia
 
 ## The converter
 
-Point clouds, DEMs, map layers, imagery and IFC models are converted, and surveys compared, by a worker on the `conversions` queue, in its own image because PDAL, GDAL and py3dtiles are large. In Docker it's the `converter` service and starts with the stack. Without Docker, install PDAL, GDAL, pydelatin and quantized-mesh-encoder (from conda-forge) and `pip install "py3dtiles[las]"`, put [`docker/converter/meridian-terrain`](../../docker/converter/meridian-terrain), [`meridian-vector`](../../docker/converter/meridian-vector), [`meridian-imagery`](../../docker/converter/meridian-imagery) and [`meridian-volume`](../../docker/converter/meridian-volume) on the path, then run:
+Point clouds, DEMs, map layers, imagery, IFC models and photogrammetry meshes are converted, and surveys compared, by a worker on the `conversions` queue, in its own image because PDAL, GDAL and py3dtiles are large. In Docker it's the `converter` service and starts with the stack. Without Docker, install PDAL, GDAL, pydelatin and quantized-mesh-encoder (from conda-forge) and `pip install "py3dtiles[las]"`, put [`docker/converter/meridian-terrain`](../../docker/converter/meridian-terrain), [`meridian-vector`](../../docker/converter/meridian-vector), [`meridian-imagery`](../../docker/converter/meridian-imagery), [`meridian-volume`](../../docker/converter/meridian-volume) and [`meridian-mesh`](../../docker/converter/meridian-mesh) (with [Obj2Tiles](https://github.com/OpenDroneMap/Obj2Tiles) 1.9.0, AGPL-3.0, as `OBJ2TILES` or on the path) on the path, then run:
 
 ```bash
 php artisan queue:work conversions --queue=conversions --timeout=14400
@@ -95,6 +95,9 @@ php artisan queue:work conversions --queue=conversions --timeout=14400
 | `MERIDIAN_SURVEY_CELL_M`               | Grid volumes are measured on, and point clouds' heights kept on, default 0.5 m |
 | `MERIDIAN_SURVEY_MAX`                  | Most surveys in one comparison, default 12                         |
 | `MERIDIAN_VOLUME_TIMEOUT_MINUTES`      | Longest measuring one pair of surveys may take, default 30         |
+| `MERIDIAN_MESH_CONVERTER`              | Where the mesh converter is, default `meridian-mesh` on the path   |
+| `MERIDIAN_MESH_MAX_EXTRACTED_MB`       | Most a zipped mesh export may unzip to, default 20,480 MB          |
+| `MERIDIAN_MESH_TIMEOUT_MINUTES`        | Longest a mesh conversion may run, default 240                     |
 
 Give the converter memory and shared memory to match your largest scans; the Docker service has 2 GB of `/dev/shm`.
 
@@ -154,6 +157,8 @@ Meridian talks to an organisation's identity provider itself, to find its endpoi
 ## Readings and history
 
 Readings are kept for `MERIDIAN_READINGS_RETENTION_DAYS` (365 by default). On TimescaleDB they're stored in day chunks, compressed after a week, and old chunks are dropped automatically. On plain Postgres or SQLite, the scheduler trims them each day, so make sure the scheduler runs.
+
+[Imported CSV files](18-importing-readings.md) are read by the queue worker (the default queue, not the converter's), up to `MERIDIAN_READINGS_IMPORT_MAX_MB` (50 MB) and `MERIDIAN_READINGS_IMPORT_MAX` readings (2,000,000) each. PHP's upload limits must allow the file size too.
 
 The [audit log](02-organisations-and-members.md#the-audit-log) is kept for `MERIDIAN_AUDIT_RETENTION_DAYS` (730 by default), and the scheduler removes older entries each day.
 

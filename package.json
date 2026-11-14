@@ -12,6 +12,7 @@
         "test:e2e": "playwright test",
         "gateway": "tsx gateway/gateway.ts",
         "opcua-simulator": "tsx gateway/opcua-simulator.ts",
+        "modbus-simulator": "tsx gateway/modbus-simulator.ts",
         "generate:context": "tsx scripts/generate-context.ts",
         "generate:model": "tsx scripts/generate-sample-model.ts",
         "screenshots": "playwright test -c playwright.screenshots.config.ts",

@@ -10,6 +10,10 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { History } from '../resources/js/twin/core/history.ts';
 import { parseReadings } from '../resources/js/twin/core/ingest.ts';
 import {
+    compileModbus,
+    type Modbus,
+} from '../resources/js/twin/core/modbus.ts';
+import {
     compileOpcua,
     type OpcUa,
     type OpcUaWrite,
@@ -28,6 +32,11 @@ import {
 import type { TwinDefinition } from '../resources/js/twin/core/types.ts';
 import { parseDefinition } from '../resources/js/twin/core/validate.ts';
 import { AlertWatch } from './alerts.ts';
+import {
+    ModbusPoller,
+    type ModbusDeviceConfig,
+    type ModbusStatus,
+} from './modbus.ts';
 import {
     OBJECTS_FOLDER,
     OpcUaBridge,
@@ -59,6 +68,10 @@ import { ticketKey, verifyTicket, type TicketAccess } from './tickets.ts';
  * mappings and takes each new value as a reading. Where the twin allows it,
  * an operator's setpoint is also written to the nodes mapped for writing,
  * and each write is recorded in the control plane.
+ *
+ * With Modbus TCP devices (registered in the project, or MODBUS_DEVICES
+ * without a control plane), it polls the registers and bits in the twin's
+ * `modbus` mappings, each at its rate, and takes every answer as readings.
  *
  * Binds to localhost by default. To expose it, set GATEWAY_HOST, GATEWAY_TOKEN
  * (or use a control plane token) and GATEWAY_ORIGINS.
@@ -111,6 +124,8 @@ export interface GatewayOptions {
     mqtt?: MqttOptions;
     /** OPC UA certificates and trust; `servers` stand in for the control plane's. */
     opcua?: OpcUaOptions & { servers?: OpcUaServerConfig[]; writes?: boolean };
+    /** `devices` stand in for the control plane's. */
+    modbus?: { devices?: ModbusDeviceConfig[] };
     port?: number;
     host?: string;
     token?: string;
@@ -148,6 +163,8 @@ interface Fetched {
     opcua: OpcUaServerConfig[];
     /** Whether operators' setpoints may be written to them. */
     opcuaWrites: boolean;
+    /** The project's Modbus devices. */
+    modbus: ModbusDeviceConfig[];
     etag: string | null;
 }
 
@@ -161,6 +178,7 @@ export async function fetchDefinition(
     etag: string | null = null,
     mqtt?: 'connected' | 'disconnected',
     opcua?: Record<string, OpcUaStatus>,
+    modbus?: Record<string, ModbusStatus>,
 ): Promise<Fetched | null> {
     const headers: Record<string, string> = {
         authorization: `Bearer ${cp.token}`,
@@ -169,6 +187,7 @@ export async function fetchDefinition(
     if (cp.publicUrl) headers['x-gateway-url'] = cp.publicUrl;
     if (mqtt) headers['x-gateway-mqtt'] = mqtt;
     if (opcua) headers['x-gateway-opcua'] = JSON.stringify(opcua);
+    if (modbus) headers['x-gateway-modbus'] = JSON.stringify(modbus);
     if (etag) headers['if-none-match'] = etag;
     // A hung request would otherwise stall every later poll, and the check-ins with them.
     const res = await fetch(
@@ -189,6 +208,7 @@ export async function fetchDefinition(
         definition: unknown;
         mqtt?: Fetched['mqtt'];
         opcua?: { servers: OpcUaServerConfig[]; writes?: boolean };
+        modbus?: { devices: ModbusDeviceConfig[] };
     };
     return {
         twinId: body.twin.id,
@@ -197,6 +217,7 @@ export async function fetchDefinition(
         mqtt: body.mqtt ?? null,
         opcua: body.opcua?.servers ?? [],
         opcuaWrites: body.opcua?.writes === true,
+        modbus: body.modbus?.devices ?? [],
         etag: res.headers.get('etag'),
     };
 }
@@ -283,6 +304,33 @@ export async function startGateway(options: GatewayOptions = {}) {
             opcuaStats.mapped++;
             measure(readings);
         }, options.opcua));
+    let modbusDevices: ModbusDeviceConfig[] =
+        fetched?.modbus ?? options.modbus?.devices ?? [];
+    let modbus: Modbus = compileModbus({ ...definition, modbus: [] }, []);
+    let poller: ModbusPoller | null = null;
+    const modbusStats = { received: 0, mapped: 0, unmapped: 0 };
+    /** Polls what the twin maps on the project's Modbus devices, starting the poller on first use. */
+    const followModbus = (def: TwinDefinition) => {
+        modbus = compileModbus(
+            def,
+            modbusDevices.map((d) => d.name),
+        );
+        for (const problem of modbus.skipped)
+            console.warn(`Gateway: ${problem}`);
+        if (!poller && modbus.devices.size === 0) return;
+        poller ??= new ModbusPoller((device, read, values) => {
+            modbusStats.received++;
+            const { readings, problems } = modbus.read(device, read, values);
+            for (const problem of problems) console.warn(`Gateway: ${problem}`);
+            if (readings.length === 0) {
+                modbusStats.unmapped++;
+                return;
+            }
+            modbusStats.mapped++;
+            measure(readings);
+        });
+        poller.follow(modbusDevices, modbus.devices);
+    };
     /** Sockets with a browse under way: one at a time each, so nobody floods a PLC. */
     const browsing = new Set<WebSocket>();
     const browse = (
@@ -408,10 +456,20 @@ export async function startGateway(options: GatewayOptions = {}) {
                   ]),
               )
             : undefined;
+    const modbusStatuses = () =>
+        poller
+            ? Object.fromEntries(
+                  Object.entries(poller.health()).map(([name, h]) => [
+                      name,
+                      h.status,
+                  ]),
+              )
+            : undefined;
 
     const boot = (def: TwinDefinition, now: number) => {
         definition = def;
         followOpcua(def);
+        followModbus(def);
         const compiled = compileTelemetry(def, topicPrefix);
         for (const problem of compiled.skipped)
             console.warn(`Gateway: ${problem}`);
@@ -526,6 +584,9 @@ export async function startGateway(options: GatewayOptions = {}) {
                           writes: opcuaWrites,
                           ...opcuaStats,
                       }
+                    : null,
+                modbus: poller
+                    ? { devices: poller.health(), ...modbusStats }
                     : null,
                 history: log
                     ? {
@@ -716,18 +777,23 @@ export async function startGateway(options: GatewayOptions = {}) {
                               : 'disconnected'
                           : undefined,
                       opcuaStatuses(),
+                      modbusStatuses(),
                   );
                   if (next) {
                       const changed = next.version !== fetched?.version;
                       fetched = next;
                       opcuaServers = next.opcua;
                       opcuaWrites = next.opcuaWrites;
-                      // Only a new version restarts the model; a changed server or the
-                      // write switch only changes what OPC UA does.
+                      modbusDevices = next.modbus;
+                      // Only a new version restarts the model; a changed server, device or
+                      // the write switch only changes what OPC UA and Modbus do.
                       if (changed) {
                           boot(next.definition, Date.now());
                           for (const s of sockets.keys()) hello(s);
-                      } else followOpcua(definition);
+                      } else {
+                          followOpcua(definition);
+                          followModbus(definition);
+                      }
                   }
               } catch (error) {
                   console.warn(
@@ -781,6 +847,7 @@ export async function startGateway(options: GatewayOptions = {}) {
                         clearInterval(flush);
                         client?.end(true);
                         void bridge?.close();
+                        poller?.close();
                         // What's left goes to the history on the way out, if it can.
                         void log?.flush().catch(() => undefined);
                         for (const s of sockets.keys()) s.terminate();
@@ -806,6 +873,21 @@ export function standaloneServers(json: string): OpcUaServerConfig[] {
         securityPolicy: s.securityPolicy ?? 'None',
         username: s.username ?? null,
         password: s.password ?? null,
+    }));
+}
+
+/**
+ * Modbus devices for a gateway without a control plane, as JSON:
+ * `[{"name": "Main meter", "host": "10.0.0.5"}]`, on port 502 and unit 1
+ * unless a device says otherwise.
+ */
+export function standaloneDevices(json: string): ModbusDeviceConfig[] {
+    const list = JSON.parse(json) as Partial<ModbusDeviceConfig>[];
+    return list.map((d) => ({
+        name: String(d.name),
+        host: String(d.host),
+        port: d.port ?? 502,
+        unitId: d.unitId ?? 1,
     }));
 }
 
@@ -840,6 +922,11 @@ if (process.argv[1] === import.meta.filename) {
                 ? standaloneServers(process.env.OPCUA_SERVERS)
                 : undefined,
             writes: process.env.OPCUA_WRITES === '1',
+        },
+        modbus: {
+            devices: process.env.MODBUS_DEVICES
+                ? standaloneDevices(process.env.MODBUS_DEVICES)
+                : undefined,
         },
         port,
         host: process.env.GATEWAY_HOST,

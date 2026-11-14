@@ -9,6 +9,7 @@ use App\Models\Issue;
 use App\Models\NotificationChannel;
 use App\Models\Organisation;
 use App\Models\Project;
+use App\Models\Reading;
 use App\Models\Twin;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -188,4 +189,36 @@ it("writes nothing in another organisation's twins, or through the wrong twin", 
     expect($their->refresh()->closed_at)->toBeNull()
         ->and($theirAlert->refresh()->acknowledged_at)->toBeNull()
         ->and($theirs->issues()->count())->toBe(1);
+});
+
+it('adds readings from systems that measure without a gateway, within the time readings are kept', function (): void {
+    $this->freezeSecond();
+    [$twin] = writableTwin();
+    $now = now()->getTimestampMs();
+
+    $this->withToken(WRITE_TOKEN)->postJson(route('api.v1.twins.readings.store', $twin), ['readings' => [
+        ['asset' => 'store', 'metric' => 'tempC', 'value' => '2.5', 'at' => $now - 200 * 86_400_000],
+        ['asset' => 'store', 'metric' => 'tempC', 'value' => 3, 'at' => (string) $now],
+    ]])->assertAccepted()->assertExactJson(['stored' => 2]);
+
+    expect(Reading::query()->where('twin_id', $twin->id)->oldest('recorded_at')->pluck('value')->all())->toBe([2.5, 3.0]);
+
+    $this->withToken(WRITE_TOKEN)->postJson(route('api.v1.twins.readings.store', $twin), ['readings' => [
+        ['asset' => 'store', 'metric' => 'tempC', 'value' => 1, 'at' => $now - 400 * 86_400_000],
+        ['asset' => 'pump', 'metric' => 'tempC', 'value' => 1, 'at' => $now],
+    ]])->assertUnprocessable()->assertJsonValidationErrors(['readings.0.at', 'readings.1.asset']);
+});
+
+it('only adds readings to twins in the token organisation, and with tokens that may write', function (): void {
+    [$twin] = writableTwin();
+    $elsewhere = twinIn(Organisation::factory()->create());
+    $readings = ['readings' => [['asset' => 'store', 'metric' => 'tempC', 'value' => 1, 'at' => now()->getTimestampMs()]]];
+
+    $this->withToken(WRITE_TOKEN)->postJson(route('api.v1.twins.readings.store', $elsewhere), $readings)->assertNotFound();
+
+    ApiToken::factory()->for($twin->organisation)->token('mrd_reporting-token-that-only-reads-abcdefgh')->create();
+    $this->withToken('mrd_reporting-token-that-only-reads-abcdefgh')->postJson(route('api.v1.twins.readings.store', $twin), $readings)
+        ->assertForbidden();
+
+    expect(Reading::query()->count())->toBe(0);
 });

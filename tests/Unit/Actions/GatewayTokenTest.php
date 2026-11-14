@@ -29,12 +29,12 @@ it('replaces the token when issued again', function (): void {
 });
 
 it('revokes the token', function (): void {
-    $twin = Twin::factory()->create(['gateway_token_hash' => str_repeat('a', 64), 'gateway_url' => 'ws://x/ws', 'gateway_seen_at' => now(), 'gateway_mqtt' => 'connected', 'gateway_opcua' => ['PLC' => 'connected']]);
+    $twin = Twin::factory()->create(['gateway_token_hash' => str_repeat('a', 64), 'gateway_url' => 'ws://x/ws', 'gateway_seen_at' => now(), 'gateway_mqtt' => 'connected', 'gateway_opcua' => ['PLC' => 'connected'], 'gateway_modbus' => ['Meter' => 'connected']]);
 
     resolve(RevokeGatewayToken::class)->handle($twin);
 
-    expect($twin->refresh()->only(['gateway_token_hash', 'gateway_url', 'gateway_seen_at', 'gateway_mqtt', 'gateway_opcua']))
-        ->toBe(['gateway_token_hash' => null, 'gateway_url' => null, 'gateway_seen_at' => null, 'gateway_mqtt' => null, 'gateway_opcua' => null]);
+    expect($twin->refresh()->only(['gateway_token_hash', 'gateway_url', 'gateway_seen_at', 'gateway_mqtt', 'gateway_opcua', 'gateway_modbus']))
+        ->toBe(['gateway_token_hash' => null, 'gateway_url' => null, 'gateway_seen_at' => null, 'gateway_mqtt' => null, 'gateway_opcua' => null, 'gateway_modbus' => null]);
 });
 
 it('records a check-in, keeping only socket addresses', function (?string $url, ?string $kept): void {

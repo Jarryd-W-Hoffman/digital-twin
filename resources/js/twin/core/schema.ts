@@ -97,6 +97,8 @@ function format(message: string, input: unknown, path: Segment[]): string {
         .replace(/\{(\d+):(\w+)\}/g, (_, n: string, field: string) => {
             const item = items[Number(n)];
             const text = isObj(item) ? item[field] : undefined;
+            if (typeof text === 'number' && Number.isFinite(text))
+                return String(text);
             return typeof text === 'string' && text !== '' ? text : '?';
         })
         .replace('{value}', show(value));

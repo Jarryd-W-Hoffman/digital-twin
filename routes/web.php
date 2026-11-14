@@ -15,6 +15,7 @@ use App\Http\Controllers\ProjectAssetFileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDeviceController;
 use App\Http\Controllers\ProjectDevicePasswordController;
+use App\Http\Controllers\ProjectModbusDeviceController;
 use App\Http\Controllers\ProjectNotificationChannelController;
 use App\Http\Controllers\ProjectNotificationChannelReportController;
 use App\Http\Controllers\ProjectNotificationChannelTestController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\TwinLayerController;
 use App\Http\Controllers\TwinOpcUaWritesController;
 use App\Http\Controllers\TwinOpeningViewController;
 use App\Http\Controllers\TwinReadingController;
+use App\Http\Controllers\TwinReadingImportController;
 use App\Http\Controllers\TwinShareLinkController;
 use App\Http\Controllers\TwinSurveyComparisonController;
 use App\Http\Controllers\TwinSurveyComparisonImageController;
@@ -90,6 +92,7 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     // Projects and their libraries...
     Route::resource('projects', ProjectController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
     Route::post('projects/{project}/assets', [ProjectAssetController::class, 'store'])->name('projects.assets.store');
+    Route::patch('projects/{project}/assets/{asset}', [ProjectAssetController::class, 'update'])->scopeBindings()->name('projects.assets.update');
     Route::delete('projects/{project}/assets/{asset}', [ProjectAssetController::class, 'destroy'])->scopeBindings()->name('projects.assets.destroy');
     Route::post('projects/{project}/assets/{asset}/conversion', [ProjectAssetConversionController::class, 'store'])->scopeBindings()->name('projects.assets.conversion.store');
     Route::post('projects/{project}/devices', [ProjectDeviceController::class, 'store'])->name('projects.devices.store');
@@ -97,6 +100,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     Route::post('projects/{project}/devices/{device}/password', [ProjectDevicePasswordController::class, 'store'])->scopeBindings()->name('projects.devices.password.store');
     Route::post('projects/{project}/opcua-servers', [ProjectOpcUaServerController::class, 'store'])->name('projects.opcua-servers.store');
     Route::delete('projects/{project}/opcua-servers/{opcUaServer}', [ProjectOpcUaServerController::class, 'destroy'])->scopeBindings()->name('projects.opcua-servers.destroy');
+    Route::post('projects/{project}/modbus-devices', [ProjectModbusDeviceController::class, 'store'])->name('projects.modbus-devices.store');
+    Route::delete('projects/{project}/modbus-devices/{modbusDevice}', [ProjectModbusDeviceController::class, 'destroy'])->scopeBindings()->name('projects.modbus-devices.destroy');
     Route::post('projects/{project}/notification-channels', [ProjectNotificationChannelController::class, 'store'])->name('projects.notification-channels.store');
     Route::delete('projects/{project}/notification-channels/{notificationChannel}', [ProjectNotificationChannelController::class, 'destroy'])->scopeBindings()->name('projects.notification-channels.destroy');
     Route::post('projects/{project}/notification-channels/{notificationChannel}/test', [ProjectNotificationChannelTestController::class, 'store'])->scopeBindings()->middleware('throttle:10,1')->name('projects.notification-channels.test');
@@ -128,6 +133,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     Route::put('twins/{twin}/survey-comparisons/{surveyComparison}', [TwinSurveyComparisonController::class, 'update'])->scopeBindings()->name('twins.survey-comparisons.update');
     Route::delete('twins/{twin}/survey-comparisons/{surveyComparison}', [TwinSurveyComparisonController::class, 'destroy'])->scopeBindings()->name('twins.survey-comparisons.destroy');
     Route::get('twins/{twin}/survey-comparisons/{surveyComparison}/images/{pair}', [TwinSurveyComparisonImageController::class, 'show'])->scopeBindings()->whereNumber('pair')->name('twins.survey-comparisons.images.show');
+    Route::post('twins/{twin}/reading-imports', [TwinReadingImportController::class, 'store'])->middleware('throttle:30,1')->name('twins.reading-imports.store');
+    Route::delete('twins/{twin}/reading-imports/{readingImport}', [TwinReadingImportController::class, 'destroy'])->scopeBindings()->name('twins.reading-imports.destroy');
     Route::post('twins/{twin}/share-links', [TwinShareLinkController::class, 'store'])->name('twins.share-links.store');
     Route::delete('twins/{twin}/share-links/{shareLink}', [TwinShareLinkController::class, 'destroy'])->scopeBindings()->name('twins.share-links.destroy');
     Route::put('twins/{twin}/types/{type}/library', [TwinTypeController::class, 'update'])->name('twins.types.library.update');
