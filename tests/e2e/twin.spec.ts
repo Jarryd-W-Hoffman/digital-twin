@@ -170,7 +170,7 @@ test('a bad definition file reports every problem and keeps the twin running', a
   });
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('origin.lon');
-  await expect(dialog).toContainText('exactly one main bus');
+  await expect(dialog).toContainText('Missing camera');
   await dialog.getByRole('button', { name: 'Keep the current twin' }).click();
   await expect(page.getByRole('heading', { name: 'Northshore Cold Chain Hub' })).toBeVisible();
 });

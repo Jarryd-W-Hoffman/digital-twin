@@ -7,7 +7,7 @@ import { expect, test, type Page } from '@playwright/test';
 /** Runs against the seeded e2e database (see playwright.config.ts). */
 
 type Debug = {
-  __twin: { getState(): { def?: { models?: { id: string; placement: { east: number; north: number } }[] }; canOperate: boolean } };
+  __twin: { getState(): { def?: { models?: { id: string; placement: { east: number; north: number } }[]; assets: unknown[] }; canOperate: boolean } };
   __scene: { loadedLayers(): string[] };
 };
 
@@ -171,7 +171,11 @@ test('an owner starts an empty twin at a location from the project page', async 
   await page.getByRole('link', { name: 'New twin' }).click();
   await expect(page.getByLabel('Project')).toHaveValue(/.+/);
   await page.getByLabel('Name', { exact: true }).fill('Quay scan site');
-  await expect(page.getByLabel('An empty site at a location')).toBeChecked();
+  await expect(page.getByLabel('A template at a location')).toBeChecked();
+  await expect(page.getByLabel('Template', { exact: true })).toHaveValue('empty');
+  await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Mine site' });
+  await expect(page.getByText('A primary crusher, an overland conveyor')).toBeVisible();
+  await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Empty' });
   await page.getByLabel('Latitude').fill('-36.8442');
   await page.getByLabel('Longitude').fill('174.7676');
   await page.getByLabel('UTC offset (hours)').fill('13');
@@ -180,8 +184,33 @@ test('an owner starts an empty twin at a location from the project page', async 
   await expect(page.locator('.twin-name')).toHaveText('Quay scan site');
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
   await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Debug).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
+  expect(await page.evaluate(() => (window as unknown as Debug).__twin.getState().def?.assets.length)).toBe(0);
   await page.getByRole('link', { name: 'Back to Pilot sites' }).click();
   await expect(page.getByRole('link', { name: /^Quay scan site/ })).toBeVisible();
+  expect(problems).toEqual([]);
+});
+
+test('an owner starts a mine site from its template, with its own figures and no power', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  await logIn(page, 'test@example.com');
+
+  await page.getByRole('link', { name: 'New twin' }).click();
+  await expect(page.getByLabel('Project')).toHaveValue(/.+/);
+  await page.getByLabel('Name', { exact: true }).fill('Ridge pit');
+  await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Mine site' });
+  await page.getByLabel('Latitude').fill('-31.95');
+  await page.getByLabel('Longitude').fill('115.86');
+  await page.getByRole('button', { name: 'Create twin' }).click();
+
+  await expect(page.locator('.twin-name')).toHaveText('Ridge pit', { timeout: 30_000 });
+  const kpis = page.locator('.topbar .kpis');
+  await expect(kpis).toContainText('Crusher feed', { timeout: 90_000 });
+  await expect(kpis).toContainText('ROM stockpile');
+  await expect(kpis).not.toContainText('Site load');
+  await expect(page.getByRole('heading', { name: 'Stockpile', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Cold stores' })).toHaveCount(0);
+  await expect(page.getByText('Primary crusher').first()).toBeVisible();
   expect(problems).toEqual([]);
 });
 
@@ -947,6 +976,7 @@ test('an asset is bound to an element of an uploaded model: picked in the scene,
   await page.getByRole('link', { name: 'New twin' }).click();
   await expect(page.getByLabel('Project')).toHaveValue(/.+/);
   await page.getByLabel('Name', { exact: true }).fill('Shed site');
+  await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Site power' });
   await page.getByLabel('Latitude').fill('-36.85');
   await page.getByLabel('Longitude').fill('174.76');
   await page.getByRole('button', { name: 'Create twin' }).click();

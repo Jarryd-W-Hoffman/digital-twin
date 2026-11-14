@@ -85,9 +85,9 @@ flowchart TD
 | -------------------- | ------------------------------------------------------------------------------------------------------ |
 | `origin`             | The site's latitude and longitude. Every position is in metres east and north of it                    |
 | `utcOffsetHours`     | The site's time zone, for the clock and the sun                                                        |
-| `climate`            | The typical temperature and its daily swing, for the weather model                                     |
+| `climate`            | The typical temperature and its daily swing, for the weather model. Optional: 15 °C, swinging 5 °C     |
 | `camera`             | Where the standard view looks from                                                                     |
-| `tariff`             | Off-peak and peak power prices and hours, for the cost figures                                         |
+| `tariff`             | Off-peak and peak power prices and hours, for the cost figures. Optional, for a twin that models power |
 | `zones`              | Named areas, drawn on the ground, that group assets in the list                                        |
 | `assets`             | Everything on site: its `kind`, where it is, how big, what feeds it (`fedBy`), what it cools (`cools`) |
 | `types`              | Custom kinds of equipment, with their own metrics                                                      |
@@ -99,7 +99,15 @@ flowchart TD
 | `shapes`             | Arrows and fans drawn in the scene, which can follow readings                                          |
 | `terrain`            | The ground the site stands on. Written by the Layout panel                                             |
 
-The built-in kinds of asset are `site`, `weather`, `grid`, `solar`, `battery`, `genset`, `bus`, `chiller`, `coldstore`, `building`, `charger`, `vehicle` and `custom`. Every twin needs one main `bus` (the main board) with no `fedBy`; power flows from it through each asset's `fedBy`. The [Northshore definition](../../public/samples/northshore.json) uses every feature, and [Harbour Depot](../../public/samples/harbour-depot.json) is close to the minimum.
+The built-in kinds of asset are `site`, `weather`, `grid`, `solar`, `battery`, `genset`, `bus`, `chiller`, `coldstore`, `building`, `charger`, `vehicle` and `custom`. Power is optional. A twin that models it has one main `bus` (the main board) with no `fedBy`, and power flows from it through each asset's `fedBy`; a twin with no buses and nothing fed, such as a factory line or a survey, doesn't model electricity at all.
+
+```
+needs a main bus = some asset is a bus, or some asset has fedBy
+if needs a main bus:
+    exactly one bus has no fedBy, or the definition is refused
+otherwise:
+    nothing is powered or shed, and custom assets count as powered
+``` The [Northshore definition](../../public/samples/northshore.json) uses every feature, and [Harbour Depot](../../public/samples/harbour-depot.json) is close to the minimum.
 
 ## Custom asset types
 

@@ -7,7 +7,7 @@
         {
             "name": "header fields",
             "ops": [{ "unset": "id" }, { "set": "name", "value": "" }, { "set": "origin.lon", "value": 200 }, { "unset": "origin.lat" }, { "set": "tariff", "value": 3 }, { "unset": "camera" }],
-            "errors": ["Missing camera", "Missing id", "Missing name", "Missing tariff", "origin.lon must be -180..180", "origin.lat must be -90..90"]
+            "errors": ["Missing camera", "Missing id", "Missing name", "tariff must be an object", "origin.lon must be -180..180", "origin.lat must be -90..90"]
         },
         { "name": "assets not a list stops the cross-checks", "ops": [{ "set": "assets", "value": { "a": 1 } }, { "unset": "zones" }], "errors": ["assets must be an array", "zones must be an array"] },
         {
@@ -44,6 +44,8 @@
             "ops": [{ "set": "assets.3.fedBy", "value": "plant" }, { "set": "assets.4.fedBy", "value": "board" }],
             "errors": ["board: fedBy forms a cycle", "plant: fedBy forms a cycle", "Twin needs exactly one main bus (a bus with no fedBy)"]
         },
+        { "name": "a twin that doesn't model power", "ops": [{ "unset": "tariff" }, { "unset": "climate" }, { "set": "assets.3.kind", "value": "building" }, { "unset": "assets.4.fedBy" }], "errors": [] },
+        { "name": "a fed asset still needs a main bus", "ops": [{ "set": "assets.3.kind", "value": "building" }], "errors": ["Twin needs exactly one main bus (a bus with no fedBy)"] },
         {
             "name": "routes, rules and scenarios",
             "ops": [

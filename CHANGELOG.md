@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Templates for any site** ([#48]): **New twin** now starts from **A template at a location**: **Empty** (only the site's outline), **Factory line**, **Mine site**, **Survey and monitoring**, or **Site power** (weather, a grid connection and a main board, which every new twin used to get). Only **Site power** models electricity; the others are custom types with their own top-bar figures, a summary panel and rules. A twin no longer needs a main bus unless it has buses or assets with `fedBy`, `climate` and `tariff` are optional, and the top bar and site summary show power and cold stores only when the twin has them. Roadmap item 19.
 - **Anomaly detection** ([#47]): admins and owners choose **Anomalies** on a twin to watch a metric the gateway records. It learns what's usual for each local hour, on weekdays and weekends apart, from four weeks of history (medians and their spread, relearned nightly), and every five minutes raises an alert when the last half hour is far from that (low, medium or high sensitivity) or the reading hasn't changed for a number of hours. Anomalies go through the alert log, channels, escalation, reports and the API like any alert, and clear once back well inside. Charts under **Recorded** shade the usual range. Periods such as shutdowns can be left out of learning and checking. Learning takes 14 days of history. Roadmap item 18.
 - **Share links** ([#46]): admins and owners choose **Share** on a twin to make a link that shows it to someone without an account, expiring in 1, 7, 30 or 90 days. It opens the twin's latest version at its opening view and, if **Show live readings and history** is on, follows the gateway and charts recorded readings. Nobody can change anything through it, and it shows no issues, alerts, views or versions. Each link is shown once, listed with when it was last opened, and revoking it stops it at once (a page already open stops following live within 10 minutes). Roadmap item 17.
 - **Automatic provisioning** ([#45]): on **Single sign-on**, owners can **Make provisioning token** and give it, with the SCIM base URL, to the identity provider (Entra ID, Okta and others). It then adds people in the organisation's email domains as members with the role for new people, making accounts they sign in to through single sign-on if they have none, and removes them the moment it deactivates or deletes them. Owners are never removed. Its changes appear in the audit log as **Provisioning (API)**. Roadmap item 16.
@@ -246,6 +247,7 @@ Dates are when the change was merged into `main` (UTC).
 [#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#43]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/43
 [#45]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/45
+[#48]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/48
 [#47]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/47
 [#46]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/46
 [#36]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/36

@@ -290,6 +290,9 @@ test('screenshots', async ({ page, context }) => {
         await page
             .getByLabel('Description')
             .fill('The quay before the wharf works.');
+        await page
+            .getByLabel('Template', { exact: true })
+            .selectOption({ label: 'Mine site' });
         await page.getByLabel('Latitude').fill('-36.8442');
         await page.getByLabel('Longitude').fill('174.7676');
         await page.getByLabel('UTC offset (hours)').fill('13');
@@ -978,6 +981,9 @@ test('screenshots', async ({ page, context }) => {
         await page.getByRole('link', { name: 'New twin' }).click();
         await expect(page.getByLabel('Project')).toHaveValue(/.+/);
         await page.getByLabel('Name', { exact: true }).fill('Depot shed');
+        await page
+            .getByLabel('Template', { exact: true })
+            .selectOption({ label: 'Site power' });
         await page.getByLabel('Latitude').fill(String(SHED[0]));
         await page.getByLabel('Longitude').fill(String(SHED[1]));
         await page.getByRole('button', { name: 'Create twin' }).click();
@@ -1244,6 +1250,40 @@ test('screenshots', async ({ page, context }) => {
         await page.locator('.asset-row', { hasText: 'Seafood store' }).click();
         await page.waitForTimeout(3000);
         await shot(page, 'anomaly-band');
+    });
+
+    await test.step('twins from templates', async () => {
+        for (const [template, name, figure, image] of [
+            ['Mine site', 'Ridge pit', 'Crusher feed', 'template-mine'],
+            ['Factory line', 'Line 2', 'Throughput', 'template-factory'],
+        ] as const) {
+            await page.goto('/twins/create');
+            await expect(page.getByLabel('Project')).toHaveValue(/.+/);
+            await page.getByLabel('Name', { exact: true }).fill(name);
+            await page
+                .getByLabel('Template', { exact: true })
+                .selectOption({ label: template });
+            await page.getByLabel('Latitude').fill('-36.8442');
+            await page.getByLabel('Longitude').fill('174.7676');
+            await page.getByLabel('UTC offset (hours)').fill('13');
+            await page.getByRole('button', { name: 'Create twin' }).click();
+            await expect(page.locator('.twin-name')).toHaveText(name, {
+                timeout: 30_000,
+            });
+            await expect(page.locator('.topbar .kpis')).toContainText(figure, {
+                timeout: 90_000,
+            });
+            await settle(page);
+            await shot(page, image);
+
+            page.once('dialog', (dialog) => void dialog.accept());
+            await page.getByRole('button', { name: 'Settings' }).click();
+            await page
+                .getByRole('complementary', { name: 'Settings' })
+                .getByRole('button', { name: 'Delete twin' })
+                .click();
+            await expect(page).not.toHaveURL(/\/twins\/[0-9a-f-]{36}/);
+        }
     });
 
     await test.step('members and account', async () => {

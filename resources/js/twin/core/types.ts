@@ -309,9 +309,11 @@ export interface TwinDefinition {
     origin: { lon: number; lat: number; height?: number };
     /** Hours east of UTC; drives the daily weather and tariff cycle. */
     utcOffsetHours: number;
-    climate: { meanC: number; swingC: number };
+    /** Weather when there is no live data; a mild climate when absent. */
+    climate?: { meanC: number; swingC: number };
     camera: { headingDeg: number; pitchDeg: number; rangeM: number };
-    tariff: Tariff;
+    /** Prices for a twin that models power; defaults when absent. */
+    tariff?: Tariff;
     zones: ZoneDef[];
     assets: AssetDef[];
     routes: RouteDef[];

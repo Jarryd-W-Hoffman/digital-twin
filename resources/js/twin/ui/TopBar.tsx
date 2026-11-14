@@ -54,6 +54,8 @@ export function TopBar({ header }: { header?: ReactNode }) {
     const v = view?.values ?? {};
     const active = alertsAt(alerts, view?.t);
     const critical = active.filter((a) => a.severity === 'critical').length;
+    // The built-in figures are a modelled site's energy; others declare kpis.
+    const site = def?.assets.find((a) => a.kind === 'site');
     const battery = def?.assets.find((a) => a.kind === 'battery');
     const stores = def?.assets.filter((a) => a.kind === 'coldstore') ?? [];
     const worstMargin = stores.reduce((worst, s) => {
@@ -154,7 +156,7 @@ export function TopBar({ header }: { header?: ReactNode }) {
                         />
                     ))}
                 </div>
-            ) : (
+            ) : site ? (
                 <div className="kpis">
                     <Kpi label="Site load" value={kw(v['site.loadKw'])} />
                     <Kpi label="Solar" value={kw(v['site.solarKw'])} />
@@ -190,6 +192,8 @@ export function TopBar({ header }: { header?: ReactNode }) {
                         />
                     )}
                 </div>
+            ) : (
+                <div className="kpis" />
             )}
             <div className="topbar-end">
                 <button

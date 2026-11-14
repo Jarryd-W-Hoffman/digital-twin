@@ -20,12 +20,15 @@ export default function CreateTwin({
     projects,
     project,
     samples,
+    templates,
 }: {
     projects: { id: string; name: string }[];
     project: string | null;
     samples: { id: string; name: string }[];
+    templates: { id: string; name: string; description: string }[];
 }) {
     const [source, setSource] = useState<'blank' | 'sample' | 'file'>('blank');
+    const [template, setTemplate] = useState(templates[0]?.id ?? 'empty');
     // The browser's own offset, a good guess for a site nearby.
     const [utcOffset] = useState(() => -new Date().getTimezoneOffset() / 60);
 
@@ -54,7 +57,7 @@ export default function CreateTwin({
             <div className="max-w-xl p-4 md:p-6">
                 <Heading
                     title="New twin"
-                    description="Start from an empty site on the map, a sample, or a twin definition (JSON)."
+                    description="Start from a template at a place on the map, a sample, or a twin definition (JSON)."
                 />
                 <Form {...TwinController.store.form()} className="space-y-6">
                     {({ processing, errors }) => (
@@ -92,10 +95,7 @@ export default function CreateTwin({
                                 </legend>
                                 {(
                                     [
-                                        [
-                                            'blank',
-                                            'An empty site at a location',
-                                        ],
+                                        ['blank', 'A template at a location'],
                                         ['sample', 'A sample site'],
                                         ['file', 'A definition file'],
                                     ] as const
@@ -119,6 +119,34 @@ export default function CreateTwin({
 
                             {source === 'blank' && (
                                 <div className="grid gap-4 sm:grid-cols-3">
+                                    <div className="grid gap-2 sm:col-span-3">
+                                        <Label htmlFor="template">
+                                            Template
+                                        </Label>
+                                        <select
+                                            id="template"
+                                            name="template"
+                                            value={template}
+                                            onChange={(e) =>
+                                                setTemplate(e.target.value)
+                                            }
+                                            className="h-9 rounded-md border bg-transparent px-3 text-sm"
+                                        >
+                                            {templates.map((t) => (
+                                                <option key={t.id} value={t.id}>
+                                                    {t.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-xs text-muted-foreground">
+                                            {
+                                                templates.find(
+                                                    (t) => t.id === template,
+                                                )?.description
+                                            }
+                                        </p>
+                                        <InputError message={errors.template} />
+                                    </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="lat">Latitude</Label>
                                         <Input
@@ -162,11 +190,6 @@ export default function CreateTwin({
                                             message={errors.utc_offset}
                                         />
                                     </div>
-                                    <p className="text-xs text-muted-foreground sm:col-span-3">
-                                        The site gets weather, a grid connection
-                                        and a main board. Add models, scans and
-                                        equipment from its Layout panel.
-                                    </p>
                                 </div>
                             )}
 

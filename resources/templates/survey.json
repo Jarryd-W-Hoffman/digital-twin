@@ -1,0 +1,270 @@
+{
+    "id": "survey",
+    "name": "Survey and monitoring",
+    "description": "Survey control and the instruments watching a slope: prisms a robotic total station reads, and piezometers in the ground. Upload scans as point clouds, a DEM as terrain and map layers to the project's library, and send each instrument's readings through MQTT or the API.",
+    "camera": { "headingDeg": 0, "pitchDeg": -45, "rangeM": 400 },
+    "types": [
+        {
+            "id": "control-point",
+            "name": "Survey control point",
+            "primary": "checkMm",
+            "metrics": [
+                {
+                    "key": "checkMm",
+                    "label": "Last check",
+                    "unit": "mm",
+                    "decimals": 1,
+                    "default": 0
+                }
+            ],
+            "visual": { "color": "#c9a227", "shape": "cylinder", "height": 1.5 }
+        },
+        {
+            "id": "prism",
+            "name": "Monitoring prism",
+            "primary": "displacementMm",
+            "metrics": [
+                {
+                    "key": "displacementMm",
+                    "label": "Displacement",
+                    "unit": "mm",
+                    "decimals": 1,
+                    "default": 0
+                },
+                {
+                    "key": "rateMmDay",
+                    "label": "Rate",
+                    "unit": "mm/day",
+                    "decimals": 2,
+                    "default": 0
+                }
+            ],
+            "states": [
+                { "id": "stable", "label": "Stable", "status": "running" },
+                { "id": "moving", "label": "Moving", "status": "fault" }
+            ],
+            "transitions": [
+                { "from": "stable", "to": "moving", "when": "rateMmDay > 5" },
+                { "from": "moving", "to": "stable", "when": "rateMmDay < 3" }
+            ],
+            "visual": { "color": "#d95f43", "shape": "cylinder", "height": 2 }
+        },
+        {
+            "id": "piezometer",
+            "name": "Piezometer",
+            "primary": "pressureKpa",
+            "metrics": [
+                {
+                    "key": "pressureKpa",
+                    "label": "Pore pressure",
+                    "unit": "kPa",
+                    "decimals": 1,
+                    "default": 40
+                },
+                {
+                    "key": "depthM",
+                    "label": "Tip depth",
+                    "unit": "m",
+                    "decimals": 1,
+                    "default": 20
+                },
+                {
+                    "key": "waterM",
+                    "label": "Water above tip",
+                    "unit": "m",
+                    "decimals": 2,
+                    "expr": "pressureKpa / 9.81"
+                }
+            ],
+            "visual": { "color": "#3a7ca5", "shape": "cylinder", "height": 1 }
+        }
+    ],
+    "zones": [
+        {
+            "id": "control",
+            "name": "Control",
+            "footprint": [
+                [-160, -160],
+                [-100, -160],
+                [-100, -100],
+                [-160, -100]
+            ]
+        },
+        {
+            "id": "slope",
+            "name": "Monitored slope",
+            "footprint": [
+                [-80, -60],
+                [120, -60],
+                [120, 120],
+                [-80, 120]
+            ]
+        }
+    ],
+    "assets": [
+        {
+            "id": "cp-1",
+            "name": "Control point 1",
+            "kind": "custom",
+            "type": "control-point",
+            "zone": "control",
+            "position": [-140, -140]
+        },
+        {
+            "id": "cp-2",
+            "name": "Control point 2",
+            "kind": "custom",
+            "type": "control-point",
+            "zone": "control",
+            "position": [-115, -120]
+        },
+        {
+            "id": "p-1",
+            "name": "Prism 1",
+            "kind": "custom",
+            "type": "prism",
+            "zone": "slope",
+            "position": [-40, 60]
+        },
+        {
+            "id": "p-2",
+            "name": "Prism 2",
+            "kind": "custom",
+            "type": "prism",
+            "zone": "slope",
+            "position": [20, 80]
+        },
+        {
+            "id": "p-3",
+            "name": "Prism 3",
+            "kind": "custom",
+            "type": "prism",
+            "zone": "slope",
+            "position": [80, 60]
+        },
+        {
+            "id": "pz-1",
+            "name": "Piezometer 1",
+            "kind": "custom",
+            "type": "piezometer",
+            "zone": "slope",
+            "position": [0, 20]
+        },
+        {
+            "id": "pz-2",
+            "name": "Piezometer 2",
+            "kind": "custom",
+            "type": "piezometer",
+            "zone": "slope",
+            "position": [60, 20]
+        }
+    ],
+    "routes": [],
+    "rules": [
+        {
+            "id": "prism-1-moving",
+            "name": "Prism 1 moving",
+            "severity": "critical",
+            "asset": "p-1",
+            "metric": "rateMmDay",
+            "op": "gt",
+            "threshold": 5,
+            "clearAt": 3,
+            "message": "{asset} is moving over 5 mm a day"
+        },
+        {
+            "id": "prism-2-moving",
+            "name": "Prism 2 moving",
+            "severity": "critical",
+            "asset": "p-2",
+            "metric": "rateMmDay",
+            "op": "gt",
+            "threshold": 5,
+            "clearAt": 3,
+            "message": "{asset} is moving over 5 mm a day"
+        },
+        {
+            "id": "prism-3-moving",
+            "name": "Prism 3 moving",
+            "severity": "critical",
+            "asset": "p-3",
+            "metric": "rateMmDay",
+            "op": "gt",
+            "threshold": 5,
+            "clearAt": 3,
+            "message": "{asset} is moving over 5 mm a day"
+        },
+        {
+            "id": "control-moved",
+            "name": "Control point moved",
+            "severity": "warning",
+            "asset": "cp-1",
+            "metric": "checkMm",
+            "op": "gt",
+            "threshold": 10,
+            "message": "{asset} checked over 10 mm out: resurvey the control"
+        },
+        {
+            "id": "control-2-moved",
+            "name": "Control point moved",
+            "severity": "warning",
+            "asset": "cp-2",
+            "metric": "checkMm",
+            "op": "gt",
+            "threshold": 10,
+            "message": "{asset} checked over 10 mm out: resurvey the control"
+        }
+    ],
+    "scenarios": [],
+    "kpis": [
+        {
+            "label": "Most movement",
+            "value": "max({p-1.displacementMm}, {p-2.displacementMm}, {p-3.displacementMm})",
+            "unit": "mm",
+            "decimals": 1
+        },
+        {
+            "label": "Fastest",
+            "value": "max({p-1.rateMmDay}, {p-2.rateMmDay}, {p-3.rateMmDay})",
+            "unit": "mm/day",
+            "decimals": 2
+        },
+        {
+            "label": "Highest water",
+            "value": "max({pz-1.waterM}, {pz-2.waterM})",
+            "unit": "m",
+            "decimals": 2
+        }
+    ],
+    "panels": [
+        {
+            "title": "Slope movement",
+            "chart": {
+                "label": "Fastest prism",
+                "value": "max({p-1.rateMmDay}, {p-2.rateMmDay}, {p-3.rateMmDay})",
+                "unit": "mm/day",
+                "decimals": 2
+            },
+            "items": [
+                {
+                    "label": "Prism 1",
+                    "value": "{p-1.displacementMm}",
+                    "unit": "mm",
+                    "decimals": 1
+                },
+                {
+                    "label": "Prism 2",
+                    "value": "{p-2.displacementMm}",
+                    "unit": "mm",
+                    "decimals": 1
+                },
+                {
+                    "label": "Prism 3",
+                    "value": "{p-3.displacementMm}",
+                    "unit": "mm",
+                    "decimals": 1
+                }
+            ]
+        }
+    ]
+}

@@ -6,12 +6,23 @@ A **twin** is one site: its buildings and equipment, where they are, how power a
 
 ## Create a twin
 
-![The New twin form, starting from an empty site at a location.](../images/new-twin.png)
+![The New twin form, starting from the Mine site template at a location.](../images/new-twin.png)
 
 1. On a project page choose **New twin** (or choose **Twins** in the sidebar, then **New twin**).
 2. Check the **Project**, and enter a **Name** and, if you like, a **Description**.
 3. Under **Start from**, choose one:
-    - **An empty site at a location**: enter the **Latitude**, **Longitude** and **UTC offset (hours)** of the site. The twin starts with weather, a grid connection and a main board, ready for you to add models, scans and equipment.
+    - **A template at a location**: choose a **Template**, then enter the **Latitude**, **Longitude** and **UTC offset (hours)** of the site. The templates are:
+        - **Empty**: only the site's outline, ready for models, scans and equipment.
+        - **Factory line**: a conveyor feeding two machining cells and a packer, with throughput, spindle temperature and vibration.
+        - **Mine site**: a primary crusher, an overland conveyor, a run-of-mine stockpile with a reclaim feeder, and pit dewatering.
+        - **Survey and monitoring**: survey control points, slope-monitoring prisms and piezometers, ready for point clouds and terrain.
+        - **Site power**: weather, a grid connection and a main board, for a site whose energy is modelled.
+
+      Only **Site power** models electricity. The others are built from [custom asset types](12-twin-definitions.md#custom-asset-types), with their own figures in the top bar and rules, so you can rename, move and change everything in them, and connect real readings through [MQTT](10-devices-and-mqtt.md) or [OPC UA](11-opc-ua.md).
+
+      ![Ridge pit, made from the Mine site template: crusher feed, tonnes crushed, the stockpile and the pit's water in the top bar, and the Stockpile panel in the site summary.](../images/template-mine.png)
+
+      ![Line 2, made from the Factory line template: the line's speed, throughput, parts made and boxes packed.](../images/template-factory.png)
     - **A sample site**: a copy of **Northshore Cold Chain Hub** or **Harbour Depot**, to explore or adapt.
     - **A definition file**: a twin definition saved as JSON, such as one downloaded from another twin. See [Twin definitions](12-twin-definitions.md).
 4. Choose **Create twin**. Meridian checks the definition, saves it as version 1 and opens the twin.
