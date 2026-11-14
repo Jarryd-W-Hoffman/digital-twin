@@ -1,8 +1,10 @@
 import { router, useForm } from '@inertiajs/react';
 import {
     Box,
+    Image as ImageIcon,
     Layers,
     Loader2,
+    Map as MapIcon,
     Mountain,
     RotateCcw,
     ScanLine,
@@ -19,7 +21,16 @@ import { destroy as abortUpload } from '@/routes/projects/uploads';
 export type LibraryAsset = {
     id: string;
     name: string;
-    kind: 'model' | 'tileset' | 'pointcloud' | 'terrain' | 'bim';
+    kind:
+        | 'model'
+        | 'tileset'
+        | 'pointcloud'
+        | 'terrain'
+        | 'bim'
+        | 'vector'
+        | 'imagery';
+    /** A map layer's feature count. */
+    features: number | null;
     originalName: string;
     bytes: number;
     files: number;
@@ -49,7 +60,15 @@ const ready: Record<LibraryAsset['kind'], (asset: LibraryAsset) => string> = {
         `Terrain · ${asset.files} files · ${asset.crs ?? 'unknown CRS'}`,
     bim: (asset) =>
         `BIM · ${asset.elements ?? 0} elements${asset.crs ? ` · ${asset.crs}` : ''}`,
+    vector: (asset) =>
+        `Map layer · ${asset.features ?? 0} features · ${asset.crs ?? 'unknown CRS'}`,
+    imagery: (asset) =>
+        `Imagery · ${asset.files} files · ${asset.crs ?? 'unknown CRS'}`,
 };
+
+/** Kinds converted on the queue, which show progress and can be retried. */
+const converted = (asset: LibraryAsset) =>
+    asset.kind !== 'model' && asset.kind !== 'tileset';
 
 function describe(asset: LibraryAsset): string {
     switch (asset.status) {
@@ -60,9 +79,7 @@ function describe(asset: LibraryAsset): string {
         case 'uploading':
             return 'Uploading';
         default:
-            return asset.kind === 'pointcloud' ||
-                asset.kind === 'terrain' ||
-                asset.kind === 'bim'
+            return converted(asset)
                 ? `Converting ${asset.progress ?? 0}%`
                 : 'Processing';
     }
@@ -85,6 +102,10 @@ function Icon({ asset }: { asset: LibraryAsset }) {
         <Mountain className={className} />
     ) : asset.kind === 'tileset' ? (
         <Layers className={className} />
+    ) : asset.kind === 'vector' ? (
+        <MapIcon className={className} />
+    ) : asset.kind === 'imagery' ? (
+        <ImageIcon className={className} />
     ) : (
         <Box className={className} />
     );
@@ -169,13 +190,9 @@ export default function LibraryItem({
                         </pre>
                     </details>
                 )}
-                {canUpdate &&
-                    (asset.kind === 'pointcloud' ||
-                        asset.kind === 'terrain' ||
-                        asset.kind === 'bim') &&
-                    asset.status === 'failed' && (
-                        <RetryConversion projectId={projectId} asset={asset} />
-                    )}
+                {canUpdate && converted(asset) && asset.status === 'failed' && (
+                    <RetryConversion projectId={projectId} asset={asset} />
+                )}
             </span>
             {canUpdate && (
                 <Button

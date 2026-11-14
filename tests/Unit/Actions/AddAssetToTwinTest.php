@@ -36,6 +36,24 @@ it('adds a tileset where its own georeference puts it', function (): void {
         ->and($layers[0]['url'])->toEndWith('/files/tileset.json');
 });
 
+it('adds map layers and imagery where their coordinates say', function (ProjectAssetKind $kind, string $entry, string $field): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $asset = ProjectAsset::factory()->for($twin->project)->create(['kind' => $kind, 'entry' => $entry, 'name' => 'Parcels']);
+
+    $definition = resolve(AddAssetToTwin::class)->handle($twin, $user, $asset)?->definition;
+
+    expect($definition[$field])->toBe([[
+        'id' => 'upload-'.mb_substr($asset->id, -8),
+        'name' => 'Parcels',
+        'url' => $asset->url(),
+        'assetId' => $asset->id,
+    ]])->and($definition[$field][0]['url'])->toEndWith('/files/'.$entry);
+})->with([
+    [ProjectAssetKind::Vector, 'layer.geojson', 'vectors'],
+    [ProjectAssetKind::Imagery, 'imagery.json', 'imagery'],
+]);
+
 it('saves nothing when the twin already shows the upload', function (): void {
     [$user, $organisation] = member();
     $twin = twinIn($organisation);

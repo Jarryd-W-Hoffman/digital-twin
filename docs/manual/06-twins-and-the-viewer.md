@@ -70,7 +70,7 @@ Below the list:
     - **Status**: running, standby, service (out of service), off or fault.
     - **Temp**: each cold store against its own setpoint, blue when colder, grey at the setpoint, red as it nears its limit.
     - **Power**: each asset from dim when idle to bright at full load.
-- **Layers** shows or hides **Labels**, **Energy flows** (the animated arcs between assets, sized by kW), **Zones and routes**, **Neighbouring buildings** (and the uploaded tilesets and scans) and **Sun shadows**.
+- **Layers** shows or hides **Labels**, **Energy flows** (the animated arcs between assets, sized by kW), **Zones and routes**, **Uploaded layers** (the twin's models, tilesets, scans, map layers and imagery, when it has any) and **Sun shadows**.
 - **Basemap** chooses the ground imagery: **Bundled, works offline** (low-resolution, no third-party requests), **OpenStreetMap** (detailed streets, for development rather than heavy use), or your own tiles if your administrator has set them up.
 
 ### The scene (middle)

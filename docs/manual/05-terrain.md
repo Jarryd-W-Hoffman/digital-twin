@@ -24,7 +24,7 @@ flowchart LR
 
 ## Upload a DEM
 
-1. On the project page, under **Library**, choose a `.tif`, `.tiff` (GeoTIFF) or `.asc` (ASCII grid) file.
+1. On the project page, under **Library**, choose a `.tif`, `.tiff` (GeoTIFF) or `.asc` (ASCII grid) file. For a GeoTIFF, leave **It is** on **Terrain (an elevation model)**.
 2. **EPSG code** is the only extra field. Leave it empty if the file has a coordinate system, as GeoTIFFs usually do. An ASCII grid usually doesn't, so enter its code, such as `2193` for New Zealand Transverse Mercator.
 3. Choose **Upload**.
 
@@ -68,4 +68,5 @@ Meridian looks up the ground's height at the twin's **origin** and builds the wh
 
 - [Projects and the library](03-projects-and-the-library.md): uploading.
 - [Point clouds](04-point-clouds.md): the same converter, for scans.
+- [Map layers and imagery](16-map-layers-and-imagery.md): a GeoTIFF orthophoto, chosen as **Imagery**, laid over the terrain.
 - [Running Meridian](14-running-meridian.md#the-converter): the converter service.

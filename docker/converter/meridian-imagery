@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""
+Tiles a georeferenced image (a GeoTIFF orthophoto or drone mosaic, anything
+GDAL reads) as web map tiles the viewer lays over the ground:
+
+    take the image's coordinate system, or the one given when it has none
+    scale anything but 8-bit bands to 8 bits, keep at most red, green and blue
+    warp it to Web Mercator, transparent outside the image
+    gdal2tiles --xyz: {z}/{x}/{y}.png, its deepest zoom from the image's resolution
+    write imagery.json: the zooms and the bounds in degrees
+
+Prints a one-line JSON summary.
+"""
+
+import argparse
+import json
+import math
+import os
+import sys
+
+from osgeo import gdal, osr
+from osgeo_utils import gdal2tiles
+
+gdal.UseExceptions()
+osr.UseExceptions()
+
+# Zooms below the deepest one, so the image still shows from further out.
+OVERVIEW_ZOOMS = 8
+MAX_ZOOM = 23
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    sys.exit(2)
+
+
+def crs_label(reference: osr.SpatialReference) -> str:
+    authority, code = reference.GetAuthorityName(None), reference.GetAuthorityCode(None)
+    return f"{authority}:{code}" if authority and code else (reference.GetName() or "Custom")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Tiles a georeferenced image as web map tiles.")
+    parser.add_argument("source")
+    parser.add_argument("out")
+    parser.add_argument("--srs", help="The image's coordinate system, when it carries none (EPSG:2193)")
+    parser.add_argument("--jobs", type=int, default=2)
+    args = parser.parse_args()
+
+    try:
+        dataset = gdal.Open(args.source)
+    except RuntimeError:
+        fail("The file isn't an image GDAL can read.")
+    if dataset.RasterCount < 1:
+        fail("The image has no bands.")
+
+    if args.srs:
+        source = osr.SpatialReference()
+        source.SetFromUserInput(args.srs)
+    elif dataset.GetProjection():
+        source = osr.SpatialReference(wkt=dataset.GetProjection())
+    else:
+        fail("The image has no coordinate system. Give its EPSG code.")
+    if dataset.GetGeoTransform(can_return_null=True) is None:
+        fail("The image isn't georeferenced: it has no position on the ground.")
+
+    work = os.path.dirname(os.path.abspath(args.out)) or "."
+    # Up to three colour bands (plus its own alpha, if it has one), as bytes.
+    colour = [i for i in range(1, dataset.RasterCount + 1)
+              if dataset.GetRasterBand(i).GetColorInterpretation() != gdal.GCI_AlphaBand][:3]
+    bands = colour if len(colour) != 2 else colour[:1]
+    byte = all(dataset.GetRasterBand(i).DataType == gdal.GDT_Byte for i in bands)
+    eight = gdal.Translate(
+        os.path.join(work, "bands.vrt"), dataset, format="VRT", bandList=bands,
+        outputType=gdal.GDT_Byte,
+        scaleParams=None if byte else [[] for _ in bands],
+        outputSRS=source.ExportToWkt(),
+    )
+    mercator = gdal.Warp(
+        os.path.join(work, "mercator.vrt"), eight, format="VRT", dstSRS="EPSG:3857",
+        resampleAlg="bilinear", dstAlpha=True, multithread=True,
+    )
+    width, height = dataset.RasterXSize, dataset.RasterYSize
+    # The zoom whose 256-pixel tiles are as fine as the image's pixels.
+    pixel = mercator.GetGeoTransform()[1]
+    deepest = min(MAX_ZOOM, max(0, math.ceil(math.log2(2 * math.pi * 6_378_137 / 256 / pixel))))
+    mercator = None
+    eight = None
+
+    os.makedirs(args.out, exist_ok=True)
+    gdal2tiles.main(["gdal2tiles", "--xyz", "-w", "none", "-r", "average", "-q",
+                     f"-z{max(0, deepest - OVERVIEW_ZOOMS)}-{deepest}",
+                     f"--processes={max(1, args.jobs)}", os.path.join(work, "mercator.vrt"), args.out])
+
+    zooms = sorted(int(d) for d in os.listdir(args.out) if d.isdigit())
+    if not zooms:
+        fail("No tiles were written.")
+    tiles = sum(len(files) for _, _, files in os.walk(args.out) if files) - sum(
+        1 for f in os.listdir(args.out) if os.path.isfile(os.path.join(args.out, f)))
+
+    info = gdal.Info(os.path.join(work, "mercator.vrt"), format="json")
+    corners = info["wgs84Extent"]["coordinates"][0]
+    lons, lats = [c[0] for c in corners], [c[1] for c in corners]
+    bounds = [round(min(lons), 7), round(min(lats), 7), round(max(lons), 7), round(max(lats), 7)]
+
+    for name in os.listdir(args.out):
+        if os.path.isfile(os.path.join(args.out, name)):
+            os.remove(os.path.join(args.out, name))
+    with open(os.path.join(args.out, "imagery.json"), "w", encoding="utf-8") as out:
+        json.dump({"format": "png", "minZoom": zooms[0], "maxZoom": zooms[-1], "bounds": bounds}, out)
+
+    print(json.dumps({
+        "crs": crs_label(source),
+        "width": width,
+        "height": height,
+        "tiles": tiles,
+        "minZoom": zooms[0],
+        "maxZoom": zooms[-1],
+        "bounds": bounds,
+    }))
+
+
+if __name__ == "__main__":
+    main()

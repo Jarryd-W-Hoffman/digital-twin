@@ -11,6 +11,7 @@ use App\Jobs\ConvertUpload;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -26,12 +27,12 @@ final readonly class StoreProjectAsset
      * cloud or DEM is kept as uploaded and queued for conversion. Nothing is shown
      * in a twin until it is added to one.
      *
-     * @param  array{epsg?: int, spacing?: float}  $options  Conversion options.
+     * @param  array{epsg?: int, spacing?: float, as?: string}  $options  Conversion options.
      */
     public function handle(Project $project, UploadedFile $file, string $name, array $options = []): ProjectAsset
     {
         $id = (string) Str::uuid7();
-        $kind = ProjectAssetKind::fromFilename($file->getClientOriginalName());
+        $kind = ProjectAssetKind::fromFilename($file->getClientOriginalName(), $options['as'] ?? null);
 
         return DB::transaction(function () use ($project, $file, $name, $id, $kind, $options): ProjectAsset {
             $asset = $project->assets()->create([
@@ -44,7 +45,7 @@ final readonly class StoreProjectAsset
                 'bytes' => (int) $file->getSize(),
                 'files' => 0,
                 'status' => ProjectAssetStatus::Processing,
-                'options' => $kind->isConverted() ? $options : null,
+                'options' => $kind->isConverted() ? Arr::except($options, 'as') : null,
             ]);
             $this->audit->handle(AuditAction::UploadAdded, $project, $name, ['kind' => $kind->value, 'file' => $asset->original_name]);
 

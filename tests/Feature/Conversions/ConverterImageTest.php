@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use App\Actions\ConvertIfc;
+use App\Actions\ConvertImagery;
 use App\Actions\ConvertPointCloud;
 use App\Actions\ConvertTerrain;
+use App\Actions\ConvertVector;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
 use App\Exceptions\ConversionFailed;
@@ -15,7 +17,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /*
- * Runs the real PDAL, py3dtiles, meridian-terrain and meridian-ifc, so it only runs
+ * Runs the real PDAL, py3dtiles, meridian-terrain, meridian-ifc, meridian-vector
+ * and meridian-imagery, so it only runs
  * inside the converter image:
  *
  *     docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 \
@@ -340,3 +343,127 @@ it('converts an IFC model that says nothing of where it is', function (): void {
         ->and($asset->details)->toBe(['elements' => 6, 'georeference' => null])
         ->and($asset->log)->toContain('Not georeferenced');
 })->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-ifc (the converter image).');
+
+/**
+ * A 50 m lot in NZTM near Auckland, written by GDAL as a zipped shapefile and
+ * as a DXF drawing (which carries no coordinate system), and a borehole as
+ * GeoJSON in longitude and latitude with a height.
+ *
+ * @return array{shapefile: string, dxf: string, geojson: string}
+ */
+function siteLayers(string $work): array
+{
+    $script = <<<'PY'
+        import json, sys, zipfile
+        from osgeo import gdal, ogr, osr
+        gdal.UseExceptions()
+        work = sys.argv[1]
+        nztm = osr.SpatialReference()
+        nztm.ImportFromEPSG(2193)
+        shp = ogr.GetDriverByName("ESRI Shapefile").CreateDataSource(work + "/lots.shp")
+        layer = shp.CreateLayer("lots", nztm, ogr.wkbPolygon)
+        layer.CreateField(ogr.FieldDefn("name", ogr.OFTString))
+        feature = ogr.Feature(layer.GetLayerDefn())
+        feature.SetField("name", "Lot 1")
+        feature.SetGeometry(ogr.CreateGeometryFromWkt("POLYGON ((1756000 5920000, 1756050 5920000, 1756050 5920050, 1756000 5920050, 1756000 5920000))"))
+        layer.CreateFeature(feature)
+        shp = None
+        with zipfile.ZipFile(work + "/lots.zip", "w") as z:
+            for ext in ("shp", "shx", "dbf", "prj"):
+                z.write(work + "/lots." + ext, "lots." + ext)
+        dxf = ogr.GetDriverByName("DXF").CreateDataSource(work + "/plan.dxf")
+        entities = dxf.CreateLayer("entities")
+        line = ogr.Feature(entities.GetLayerDefn())
+        line.SetGeometry(ogr.CreateGeometryFromWkt("LINESTRING (1756000 5920000, 1756100 5920000)"))
+        entities.CreateFeature(line)
+        dxf = None
+        with open(work + "/holes.geojson", "w") as f:
+            json.dump({"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": "BH-1", "depth": 12.5}, "geometry": {"type": "Point", "coordinates": [174.76, -36.85, 12]}}]}, f)
+        PY;
+    File::put($work.'/layers.py', $script);
+    Process::run(['python3', $work.'/layers.py', $work])->throw();
+
+    return ['shapefile' => $work.'/lots.zip', 'dxf' => $work.'/plan.dxf', 'geojson' => $work.'/holes.geojson'];
+}
+
+it('converts a zipped shapefile and GeoJSON to GeoJSON in longitude and latitude', function (): void {
+    $layers = siteLayers($this->work);
+    $lots = ProjectAsset::factory()->processing()->create(['kind' => ProjectAssetKind::Vector, 'original_name' => 'lots.zip', 'options' => []]);
+    Storage::disk('local')->put($lots->sourceKey(), File::get($layers['shapefile']));
+    $holes = ProjectAsset::factory()->processing()->create(['kind' => ProjectAssetKind::Vector, 'original_name' => 'holes.geojson', 'options' => []]);
+    Storage::disk('local')->put($holes->sourceKey(), File::get($layers['geojson']));
+
+    resolve(ConvertVector::class)->handle($lots);
+    resolve(ConvertVector::class)->handle($holes);
+
+    /** @var array{features: list<array{geometry: array{type: string, coordinates: list<list<array{0: float, 1: float}>>|list<float>}, properties: array<string, mixed>}>} $lot */
+    $lot = json_decode((string) Storage::disk('local')->get($lots->directory.'/layer.geojson'), true);
+    /** @var array{features: list<array{geometry: array{coordinates: list<float>}, properties: array<string, mixed>}>} $hole */
+    $hole = json_decode((string) Storage::disk('local')->get($holes->directory.'/layer.geojson'), true);
+
+    expect($lots->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($lots->crs)->toBe('EPSG:2193')
+        ->and($lots->details['features'] ?? null)->toBe(1)
+        ->and($lot['features'][0]['properties'])->toBe(['name' => 'Lot 1', 'layer' => 'lots'])
+        ->and($lot['features'][0]['geometry']['type'])->toBe('Polygon')
+        ->and($lot['features'][0]['geometry']['coordinates'][0][0][0])->toEqualWithDelta(174.7498, 0.0005)
+        ->and($lot['features'][0]['geometry']['coordinates'][0][0][1])->toEqualWithDelta(-36.8530, 0.0005)
+        ->and($holes->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($hole['features'][0]['geometry']['coordinates'])->toBe([174.76, -36.85])
+        ->and($hole['features'][0]['properties'])->toBe(['id' => 'BH-1', 'depth' => 12.5, 'layer' => 'holes']);
+})->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-vector (the converter image).');
+
+it('asks for an EPSG code for a DXF drawing, then uses it', function (): void {
+    $asset = ProjectAsset::factory()->processing()->create(['kind' => ProjectAssetKind::Vector, 'original_name' => 'plan.dxf', 'options' => []]);
+    Storage::disk('local')->put($asset->sourceKey(), File::get(siteLayers($this->work)['dxf']));
+
+    expect(fn () => resolve(ConvertVector::class)->handle($asset))
+        ->toThrow(ConversionFailed::class, "Layer entities has no coordinate system. Give the file's EPSG code.");
+
+    $asset->update(['options' => ['epsg' => 2193]]);
+    resolve(ConvertVector::class)->handle($asset);
+
+    expect($asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($asset->log)->toContain('1 features in 1 layers (1 Line String)');
+})->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-vector (the converter image).');
+
+it('tiles a GeoTIFF orthophoto as web map tiles, from the bands it has', function (int $bands, int $type): void {
+    $script = <<<'PY'
+        import sys
+        import numpy as np
+        from osgeo import gdal, osr
+        gdal.UseExceptions()
+        bands, kind = int(sys.argv[2]), int(sys.argv[3])
+        d = gdal.GetDriverByName("GTiff").Create(sys.argv[1], 400, 300, bands, kind)
+        d.SetGeoTransform((1756000, 0.5, 0, 5920150, 0, -0.5))
+        s = osr.SpatialReference()
+        s.ImportFromEPSG(2193)
+        d.SetProjection(s.ExportToWkt())
+        for b in range(bands):
+            d.GetRasterBand(b + 1).WriteArray((np.indices((300, 400))[b % 2] * (b + 1) * 40).astype(np.uint16))
+        d = None
+        PY;
+    File::put($this->work.'/ortho.py', $script);
+    Process::run(['python3', $this->work.'/ortho.py', $this->work.'/ortho.tif', (string) $bands, (string) $type])->throw();
+    $asset = ProjectAsset::factory()->processing()->create(['kind' => ProjectAssetKind::Imagery, 'original_name' => 'ortho.tif', 'options' => []]);
+    Storage::disk('local')->put($asset->sourceKey(), File::get($this->work.'/ortho.tif'));
+
+    resolve(ConvertImagery::class)->handle($asset);
+
+    /** @var array{format: string, minZoom: int, maxZoom: int, bounds: list<float>} $info */
+    $info = json_decode((string) Storage::disk('local')->get($asset->directory.'/imagery.json'), true);
+    $deepest = Storage::disk('local')->allFiles($asset->directory.'/'.$info['maxZoom']);
+
+    expect($asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($asset->crs)->toBe('EPSG:2193')
+        ->and($info['format'])->toBe('png')
+        ->and($info['maxZoom'])->toBe(18)
+        ->and($info['minZoom'])->toBe(10)
+        ->and($info['bounds'][0])->toEqualWithDelta(174.7498, 0.0005)
+        ->and($info['bounds'][3])->toEqualWithDelta(-36.8517, 0.0005)
+        ->and($deepest)->not->toBeEmpty()
+        ->and(mb_substr((string) Storage::disk('local')->get($deepest[0]), 1, 3, '8bit'))->toBe('PNG');
+})->with([
+    'RGB bytes' => [3, 1],
+    'one 16-bit band' => [1, 2],
+])->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-imagery (the converter image).');

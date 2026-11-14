@@ -316,3 +316,49 @@ function fakeIdentityProvider(array $claims = [], string $nonce = 'nonce-from-th
         ]),
     ]);
 }
+
+/**
+ * Stands in for meridian-vector: writes a GeoJSON layer and prints its summary.
+ */
+function fakeVectorConverter(?string $fail = null, bool $writes = true, string $summary = '{"crs": "EPSG:2193", "features": 1250, "layers": 2, "kinds": {"Polygon": 1200, "LineString": 50}, "bounds": [174.74, -36.86, 174.77, -36.84]}'): void
+{
+    Process::fake([
+        "'meridian-vector'*" => function (PendingProcess $process) use ($fail, $writes, $summary): ProcessResult|string {
+            if ($fail !== null) {
+                return Process::result(errorOutput: $fail, exitCode: 2);
+            }
+
+            if ($writes) {
+                /** @var list<string> $command */
+                $command = $process->command;
+                file_put_contents($command[2], '{"type":"FeatureCollection","features":[]}');
+            }
+
+            return $summary;
+        },
+    ]);
+}
+
+/**
+ * Stands in for meridian-imagery: writes a tile and imagery.json, and prints its summary.
+ */
+function fakeImageryTiler(?string $fail = null, bool $writes = true, string $summary = '{"crs": "EPSG:2193", "width": 12000, "height": 8000, "tiles": 340, "minZoom": 12, "maxZoom": 20, "bounds": [174.74, -36.86, 174.77, -36.84]}'): void
+{
+    Process::fake([
+        "'meridian-imagery'*" => function (PendingProcess $process) use ($fail, $writes, $summary): ProcessResult|string {
+            if ($fail !== null) {
+                return Process::result(errorOutput: $fail, exitCode: 2);
+            }
+
+            if ($writes) {
+                /** @var list<string> $command */
+                $command = $process->command;
+                File::ensureDirectoryExists($command[2].'/20/1/');
+                file_put_contents($command[2].'/imagery.json', '{"format": "png", "minZoom": 12, "maxZoom": 20}');
+                file_put_contents($command[2].'/20/1/2.png', 'png');
+            }
+
+            return $summary;
+        },
+    ]);
+}

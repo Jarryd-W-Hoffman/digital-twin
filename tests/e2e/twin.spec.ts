@@ -231,7 +231,7 @@ test('works at phone width without horizontal scroll', async ({ page }) => {
 test('measures distances, heights, areas and points in the scene, without selecting anything', async ({ page }) => {
   const problems = await open(page);
   // Clicks should land on the ground, not on the neighbouring buildings.
-  await page.getByLabel('Neighbouring buildings').uncheck();
+  await page.getByLabel('Uploaded layers').uncheck();
   await page.getByRole('button', { name: 'Whole site' }).click();
   await page.waitForTimeout(3000);
   const screen = (point: [number, number], height = 0) =>
@@ -470,5 +470,55 @@ test('the wind arrow follows the weather mast, and the yard camera’s fan is dr
   const camera = await page.evaluate(() => (window as unknown as Hooks).__scene.shapes.poseOf('yard-camera'));
   expect(camera).toEqual({ headingDeg: 215, tiltDeg: -20, length: 70 });
   expect(await page.evaluate(() => (window as unknown as Hooks).__scene.shapes.tipOnScreen('yard-camera'))).not.toBeNull();
+  expect(problems).toEqual([]);
+});
+
+test('drapes map layers and lays imagery over the ground, and the layer toggle hides them', async ({ page }) => {
+  const problems = await open(page, '?twin=harbour-depot');
+  const tiles: string[] = [];
+  // A 1 x 1 PNG for every tile, and a lot and a borehole near the depot.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.route('**/maplayers/**', (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('.png')) {
+      tiles.push(url.pathname);
+      return route.fulfill({ contentType: 'image/png', body: png });
+    }
+    if (url.pathname.endsWith('imagery.json'))
+      return route.fulfill({ json: { format: 'png', minZoom: 10, maxZoom: 18, bounds: [174.784, -36.841, 174.787, -36.838] } });
+    return route.fulfill({
+      contentType: 'application/geo+json',
+      json: {
+        type: 'FeatureCollection',
+        features: [
+          { type: 'Feature', properties: { name: 'Lot 1' }, geometry: { type: 'Polygon', coordinates: [[[174.785, -36.8398], [174.7856, -36.8398], [174.7856, -36.8392], [174.785, -36.8392], [174.785, -36.8398]]] } },
+          { type: 'Feature', properties: { id: 'BH-1' }, geometry: { type: 'Point', coordinates: [174.7853, -36.8395] } },
+        ],
+      },
+    });
+  });
+  const def = JSON.parse(await (await page.request.get('/samples/harbour-depot.json')).text());
+  await page.getByTestId('twin-file').setInputFiles({
+    name: 'depot.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        ...def,
+        vectors: [{ id: 'lots', name: 'Lots', url: '/maplayers/lots.geojson', color: '#ff6b6b' }],
+        imagery: [{ id: 'ortho', name: 'Ortho', url: '/maplayers/imagery.json', opacity: 0.8 }],
+      }),
+    ),
+  });
+
+  const layer = (id: string) =>
+    page.evaluate((l) => (window as unknown as { __scene: { mapLayer(id: string): { features: number; shown: boolean } | null } }).__scene.mapLayer(l), id);
+  await expect.poll(() => layer('lots'), { timeout: 45_000 }).toEqual({ features: 2, shown: true });
+  await expect.poll(() => layer('ortho'), { timeout: 45_000 }).toEqual({ features: 0, shown: true });
+  await expect.poll(() => tiles.length, { timeout: 45_000 }).toBeGreaterThan(0);
+  expect(tiles.every((t) => /^\/maplayers\/(1[0-8])\/\d+\/\d+\.png$/.test(t))).toBe(true);
+
+  await page.getByLabel('Uploaded layers').uncheck();
+  expect(await layer('lots')).toEqual({ features: 2, shown: false });
+  expect(await layer('ortho')).toEqual({ features: 0, shown: false });
   expect(problems).toEqual([]);
 });

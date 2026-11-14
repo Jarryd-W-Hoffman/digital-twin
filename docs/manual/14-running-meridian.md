@@ -71,7 +71,7 @@ Direct uploads need the bucket to allow cross-origin `PUT` requests from Meridia
 
 ## The converter
 
-Point clouds and DEMs are converted by a worker on the `conversions` queue, in its own image because PDAL, GDAL and py3dtiles are large. In Docker it's the `converter` service and starts with the stack. Without Docker, install PDAL, GDAL, pydelatin and quantized-mesh-encoder (from conda-forge) and `pip install "py3dtiles[las]"`, put [`docker/converter/meridian-terrain`](../../docker/converter/meridian-terrain) on the path, then run:
+Point clouds, DEMs, map layers, imagery and IFC models are converted by a worker on the `conversions` queue, in its own image because PDAL, GDAL and py3dtiles are large. In Docker it's the `converter` service and starts with the stack. Without Docker, install PDAL, GDAL, pydelatin and quantized-mesh-encoder (from conda-forge) and `pip install "py3dtiles[las]"`, put [`docker/converter/meridian-terrain`](../../docker/converter/meridian-terrain), [`meridian-vector`](../../docker/converter/meridian-vector) and [`meridian-imagery`](../../docker/converter/meridian-imagery) on the path, then run:
 
 ```bash
 php artisan queue:work conversions --queue=conversions --timeout=14400
@@ -85,6 +85,12 @@ php artisan queue:work conversions --queue=conversions --timeout=14400
 | `MERIDIAN_TERRAIN_JOBS`                | Processes terrain tiles are made with, default 2                   |
 | `MERIDIAN_TERRAIN_TIMEOUT_MINUTES`     | Longest a terrain conversion may run, default 240                  |
 | `MERIDIAN_TERRAIN_TILER`               | Where the terrain tiler is, default `meridian-terrain` on the path |
+| `MERIDIAN_VECTOR_CONVERTER`            | Where the map layer converter is, default `meridian-vector` on the path |
+| `MERIDIAN_VECTOR_MAX_FEATURES`         | Most shapes a map layer may have, default 250,000                  |
+| `MERIDIAN_VECTOR_TIMEOUT_MINUTES`      | Longest a map layer conversion may run, default 30                 |
+| `MERIDIAN_IMAGERY_TILER`               | Where the imagery tiler is, default `meridian-imagery` on the path |
+| `MERIDIAN_IMAGERY_JOBS`                | Processes imagery tiles are made with, default 2                   |
+| `MERIDIAN_IMAGERY_TIMEOUT_MINUTES`     | Longest an imagery conversion may run, default 240                 |
 
 Give the converter memory and shared memory to match your largest scans; the Docker service has 2 GB of `/dev/shm`.
 

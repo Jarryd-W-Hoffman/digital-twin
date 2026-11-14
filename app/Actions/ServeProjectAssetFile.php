@@ -12,6 +12,7 @@ final readonly class ServeProjectAssetFile
 {
     private const array TYPES = [
         'json' => 'application/json',
+        'geojson' => 'application/geo+json',
         'glb' => 'model/gltf-binary',
         'gltf' => 'model/gltf+json',
         'png' => 'image/png',

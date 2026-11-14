@@ -39,6 +39,26 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'Projects', href: index() }];
 
 const pointCloud = /\.(las|laz|e57)$/i;
 const terrain = /\.(tif|tiff|asc)$/i;
+const mapLayer = /\.(geojson|json|kml|kmz|dxf|gpkg)$/i;
+/** Files that could be either of two kinds, and the choices. */
+const AMBIGUOUS: { test: RegExp; choices: [string, string][] }[] = [
+    {
+        test: /\.(tif|tiff)$/i,
+        choices: [
+            ['', 'Terrain (an elevation model)'],
+            ['imagery', 'Imagery (an orthophoto or drone image)'],
+        ],
+    },
+    {
+        test: /\.zip$/i,
+        choices: [
+            ['', 'A 3D Tiles tileset'],
+            ['vector', 'A map layer (a zipped shapefile)'],
+        ],
+    },
+];
+const EXTENSIONS =
+    /\.(glb|zip|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i;
 
 export default function ShowProject({
     project,
@@ -66,14 +86,23 @@ export default function ShowProject({
         file: File | null;
         epsg: string;
         spacing: string;
+        as: string;
     }>({
         name: '',
         file: null,
         epsg: '',
         spacing: '',
+        as: '',
     });
-    const isPointCloud = pointCloud.test(upload.data.file?.name ?? '');
-    const isTerrain = terrain.test(upload.data.file?.name ?? '');
+    const filename = upload.data.file?.name ?? '';
+    const isPointCloud = pointCloud.test(filename);
+    const choices = AMBIGUOUS.find((a) => a.test.test(filename))?.choices;
+    // Anything converted with GDAL or PDAL may need the EPSG code of its coordinates.
+    const needsCrs =
+        isPointCloud ||
+        terrain.test(filename) ||
+        mapLayer.test(filename) ||
+        upload.data.as === 'vector';
     const [direct, setDirect] = useState<{ percent: number } | null>(null);
     const cancel = useRef<AbortController | null>(null);
     const busy = assets.some(
@@ -109,14 +138,13 @@ export default function ShowProject({
             await directUpload({
                 file: upload.data.file,
                 name: upload.data.name,
-                fields: isPointCloud
-                    ? {
-                          epsg: upload.data.epsg || null,
-                          spacing: upload.data.spacing || null,
-                      }
-                    : isTerrain
-                      ? { epsg: upload.data.epsg || null }
-                      : {},
+                fields: {
+                    ...(needsCrs && { epsg: upload.data.epsg || null }),
+                    ...(isPointCloud && {
+                        spacing: upload.data.spacing || null,
+                    }),
+                    ...(choices && upload.data.as && { as: upload.data.as }),
+                },
                 signal: cancel.current.signal,
                 onProgress: (fraction) =>
                     setDirect({ percent: Math.round(fraction * 100) }),
@@ -136,6 +164,7 @@ export default function ShowProject({
                     name: errors.name,
                     epsg: errors.epsg,
                     spacing: errors.spacing,
+                    as: errors.as,
                     file:
                         errors.filename ??
                         errors.bytes ??
@@ -235,9 +264,11 @@ export default function ShowProject({
                             Library
                         </h2>
                         <p className="text-sm text-muted-foreground">
-                            Models, tilesets and point clouds any twin in this
-                            project can show. Point clouds are converted to 3D
-                            Tiles first. Add them from a twin's Layout panel.
+                            Models, tilesets, scans, terrain, map layers and
+                            imagery any twin in this project can show. Scans,
+                            terrain, IFC models, map layers and imagery are
+                            converted first. Add them from a twin's Layout
+                            panel.
                         </p>
                     </div>
 
@@ -251,15 +282,17 @@ export default function ShowProject({
                         >
                             <div className="grid min-w-48 flex-1 gap-2">
                                 <Label htmlFor="upload-file">
-                                    File (.glb, a zipped 3D Tiles tileset, a
-                                    .las, .laz or .e57 point cloud, a .tif or
-                                    .asc elevation model, or an .ifc building
-                                    model)
+                                    File (.glb, a zipped 3D Tiles tileset or
+                                    shapefile, a .las, .laz or .e57 point cloud,
+                                    a .tif elevation model or image, an .asc
+                                    elevation model, an .ifc building model, or
+                                    a .geojson, .kml, .kmz, .dxf or .gpkg map
+                                    layer)
                                 </Label>
                                 <Input
                                     id="upload-file"
                                     type="file"
-                                    accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc,.ifc"
+                                    accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc,.ifc,.geojson,.json,.kml,.kmz,.dxf,.gpkg"
                                     required
                                     onChange={(e) => {
                                         const file =
@@ -267,10 +300,11 @@ export default function ShowProject({
                                         upload.setData((data) => ({
                                             ...data,
                                             file,
+                                            as: '',
                                             name:
                                                 data.name ||
                                                 (file?.name.replace(
-                                                    /\.(glb|zip|las|laz|e57|tif|tiff|asc)$/i,
+                                                    EXTENSIONS,
                                                     '',
                                                 ) ??
                                                     ''),
@@ -291,7 +325,27 @@ export default function ShowProject({
                                 />
                                 <InputError message={upload.errors.name} />
                             </div>
-                            {(isPointCloud || isTerrain) && (
+                            {choices && (
+                                <div className="grid w-64 gap-2">
+                                    <Label htmlFor="upload-as">It is</Label>
+                                    <select
+                                        id="upload-as"
+                                        className="h-9 rounded-md border bg-transparent px-3 text-sm"
+                                        value={upload.data.as}
+                                        onChange={(e) =>
+                                            upload.setData('as', e.target.value)
+                                        }
+                                    >
+                                        {choices.map(([value, label]) => (
+                                            <option key={value} value={value}>
+                                                {label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <InputError message={upload.errors.as} />
+                                </div>
+                            )}
+                            {needsCrs && (
                                 <>
                                     <div className="grid w-40 gap-2">
                                         <Label htmlFor="upload-epsg">

@@ -332,6 +332,33 @@ A weather station reports the wind as `windMs` (metres a second) and `windDeg` (
 
 **Use as terrain** in the Layout panel writes this for you. See [Terrain](05-terrain.md).
 
+## Map layers and imagery
+
+```jsonc
+"vectors": [
+  { "id": "upload-1a2b3c4d", "name": "Site plan", "url": "/assets/…/files/layer.geojson", "assetId": "…",
+    "color": "#ff6b6b", "opacity": 0.9 }
+],
+"imagery": [
+  { "id": "upload-5e6f7a8b", "name": "Depot orthophoto", "url": "/assets/…/files/imagery.json", "assetId": "…",
+    "opacity": 0.8 }
+]
+```
+
+**Add** in the Layout panel writes these for you; see [Map layers and imagery](16-map-layers-and-imagery.md). A map layer's `url` is GeoJSON in longitude and latitude, and an image's is a small description of its tiles (`format`, `minZoom`, `maxZoom` and `bounds` in degrees), with the tiles beside it at `{z}/{x}/{y}.png`. Both are optional:
+
+| Field     | Map layers                                     | Imagery                          |
+| --------- | ---------------------------------------------- | -------------------------------- |
+| `color`   | Lines and points in `#rrggbb`, default amber   | none                             |
+| `opacity` | 0 to 1, default 1; areas are filled at a quarter of it | 0 to 1, default 1        |
+
+```text
+draw each image over the basemap, in the order listed (later on top), within its bounds and zooms
+draw each map layer clamped to the ground:
+    points as dots, lines in its colour, areas filled faintly with an outline
+the layer toggle Uploaded layers hides and shows both, with models and tilesets
+```
+
 ## Scenarios
 
 A scenario is an event for [what-if](07-alerts-time-and-what-if.md#what-if): one or more faults.

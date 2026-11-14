@@ -19,6 +19,7 @@ import {
     DirectionalLight,
     DistanceDisplayCondition,
     GeometryInstance,
+    GeoJsonDataSource,
     Entity,
     HeadingPitchRange,
     HorizontalOrigin,
@@ -40,6 +41,7 @@ import {
     PolylineGlowMaterialProperty,
     Primitive,
     Quaternion,
+    Rectangle,
     ScreenSpaceEventHandler,
     ScreenSpaceEventType,
     ShadowMode,
@@ -58,6 +60,7 @@ import {
 } from 'cesium';
 import { hourOfDay } from '../core/engine.ts';
 import { centroid, lonLatToMetres, metresToLonLat } from '../core/geo.ts';
+import { imageryTiles, parseImageryInfo, vectorStyle } from '../core/layers.ts';
 import type { Vec3 } from '../core/measure.ts';
 import {
     formatMetric,
@@ -247,6 +250,9 @@ export class TwinScene {
         Cesium3DTileset | Model
     >();
     private contextShown = true;
+    /** Uploaded imagery over the basemap, and map layers draped on the ground. */
+    private readonly mapImagery = new Map<string, ImageryLayer>();
+    private readonly mapVectors = new Map<string, GeoJsonDataSource>();
     /**
      * The terrain's height at the origin. The site is built level at that
      * height, so it sits on the ground; 0 on the plain ellipsoid.
@@ -619,6 +625,9 @@ export class TwinScene {
                 }),
             );
         }
+        // The twin's own imagery stays over whichever basemap.
+        for (const layer of this.mapImagery.values())
+            this.viewer.imageryLayers.raiseToTop(layer);
     }
 
     private buildZones(): void {
@@ -1119,6 +1128,51 @@ export class TwinScene {
                 console.warn(`Could not load model ${m.id}`, error);
             }
         }
+        for (const i of this.def.imagery ?? []) {
+            try {
+                const url = resolveUrl(i.url);
+                const info = parseImageryInfo(
+                    await (
+                        await fetch(url, { credentials: 'same-origin' })
+                    ).json(),
+                );
+                if (!info) throw new Error('imagery.json is not readable');
+                if (this.viewer.isDestroyed()) return;
+                const layer = this.viewer.imageryLayers.addImageryProvider(
+                    new UrlTemplateImageryProvider({
+                        url: imageryTiles(url),
+                        rectangle: Rectangle.fromDegrees(...info.bounds),
+                        minimumLevel: info.minZoom,
+                        maximumLevel: info.maxZoom,
+                    }),
+                );
+                layer.alpha = i.opacity ?? 1;
+                layer.show = this.contextShown;
+                this.mapImagery.set(i.id, layer);
+            } catch (error) {
+                console.warn(`Could not load imagery ${i.id}`, error);
+            }
+        }
+        for (const v of this.def.vectors ?? []) {
+            try {
+                const { color, fillOpacity } = vectorStyle(v);
+                const stroke = Color.fromCssColorString(color);
+                const source = await GeoJsonDataSource.load(resolveUrl(v.url), {
+                    clampToGround: true,
+                    stroke,
+                    fill: stroke.withAlpha(fillOpacity),
+                    strokeWidth: 3,
+                    markerColor: stroke,
+                    markerSize: 32,
+                });
+                if (this.viewer.isDestroyed()) return;
+                source.show = this.contextShown;
+                await this.viewer.dataSources.add(source);
+                this.mapVectors.set(v.id, source);
+            } catch (error) {
+                console.warn(`Could not load map layer ${v.id}`, error);
+            }
+        }
     }
 
     /**
@@ -1202,7 +1256,23 @@ export class TwinScene {
 
     /** Test hook: which layers have loaded. */
     loadedLayers(): string[] {
-        return [...this.layerPrimitives.keys()];
+        return [
+            ...this.layerPrimitives.keys(),
+            ...this.mapImagery.keys(),
+            ...this.mapVectors.keys(),
+        ];
+    }
+
+    /** Test hook: how many features a map layer drew, and whether it shows. */
+    mapLayer(id: string): { features: number; shown: boolean } | null {
+        const source = this.mapVectors.get(id);
+        const imagery = this.mapImagery.get(id);
+        if (source)
+            return {
+                features: source.entities.values.length,
+                shown: source.show,
+            };
+        return imagery ? { features: 0, shown: imagery.show } : null;
     }
 
     // Updates ---------------------------------------------------------------------
@@ -1510,6 +1580,10 @@ export class TwinScene {
             if (primitive instanceof Cesium3DTileset)
                 primitive.show = layers.context;
         }
+        for (const layer of this.mapImagery.values())
+            layer.show = layers.context;
+        for (const source of this.mapVectors.values())
+            source.show = layers.context;
         this.shadowsWanted = layers.shadows;
         if (this.lastFrame) this.updateLight(this.lastFrame.t);
     }

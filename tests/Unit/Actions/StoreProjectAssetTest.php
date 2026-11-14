@@ -89,6 +89,18 @@ it('keeps a DEM as uploaded and queues its conversion to terrain', function (): 
     Queue::assertPushed(ConvertUpload::class, fn (ConvertUpload $job): bool => $job->asset->is($asset));
 });
 
+it('keeps a GeoTIFF uploaded as imagery, and a zipped shapefile, for conversion', function (string $file, string $as, ProjectAssetKind $kind): void {
+    Queue::fake();
+    [, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $asset = resolve(StoreProjectAsset::class)->handle($project, UploadedFile::fake()->createWithContent($file, 'bytes'), 'Layer', ['epsg' => 2193, 'as' => $as]);
+
+    expect($asset->kind)->toBe($kind)
+        ->and($asset->options)->toBe(['epsg' => 2193]);
+    Queue::assertPushed(ConvertUpload::class);
+})->with([['ortho.tif', 'imagery', ProjectAssetKind::Imagery], ['parcels.zip', 'vector', ProjectAssetKind::Vector]]);
+
 it('ignores conversion options for other kinds', function (): void {
     [, $organisation] = member();
     $project = Project::factory()->for($organisation)->create();

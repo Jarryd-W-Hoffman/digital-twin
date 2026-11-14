@@ -276,6 +276,32 @@ export interface OpcUaMapping {
 }
 
 /** A quantized-mesh terrain tileset: the URL of its layer.json. */
+/**
+ * A map layer (converted to GeoJSON in longitude and latitude) draped on the
+ * ground: points, lines and areas from a survey, a site plan or a GIS.
+ */
+export interface VectorLayerDef {
+    id: string;
+    name: string;
+    url: string;
+    assetId?: string;
+    /** Lines, points and outlines; areas are filled with it, faintly. Default gold. */
+    color?: string;
+    /** How opaque areas are filled, 0 to 1. Default 0.25. */
+    opacity?: number;
+}
+
+/** A georeferenced image, such as an orthophoto, tiled and laid over the ground. */
+export interface ImageryLayerDef {
+    id: string;
+    name: string;
+    /** imagery.json: its zooms and bounds; the tiles are {z}/{x}/{y}.png beside it. */
+    url: string;
+    assetId?: string;
+    /** 0 to 1. Default 1. */
+    opacity?: number;
+}
+
 export interface TerrainDef {
     name?: string;
     url: string;
@@ -321,6 +347,10 @@ export interface TwinDefinition {
     scenarios: ScenarioDef[];
     tilesets?: TilesetDef[];
     models?: ModelDef[];
+    /** Map layers draped on the ground. */
+    vectors?: VectorLayerDef[];
+    /** Georeferenced images laid over the ground, above the basemap. */
+    imagery?: ImageryLayerDef[];
     /** Quantized-mesh terrain the site sits on; the ellipsoid without it. */
     terrain?: TerrainDef;
     types?: AssetTypeDef[];

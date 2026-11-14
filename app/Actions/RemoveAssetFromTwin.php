@@ -30,7 +30,7 @@ final readonly class RemoveAssetFromTwin
 
         $removed = [];
 
-        foreach (['tilesets', 'models'] as $field) {
+        foreach (['tilesets', 'models', 'vectors', 'imagery'] as $field) {
             $layers = is_array($definition[$field] ?? null) ? array_values($definition[$field]) : [];
             $kept = [];
 
@@ -43,7 +43,10 @@ final readonly class RemoveAssetFromTwin
             }
 
             $changed = $changed || $removed !== [];
-            $definition[$field] = $kept;
+
+            if (array_key_exists($field, $definition)) {
+                $definition[$field] = $kept;
+            }
         }
 
         // Assets that were features of a removed layer go back to their own bodies.

@@ -149,6 +149,18 @@ test.beforeAll(() => {
         `${ROOT}:/var/www/html`,
         CONVERTER,
         'python3',
+        'scripts/generate-site-layers.py',
+        'test-results/depot-ground.tif',
+        'test-results/depot-ortho.tif',
+        'test-results/depot-site.dxf',
+    ]);
+    run('docker', [
+        'run',
+        '--rm',
+        '-v',
+        `${ROOT}:/var/www/html`,
+        CONVERTER,
+        'python3',
         'scripts/generate-ifc.py',
         'test-results/shed.ifc',
         '--site',
@@ -242,6 +254,35 @@ test('screenshots', async ({ page, context }) => {
         convertOne('terrain');
         await expect(ground).toContainText('Terrain', { timeout: 300_000 });
         await shot(ground, 'library-terrain');
+
+        // An orthophoto (a GeoTIFF, said to be imagery) and a CAD site plan
+        // that needs its EPSG code.
+        await page
+            .getByLabel(/^File \(/)
+            .setInputFiles(resolve(ROOT, 'test-results/depot-ortho.tif'));
+        await page.getByLabel('It is').selectOption('imagery');
+        await page.getByLabel('Name', { exact: true }).fill('Depot orthophoto');
+        await page.getByLabel('EPSG code').fill('');
+        await page.getByRole('button', { name: 'Upload', exact: true }).click();
+        const photo = library
+            .getByRole('listitem')
+            .filter({ hasText: 'Depot orthophoto' });
+        await expect(photo).toBeVisible({ timeout: 60_000 });
+        await page
+            .getByLabel(/^File \(/)
+            .setInputFiles(resolve(ROOT, 'test-results/depot-site.dxf'));
+        await page.getByLabel('Name', { exact: true }).fill('Site plan');
+        await page.getByLabel('EPSG code').fill('2193');
+        await page.getByRole('button', { name: 'Upload', exact: true }).click();
+        const plan = library
+            .getByRole('listitem')
+            .filter({ hasText: 'Site plan' });
+        await expect(plan).toBeVisible({ timeout: 60_000 });
+        convertOne('imagery');
+        await expect(photo).toContainText('Imagery', { timeout: 300_000 });
+        convertOne('vector');
+        await expect(plan).toContainText('Map layer', { timeout: 300_000 });
+        await shot(library.getByRole('list').first(), 'library-map-layers');
     });
 
     const devices = page.getByRole('region', { name: 'Devices' });
@@ -1284,6 +1325,47 @@ test('screenshots', async ({ page, context }) => {
                 .click();
             await expect(page).not.toHaveURL(/\/twins\/[0-9a-f-]{36}/);
         }
+    });
+
+    await test.step('map layers and imagery', async () => {
+        await page.goto('/twins');
+        await page.getByRole('link', { name: 'Harbour Depot' }).click();
+        await settle(page);
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+        for (const name of ['Depot orthophoto', 'Site plan']) {
+            const before = await versionChip.textContent();
+            await editor
+                .getByRole('list', { name: 'Library' })
+                .getByRole('listitem')
+                .filter({ hasText: name })
+                .getByRole('button', { name: 'Add' })
+                .click();
+            await expect(versionChip).not.toHaveText(before ?? '', {
+                timeout: 60_000,
+            });
+        }
+        await page.getByRole('button', { name: 'Close layout' }).click();
+        // From the south, over the yard toward the harbour.
+        await page.evaluate(() =>
+            (
+                window as unknown as {
+                    __scene: {
+                        flyToView(view: Record<string, number>): void;
+                    };
+                }
+            ).__scene.flyToView({
+                lon: 174.7849,
+                lat: -36.8437,
+                height: 420,
+                heading: 8,
+                pitch: -42,
+                roll: 0,
+            }),
+        );
+        await page.waitForTimeout(10_000);
+        await shot(page, 'map-layers');
+        await page.getByLabel('Uploaded layers').uncheck();
+        await page.getByLabel('Uploaded layers').check();
     });
 
     await test.step('members and account', async () => {
