@@ -6,6 +6,7 @@ use App\Http\Controllers\OrganisationApiTokenController;
 use App\Http\Controllers\OrganisationAuditController;
 use App\Http\Controllers\OrganisationController;
 use App\Http\Controllers\OrganisationMemberController;
+use App\Http\Controllers\OrganisationSsoController;
 use App\Http\Controllers\OrganisationTypeController;
 use App\Http\Controllers\ProjectAssetController;
 use App\Http\Controllers\ProjectAssetConversionController;
@@ -21,6 +22,8 @@ use App\Http\Controllers\ProjectUploadCompletionController;
 use App\Http\Controllers\ProjectUploadController;
 use App\Http\Controllers\ProjectUploadPartController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SsoCallbackController;
+use App\Http\Controllers\SsoSessionController;
 use App\Http\Controllers\TwinAlertAcknowledgementController;
 use App\Http\Controllers\TwinAlertController;
 use App\Http\Controllers\TwinAssetController;
@@ -46,6 +49,7 @@ use App\Http\Controllers\UserEmailVerificationNotificationController;
 use App\Http\Controllers\UserPasskeyController;
 use App\Http\Controllers\UserPasswordController;
 use App\Http\Controllers\UserProfileController;
+use App\Http\Controllers\UserSsoIdentityController;
 use App\Http\Controllers\UserTwoFactorAuthenticationController;
 use App\Http\Middleware\EnsureCurrentOrganisation;
 use Illuminate\Support\Facades\Route;
@@ -119,6 +123,9 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::patch('organisation/members/{membership}', [OrganisationMemberController::class, 'update'])->name('organisation.members.update');
     Route::delete('organisation/members/{membership}', [OrganisationMemberController::class, 'destroy'])->name('organisation.members.destroy');
     Route::get('organisation/audit', [OrganisationAuditController::class, 'index'])->name('organisation.audit.index');
+    Route::get('organisation/sso', [OrganisationSsoController::class, 'show'])->name('organisation.sso.show');
+    Route::put('organisation/sso', [OrganisationSsoController::class, 'update'])->middleware('throttle:10,1')->name('organisation.sso.update');
+    Route::delete('organisation/sso', [OrganisationSsoController::class, 'destroy'])->name('organisation.sso.destroy');
     Route::get('organisation/api-tokens', [OrganisationApiTokenController::class, 'index'])->name('organisation.api-tokens.index');
     Route::post('organisation/api-tokens', [OrganisationApiTokenController::class, 'store'])->middleware('throttle:20,1')->name('organisation.api-tokens.store');
     Route::delete('organisation/api-tokens/{apiToken}', [OrganisationApiTokenController::class, 'destroy'])->name('organisation.api-tokens.destroy');
@@ -155,9 +162,21 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     // User Passkeys...
     Route::get('settings/passkeys', [UserPasskeyController::class, 'index'])
         ->name('user-passkey.index');
+
+    // Single sign-on...
+    Route::get('settings/sso', [UserSsoIdentityController::class, 'index'])->name('user-sso.index');
+    Route::post('settings/sso', [UserSsoIdentityController::class, 'store'])->middleware('throttle:sso')->name('user-sso.store');
+    Route::delete('settings/sso/{identity}', [UserSsoIdentityController::class, 'destroy'])->name('user-sso.destroy');
 });
 
+// Where identity providers send people back, signed in or linking.
+Route::get('sso/callback', [SsoCallbackController::class, 'show'])->middleware('throttle:sso-callback')->name('sso.callback');
+
 Route::middleware('guest')->group(function (): void {
+    // Single sign-on...
+    Route::get('sso', [SsoSessionController::class, 'create'])->name('sso.create');
+    Route::post('sso', [SsoSessionController::class, 'store'])->middleware('throttle:sso')->name('sso.store');
+
     // User...
     Route::get('register', [UserController::class, 'create'])
         ->name('register');

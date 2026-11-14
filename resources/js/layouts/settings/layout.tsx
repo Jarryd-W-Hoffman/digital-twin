@@ -10,6 +10,7 @@ import { edit as editPassword } from '@/routes/password';
 import { show as showTwoFactor } from '@/routes/two-factor';
 import { index as indexPasskeys } from '@/routes/user-passkey';
 import { edit } from '@/routes/user-profile';
+import { index as indexSso } from '@/routes/user-sso';
 import type { NavItem } from '@/types';
 
 const sidebarNavItems: NavItem[] = [
@@ -31,6 +32,11 @@ const sidebarNavItems: NavItem[] = [
     {
         title: 'Passkeys',
         href: indexPasskeys(),
+        icon: null,
+    },
+    {
+        title: 'Single sign-on',
+        href: indexSso(),
         icon: null,
     },
     {

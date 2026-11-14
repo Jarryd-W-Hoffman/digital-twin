@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property-read string $id
@@ -38,6 +39,16 @@ final class Organisation extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The identity provider its people sign in through, if it has one.
+     *
+     * @return HasOne<SsoConnection, $this>
+     */
+    public function ssoConnection(): HasOne
+    {
+        return $this->hasOne(SsoConnection::class);
     }
 
     /**

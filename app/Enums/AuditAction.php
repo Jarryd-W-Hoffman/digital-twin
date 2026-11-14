@@ -14,6 +14,10 @@ enum AuditAction: string
     case MemberRemoved = 'member.removed';
     case ApiTokenCreated = 'api_token.created';
     case ApiTokenRevoked = 'api_token.revoked';
+    case SsoSaved = 'sso.saved';
+    case SsoRemoved = 'sso.removed';
+    case SsoLinked = 'sso.linked';
+    case SsoUnlinked = 'sso.unlinked';
     case ProjectCreated = 'project.created';
     case ProjectDeleted = 'project.deleted';
     case UploadAdded = 'upload.added';
@@ -48,7 +52,7 @@ enum AuditAction: string
     public static function areas(): array
     {
         return [
-            'access' => 'Members and API tokens',
+            'access' => 'Members, API tokens and single sign-on',
             'projects' => 'Projects, uploads and types',
             'twins' => 'Twins and versions',
             'connections' => 'Gateways, devices, OPC UA and channels',
@@ -72,6 +76,10 @@ enum AuditAction: string
             self::MemberRemoved => 'Removed a member',
             self::ApiTokenCreated => 'Made an API token',
             self::ApiTokenRevoked => 'Revoked an API token',
+            self::SsoSaved => 'Set up single sign-on',
+            self::SsoRemoved => 'Turned off single sign-on',
+            self::SsoLinked => 'Linked single sign-on',
+            self::SsoUnlinked => 'Unlinked single sign-on',
             self::ProjectCreated => 'Created a project',
             self::ProjectDeleted => 'Deleted a project',
             self::UploadAdded => 'Uploaded to the library',
@@ -108,7 +116,8 @@ enum AuditAction: string
     public function area(): string
     {
         return match ($this) {
-            self::MemberAdded, self::MemberRoleChanged, self::MemberRemoved, self::ApiTokenCreated, self::ApiTokenRevoked => 'access',
+            self::MemberAdded, self::MemberRoleChanged, self::MemberRemoved, self::ApiTokenCreated, self::ApiTokenRevoked,
+            self::SsoSaved, self::SsoRemoved, self::SsoLinked, self::SsoUnlinked => 'access',
             self::ProjectCreated, self::ProjectDeleted, self::UploadAdded, self::UploadDeleted, self::TypeSaved, self::TypeDeleted => 'projects',
             self::DeviceAdded, self::DevicePasswordReset, self::DeviceDeleted, self::OpcUaServerAdded, self::OpcUaServerDeleted,
             self::GatewayTokenIssued, self::GatewayTokenRevoked, self::OpcUaWritesChanged, self::ChannelAdded, self::ChannelDeleted => 'connections',
