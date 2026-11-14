@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { compile, type Model } from '../core/engine.ts';
 import { runForecast, type Forecast } from '../core/forecast.ts';
 import { History } from '../core/history.ts';
+import type { Captures } from '../core/layers.ts';
 import type { Measurement, MeasureLock, MeasureTool } from '../core/measure.ts';
 import type { Vec3 } from '../core/measure.ts';
 import { activeAt, createRuleEngine, type RuleEngine } from '../core/rules.ts';
@@ -62,6 +63,10 @@ export interface TwinStore {
     tab: Tab;
     colorBy: ColorBy;
     basemap: Basemap;
+    /** When the twin's dated library uploads were captured. */
+    captures: Captures;
+    /** The date the site is shown as it was on; null for now. */
+    siteDate: string | null;
     layers: Layers;
     forecast?: { result: Forecast; scenarioId: string };
     /** Bumped when the camera should frame the selection. */
@@ -75,6 +80,7 @@ export interface TwinStore {
     setColorBy: (c: ColorBy) => void;
     setBasemap: (b: Basemap) => void;
     toggleLayer: (k: keyof Layers) => void;
+    setSiteDate: (date: string | null) => void;
     setSpeed: (speed: number) => void;
     scrubTo: (t: number) => void;
     goLive: () => void;
@@ -279,6 +285,8 @@ export const useTwin = create<TwinStore>((set, get) => ({
     tab: 'inspect',
     colorBy: 'status',
     basemap: 'offline',
+    captures: {},
+    siteDate: null,
     layers: {
         labels: true,
         flows: true,
@@ -441,6 +449,7 @@ export const useTwin = create<TwinStore>((set, get) => ({
     setBasemap: (basemap) => set({ basemap }),
     toggleLayer: (k) =>
         set((s) => ({ layers: { ...s.layers, [k]: !s.layers[k] } })),
+    setSiteDate: (siteDate) => set({ siteDate }),
     setSpeed: (speed) => {
         source?.setSpeed(speed);
         set({ speed });

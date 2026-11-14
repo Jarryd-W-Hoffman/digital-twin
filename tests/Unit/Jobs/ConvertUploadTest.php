@@ -101,6 +101,17 @@ it('converts a map layer to GeoJSON', function (): void {
         ->and($this->asset->entry)->toBe('layer.geojson');
 });
 
+it('tiles a mesh', function (): void {
+    fakeMeshConverter();
+    $this->asset->update(['kind' => ProjectAssetKind::Mesh, 'original_name' => 'survey.obj']);
+    Storage::disk('local')->put($this->asset->sourceKey(), "v 0 0 0\n");
+
+    dispatch_sync(new ConvertUpload($this->asset));
+
+    expect($this->asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($this->asset->entry)->toBe('tileset.json');
+});
+
 it('tiles an image', function (): void {
     fakeImageryTiler();
     $this->asset->update(['kind' => ProjectAssetKind::Imagery, 'original_name' => 'ortho.tif']);

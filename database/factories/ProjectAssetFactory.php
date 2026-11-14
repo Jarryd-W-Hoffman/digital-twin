@@ -66,6 +66,25 @@ final class ProjectAssetFactory extends Factory
     }
 
     /**
+     * A photogrammetry mesh converted to 3D Tiles, georeferenced when given
+     * where it is.
+     *
+     * @param  array{lon: float, lat: float, height: float, source: string}|null  $origin
+     */
+    public function mesh(?array $origin = null): self
+    {
+        return $this->state([
+            'kind' => ProjectAssetKind::Mesh,
+            'name' => 'Drone survey',
+            'original_name' => 'survey.zip',
+            'entry' => 'tileset.json',
+            'files' => 50,
+            'crs' => $origin === null ? null : 'EPSG:2193',
+            'details' => ['triangles' => 3000, 'origin' => $origin],
+        ]);
+    }
+
+    /**
      * Terrain converted from a DEM that kept its heights, so it can be
      * compared with other surveys.
      */

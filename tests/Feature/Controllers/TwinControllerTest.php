@@ -161,7 +161,7 @@ it('needs a sample or a definition', function (): void {
 it('shows a twin with its definition, history, project library and abilities', function (OrganisationRole $role, bool $update, bool $operate): void {
     [$user, $organisation] = member($role);
     $twin = twinIn($organisation);
-    $asset = ProjectAsset::factory()->for($twin->project)->create();
+    $asset = ProjectAsset::factory()->for($twin->project)->create(['captured_on' => '2026-03-10']);
     resolve(AddAssetToTwin::class)->handle($twin, $user, $asset);
     ProjectAsset::factory()->for($twin->project)->processing()->create();
     OpcUaServer::factory()->for($twin->project)->create(['name' => 'Plant PLC']);
@@ -181,6 +181,7 @@ it('shows a twin with its definition, history, project library and abilities', f
             ->has('assets', 1)
             ->where('assets.0.id', $asset->id)
             ->where('assets.0.url', $asset->url())
+            ->where('assets.0.capturedOn', '2026-03-10')
             ->where('types', [])
             ->where('gateway', null)
             ->where('alerts', null)

@@ -92,7 +92,7 @@ A zipped shapefile needs its `.shp`, `.shx`, `.dbf` and, for its coordinate syst
 2. Under **Library**, choose **Add** beside the map layer or image. The twin saves a new version, **Added…**.
 3. It's listed under **Layers** as **Map layer** or **Imagery**. **Remove** takes it out again; the file stays in the library.
 
-**Uploaded layers** in the scene's layer list hides and shows them, with the twin's models, tilesets and scans. Imagery stays above whichever **basemap** you choose. A twin can show any number of each; imagery added later lies on top.
+**Uploaded layers** in the scene's layer list hides and shows them, with the twin's tilesets and scans. Imagery stays above whichever **basemap** you choose. A twin can show any number of each; imagery added later lies on top.
 
 To give a map layer its own colour, or make imagery see-through, set `color` or `opacity` in the [definition](12-twin-definitions.md#map-layers-and-imagery).
 

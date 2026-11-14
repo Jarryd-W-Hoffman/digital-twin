@@ -401,6 +401,98 @@ test('a DEM converts to terrain on the queue, with only an EPSG option', async (
   await expect(item.getByRole('button', { name: 'Retry' })).toBeVisible();
 });
 
+test('a zipped photogrammetry export is taken as a mesh, and a bare OBJ can say y is up', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+
+  await page.getByLabel(/^File \(/).setInputFiles({ name: 'skid.obj', mimeType: 'text/plain', buffer: Buffer.from('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n') });
+  await expect(page.getByLabel('EPSG code', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('It is')).toHaveCount(0);
+  await page.getByLabel('Y is up (a mesh in local metres)').check();
+
+  await page.getByLabel(/^File \(/).setInputFiles({ name: 'survey.zip', mimeType: 'application/zip', buffer: Buffer.from('PK\x03\x04 not really an export') });
+  await expect(page.getByLabel('Y is up (a mesh in local metres)')).toHaveCount(0);
+  await page.getByLabel('It is').selectOption('mesh');
+  await expect(page.getByLabel('Y is up (a mesh in local metres)')).not.toBeChecked();
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  const item = page.getByRole('listitem').filter({ hasText: 'survey.zip' });
+  await expect(item).toContainText('Converting 0%');
+
+  // meridian-mesh only lives in the converter image, so here it fails.
+  execFileSync('php', ['artisan', 'queue:work', 'conversions', '--queue=conversions', '--stop-when-empty'], {
+    env: { ...process.env, DB_DATABASE: resolve('database/e2e.sqlite') },
+  });
+  await expect(item).toContainText('The mesh could not be converted', { timeout: 10_000 });
+  await expect(item.getByRole('button', { name: 'Retry' })).toBeVisible();
+});
+
+test('uploads dated by when they were captured show the site as it was on each date', async ({ page }) => {
+  type Dated = {
+    __twin: { getState(): { def?: { tilesets?: { id: string; name: string }[]; models?: { id: string; name: string }[] } } };
+    __scene: { layerShown(id: string): boolean | null };
+  };
+  const shown = (name: string) => page.evaluate((layer) => {
+    const w = window as unknown as Dated;
+    const def = w.__twin.getState().def;
+    const id = [...(def?.tilesets ?? []), ...(def?.models ?? [])].find((l) => l.name === layer)?.id;
+    return id ? w.__scene.layerShown(id) : null;
+  }, name);
+
+  await logIn(page, 'test@example.com');
+  for (const [name, file, date] of [
+    ['March survey', tilesetZip(), '2026-03-10'],
+    ['May survey', tilesetZip(), '2026-05-12'],
+    ['Site office', model, '2026-04-02'],
+  ] as const) {
+    await page.getByLabel(/^File \(/).setInputFiles(file);
+    await page.getByLabel('Name', { exact: true }).fill(name);
+    await page.getByLabel('Captured on', { exact: true }).fill(date);
+    await page.getByRole('button', { name: 'Upload', exact: true }).click();
+    await expect(page.getByLabel(`Captured on for ${name}`)).toHaveValue(date);
+  }
+  // A survey dated wrongly is put right in the library.
+  await page.getByLabel('Captured on for May survey').fill('2026-05-20');
+  await expect(page.getByText('May survey dated 2026-05-20.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'New twin' }).click();
+  await expect(page.getByLabel('Project')).toHaveValue(/.+/);
+  await page.getByLabel('Name', { exact: true }).fill('Survey history');
+  await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Empty' });
+  await page.getByLabel('Latitude').fill('-36.85');
+  await page.getByLabel('Longitude').fill('174.76');
+  await page.getByRole('button', { name: 'Create twin' }).click();
+  await expect(page.locator('.twin-name')).toHaveText('Survey history');
+  await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Dated).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
+  await expect(page.getByRole('slider', { name: 'Site on' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const library = page.getByRole('complementary', { name: 'Layout' }).getByRole('list', { name: 'Library' });
+  for (const [i, name] of ['March survey', 'May survey', 'Site office'].entries()) {
+    await library.getByRole('listitem').filter({ hasText: name }).getByRole('button', { name: 'Add' }).click();
+    await expect(page.locator('.version-chip')).toHaveText(`v${i + 2}`, { timeout: 30_000 });
+  }
+  await page.getByRole('button', { name: 'Close layout' }).click();
+
+  const slider = page.getByRole('slider', { name: 'Site on' });
+  await expect(slider).toHaveAttribute('aria-valuetext', 'Now');
+  await expect(page.getByText('Now: the latest of 3 capture dates')).toBeVisible();
+  await expect.poll(() => shown('May survey'), { timeout: 45_000 }).toBe(true);
+  await expect.poll(() => shown('Site office'), { timeout: 45_000 }).toBe(true);
+  expect(await shown('March survey')).toBe(false);
+
+  await slider.focus();
+  await page.keyboard.press('Home');
+  await expect(page.getByText('As captured on 10 Mar 2026')).toBeVisible();
+  expect([await shown('March survey'), await shown('May survey'), await shown('Site office')]).toEqual([true, false, false]);
+
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByText('As captured on 2 Apr 2026')).toBeVisible();
+  expect([await shown('March survey'), await shown('May survey'), await shown('Site office')]).toEqual([true, false, true]);
+
+  // Hiding uploaded layers hides the surveys whatever the date, not the model.
+  await page.getByLabel('Uploaded layers').uncheck();
+  expect([await shown('March survey'), await shown('Site office')]).toEqual([false, true]);
+});
+
 test('a bad archive is refused with the reason', async ({ page }) => {
   await logIn(page, 'test@example.com');
   await openTwin(page, 'Northshore Cold Chain Hub');

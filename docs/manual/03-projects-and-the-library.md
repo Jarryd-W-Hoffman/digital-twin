@@ -29,6 +29,7 @@ Only editors (owners and admins) can create projects. The project page shows:
 | **`.tif`**, **`.tiff`** or **`.asc`** | **Terrain**, converted from a DEM         | See [Terrain](05-terrain.md)                                                                                                                                                                                          |
 | **`.ifc`** (IFC2X3 or IFC4)           | A **BIM model**, converted to a model     | See [BIM models](#bim-models)                                                                                                                                                                                         |
 | **`.geojson`**, **`.json`**, **`.kml`**, **`.kmz`**, **`.dxf`**, **`.gpkg`**, or a **`.zip`** of a shapefile | A **map layer**, drawn on the ground | See [Map layers and imagery](16-map-layers-and-imagery.md) |
+| An **`.obj`**, or a **`.zip`** of a photogrammetry export | A **mesh**, converted to a tileset | See [Photogrammetry meshes](20-photogrammetry-meshes.md) |
 | A **`.tif`** or **`.tiff`** orthophoto | **Imagery**, cut into map tiles           | See [Map layers and imagery](16-map-layers-and-imagery.md)                                                                                                                                                            |
 
 - **Models** are things you place by hand: a pump skid, a container, a piece of plant from CAD. You give them a position, heading and scale in the twin.
@@ -67,6 +68,10 @@ An `.ifc` upload is converted on the server, like a point cloud, and shows **Con
 - **Colours come from the file:** each surface keeps the colour its material gives it.
 
 If the conversion fails, the reason is shown, as for a point cloud. The usual causes are a file that isn't IFC, or one with no elements that have a shape.
+
+## Capture dates
+
+Each upload can say when it was **captured**: fill in **Captured on** when you upload it, or change it under its name in the library later. A twin uses the dates to show the site as it was on each; see [The site over time](21-the-site-over-time.md).
 
 ## Large uploads
 

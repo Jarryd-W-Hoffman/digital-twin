@@ -27,7 +27,7 @@ final readonly class StoreProjectAsset
      * cloud or DEM is kept as uploaded and queued for conversion. Nothing is shown
      * in a twin until it is added to one.
      *
-     * @param  array{epsg?: int, spacing?: float, as?: string}  $options  Conversion options.
+     * @param  array{epsg?: int, spacing?: float, as?: string, y_up?: bool, captured_on?: string}  $options  Conversion options.
      */
     public function handle(Project $project, UploadedFile $file, string $name, array $options = []): ProjectAsset
     {
@@ -45,7 +45,8 @@ final readonly class StoreProjectAsset
                 'bytes' => (int) $file->getSize(),
                 'files' => 0,
                 'status' => ProjectAssetStatus::Processing,
-                'options' => $kind->isConverted() ? Arr::except($options, 'as') : null,
+                'options' => $kind->isConverted() ? Arr::except($options, ['as', 'captured_on']) : null,
+                'captured_on' => $options['captured_on'] ?? null,
             ]);
             $this->audit->handle(AuditAction::UploadAdded, $project, $name, ['kind' => $kind->value, 'file' => $asset->original_name]);
 

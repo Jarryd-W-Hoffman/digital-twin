@@ -21,6 +21,8 @@ const CONVERTER =
     process.env.MERIDIAN_CONVERTER_IMAGE ?? 'meridian-converter:dev';
 const GATEWAY_PORT = 8796;
 const OPCUA_PORT = 4841;
+/** The middle of scripts/generate-mesh.py's survey. */
+const SURVEY = [-36.848, 174.767] as const;
 /** Where the IFC shed stands, and the twin made for it. */
 const SHED = [-36.85, 174.76] as const;
 
@@ -164,6 +166,34 @@ test.beforeAll(() => {
         'scripts/generate-survey.py',
         'test-results/depot-ground.tif',
         'test-results/depot-ground-may.tif',
+    ]);
+    run('docker', [
+        'run',
+        '--rm',
+        '-v',
+        `${ROOT}:/var/www/html`,
+        CONVERTER,
+        'python3',
+        'scripts/generate-mesh.py',
+        'test-results/mesh',
+        '--georeference',
+        'metadata',
+        '--zip',
+        'test-results/survey.zip',
+    ]);
+    run('docker', [
+        'run',
+        '--rm',
+        '-v',
+        `${ROOT}:/var/www/html`,
+        CONVERTER,
+        'python3',
+        'scripts/generate-mesh.py',
+        'test-results/mesh-june',
+        '--mound',
+        '11',
+        '--zip',
+        'test-results/survey-june.zip',
     ]);
     run('docker', [
         'run',
@@ -1137,6 +1167,106 @@ test('screenshots', async ({ page, context }) => {
         await shot(page, 'feature-bound');
     });
 
+    await test.step('a photogrammetry mesh', async () => {
+        await page.goto('/projects');
+        await page.getByRole('link', { name: /^Pilot sites/ }).click();
+        await page
+            .getByLabel(/^File \(/)
+            .setInputFiles(resolve(ROOT, 'test-results/survey.zip'));
+        await page.getByLabel('Name', { exact: true }).fill('Drone survey');
+        await page
+            .getByLabel('Captured on', { exact: true })
+            .fill('2026-03-10');
+        await page.getByLabel('It is').selectOption('mesh');
+        await page.getByRole('button', { name: 'Upload', exact: true }).click();
+        const survey = library
+            .getByRole('listitem')
+            .filter({ hasText: 'Drone survey' });
+        await expect(survey).toContainText('Converting', { timeout: 60_000 });
+        convertOne('mesh');
+        await expect(survey).toContainText('Mesh · 50 files', {
+            timeout: 300_000,
+        });
+        await shot(survey, 'library-mesh');
+
+        // A twin where the survey's metadata.xml says it is.
+        await page.getByRole('link', { name: 'New twin' }).click();
+        await expect(page.getByLabel('Project')).toHaveValue(/.+/);
+        await page.getByLabel('Name', { exact: true }).fill('Survey pad');
+        await page
+            .getByLabel('Template', { exact: true })
+            .selectOption({ label: 'Site power' });
+        await page.getByLabel('Latitude').fill(String(SURVEY[0]));
+        await page.getByLabel('Longitude').fill(String(SURVEY[1]));
+        await page.getByRole('button', { name: 'Create twin' }).click();
+        await expect(page.locator('.twin-name')).toHaveText('Survey pad');
+        await settle(page, 4000);
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+        await editor
+            .getByRole('list', { name: 'Library' })
+            .getByRole('listitem')
+            .filter({ hasText: 'Drone survey' })
+            .getByRole('button', { name: 'Add' })
+            .click();
+        await expect(versionChip).toHaveText('v2', { timeout: 60_000 });
+        await page.getByRole('button', { name: 'Close layout' }).click();
+        await settle(page, 4000);
+        // From the south, the survey's red north edge at the back.
+        await frameModel(page, 'Drone survey', 0, -0.6, 170, 'tilesets');
+        await page.waitForTimeout(6000);
+        await shot(page, 'mesh-in-twin');
+    });
+
+    await test.step('the site over time', async () => {
+        // A later survey of the same pad, its stockpile grown to 11 m.
+        await page.goto('/projects');
+        await page.getByRole('link', { name: /^Pilot sites/ }).click();
+        await page
+            .getByLabel(/^File \(/)
+            .setInputFiles(resolve(ROOT, 'test-results/survey-june.zip'));
+        await page
+            .getByLabel('Name', { exact: true })
+            .fill('June drone survey');
+        await page
+            .getByLabel('Captured on', { exact: true })
+            .fill('2026-06-18');
+        await page.getByLabel('It is').selectOption('mesh');
+        await page.getByRole('button', { name: 'Upload', exact: true }).click();
+        const june = library
+            .getByRole('listitem')
+            .filter({ hasText: 'June drone survey' });
+        await expect(june).toContainText('Converting', { timeout: 60_000 });
+        convertOne('mesh-june');
+        await expect(june).toContainText('Mesh · ', { timeout: 300_000 });
+
+        await page.goto('/twins');
+        await page.getByRole('link', { name: 'Survey pad' }).click();
+        await settle(page, 4000);
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+        await editor
+            .getByRole('list', { name: 'Library' })
+            .getByRole('listitem')
+            .filter({ hasText: 'June drone survey' })
+            .getByRole('button', { name: 'Add' })
+            .click();
+        await expect(versionChip).toHaveText('v3', { timeout: 60_000 });
+        await page.getByRole('button', { name: 'Close layout' }).click();
+        await settle(page, 4000);
+        await frameModel(page, 'June drone survey', 20, -0.45, 170, 'tilesets');
+        await page.waitForTimeout(6000);
+        await shot(page, 'site-over-time');
+
+        const slider = page.getByRole('slider', { name: 'Site on' });
+        await slider.focus();
+        await page.keyboard.press('Home');
+        await expect(
+            page.getByText('As captured on 10 Mar 2026'),
+        ).toBeVisible();
+        await page.waitForTimeout(4000);
+        await shot(page, 'site-over-time-march');
+        await page.keyboard.press('End');
+    });
+
     await test.step('writing setpoints to OPC UA', async () => {
         page.once('dialog', (dialog) => void dialog.accept());
         await page.goto('/projects');
@@ -1669,16 +1799,17 @@ async function prefix(page: Page): Promise<string> {
     return text;
 }
 
-/** Points the camera at a placed model, from a heading in degrees, a pitch in radians and a range in metres. */
+/** Points the camera at a placed model or tileset, from a heading in degrees, a pitch in radians and a range in metres. */
 async function frameModel(
     page: Page,
     name: string,
     headingDeg: number,
     pitch: number,
     range: number,
+    collection: 'models' | 'tilesets' = 'models',
 ) {
     await page.evaluate(
-        ([layer, heading, tilt, distance]) => {
+        ([layer, heading, tilt, distance, kind]) => {
             const w = window as unknown as {
                 __scene: {
                     layerPrimitives: Map<string, { boundingSphere: unknown }>;
@@ -1693,13 +1824,18 @@ async function frameModel(
                 };
                 __twin: {
                     getState(): {
-                        def: { models?: { id: string; name: string }[] };
+                        def: Partial<
+                            Record<
+                                'models' | 'tilesets',
+                                { id: string; name: string }[]
+                            >
+                        >;
                     };
                 };
             };
             const id = w.__twin
                 .getState()
-                .def.models!.find((m) => m.name === layer)!.id;
+                .def[kind]!.find((m) => m.name === layer)!.id;
             w.__scene.viewer.camera.flyToBoundingSphere(
                 w.__scene.layerPrimitives.get(id)!.boundingSphere,
                 {
@@ -1712,7 +1848,7 @@ async function frameModel(
                 },
             );
         },
-        [name, headingDeg, pitch, range] as const,
+        [name, headingDeg, pitch, range, collection] as const,
     );
 }
 

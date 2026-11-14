@@ -58,6 +58,7 @@ it('keeps operators from uploading or deleting', function (): void {
 
     $this->actingAs($user)->post(route('projects.assets.store', $project), ['name' => 'P', 'file' => glbUpload()])->assertForbidden();
     $this->actingAs($user)->delete(route('projects.assets.destroy', [$project, $asset]))->assertForbidden();
+    $this->actingAs($user)->patch(route('projects.assets.update', [$project, $asset]), ['captured_on' => '2026-03-10'])->assertForbidden();
 });
 
 it('only finds uploads through their own project', function (): void {
@@ -66,6 +67,50 @@ it('only finds uploads through their own project', function (): void {
     $elsewhere = ProjectAsset::factory()->create();
 
     $this->actingAs($user)->delete(route('projects.assets.destroy', [$project, $elsewhere]))->assertNotFound();
+    $this->actingAs($user)->patch(route('projects.assets.update', [$project, $elsewhere]))->assertNotFound();
+});
+
+it('dates an upload by when it was captured, and undates it', function (): void {
+    $this->travelTo('2026-11-15 09:00');
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+    $asset = ProjectAsset::factory()->for($project)->create(['name' => 'March scan']);
+
+    $this->actingAs($user)->patch(route('projects.assets.update', [$project, $asset]), ['captured_on' => '2026-03-10'])
+        ->assertRedirectToRoute('projects.show', $project)
+        ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'March scan dated 2026-03-10.']);
+    expect($asset->refresh()->captured_on?->toDateString())->toBe('2026-03-10');
+
+    $this->actingAs($user)->get(route('projects.show', $project))
+        ->assertInertia(fn ($page) => $page->where('assets.0.capturedOn', '2026-03-10'));
+
+    $this->actingAs($user)->patch(route('projects.assets.update', [$project, $asset]), ['captured_on' => ''])
+        ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'March scan is no longer dated.']);
+    expect($asset->refresh()->captured_on)->toBeNull();
+});
+
+it('refuses capture dates in the future or not as dates', function (string $date): void {
+    $this->travelTo('2026-11-15 09:00');
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+    $asset = ProjectAsset::factory()->for($project)->create();
+
+    $this->actingAs($user)->patch(route('projects.assets.update', [$project, $asset]), ['captured_on' => $date])->assertSessionHasErrors('captured_on');
+    $this->actingAs($user)->post(route('projects.assets.store', $project), ['name' => 'P', 'file' => glbUpload(), 'captured_on' => $date])->assertSessionHasErrors('captured_on');
+})->with(['2026-11-16', '10/03/2026', 'March']);
+
+it('keeps the capture date given at upload on the upload, not among its options', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Quay', 'file' => UploadedFile::fake()->createWithContent('quay.las', 'LASF'), 'epsg' => '2193', 'captured_on' => '2026-03-10',
+    ])->assertSessionHasNoErrors();
+
+    expect($project->assets()->sole())
+        ->options->toBe(['epsg' => 2193])
+        ->captured_on->toDateString()->toBe('2026-03-10');
 });
 
 it('takes point clouds with conversion options and says they are converting', function (): void {
@@ -107,7 +152,21 @@ it('takes map layers and imagery, and says they are converting', function (strin
     'a DXF plan' => ['plan.dxf', null, ProjectAssetKind::Vector, 'Site uploaded. Converting it to a map layer…'],
     'a zipped shapefile' => ['parcels.zip', 'vector', ProjectAssetKind::Vector, 'Site uploaded. Converting it to a map layer…'],
     'an orthophoto' => ['ortho.tif', 'imagery', ProjectAssetKind::Imagery, 'Site uploaded. Tiling the image…'],
+    'a photogrammetry export' => ['survey.zip', 'mesh', ProjectAssetKind::Mesh, 'Site uploaded. Converting it to 3D Tiles…'],
+    'an OBJ mesh' => ['survey.obj', null, ProjectAssetKind::Mesh, 'Site uploaded. Converting it to 3D Tiles…'],
 ]);
+
+it('keeps whether a mesh in local metres has y up', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Skid', 'file' => UploadedFile::fake()->createWithContent('skid.obj', 'v 0 0 0'), 'y_up' => '1',
+    ])->assertSessionHasNoErrors();
+
+    expect($project->assets()->sole()->options)->toBe(['y_up' => true]);
+});
 
 it('refuses to take a file as anything but imagery or a map layer', function (): void {
     [$user, $organisation] = member();
@@ -146,7 +205,7 @@ it('retries a failed conversion', function (): void {
     $project = Project::factory()->for($organisation)->create();
     $asset = ProjectAsset::factory()->for($project)->pointCloud(null)->create(['status' => ProjectAssetStatus::Failed]);
 
-    $this->actingAs($user)->post(route('projects.assets.conversion.store', [$project, $asset]), ['epsg' => 2193])
+    $this->actingAs($user)->post(route('projects.assets.conversion.store', [$project, $asset]), ['epsg' => 2193, 'captured_on' => '2026-03-10'])
         ->assertRedirectToRoute('projects.show', $project)
         ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Converting '.$asset->name.' again.']);
 

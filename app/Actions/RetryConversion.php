@@ -17,7 +17,7 @@ final readonly class RetryConversion
      * optionally with new options (say, the EPSG code it was missing). What
      * the upload is stays as it was.
      *
-     * @param  array{epsg?: int, spacing?: float, as?: string}  $options
+     * @param  array{epsg?: int, spacing?: float, as?: string, y_up?: bool, captured_on?: string}  $options
      */
     public function handle(ProjectAsset $asset, array $options): void
     {
@@ -27,7 +27,7 @@ final readonly class RetryConversion
             'Only a failed conversion can be retried.',
         );
 
-        $asset->update(['status' => ProjectAssetStatus::Processing, 'options' => Arr::except($options, 'as'), 'progress' => 0, 'error' => null, 'log' => null]);
+        $asset->update(['status' => ProjectAssetStatus::Processing, 'options' => Arr::except($options, ['as', 'captured_on']), 'progress' => 0, 'error' => null, 'log' => null]);
 
         dispatch(new ConvertUpload($asset));
     }

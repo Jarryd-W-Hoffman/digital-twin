@@ -1,6 +1,6 @@
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { useEffect, useRef } from 'react';
-import { ORIGIN, savedPlacement } from '../core/layers.ts';
+import { hiddenAt, ORIGIN, savedPlacement } from '../core/layers.ts';
 import { alertsAt, sightEnds, useTwin } from '../state/store.ts';
 import { TwinScene } from './TwinScene.ts';
 
@@ -130,6 +130,7 @@ export default function CesiumView() {
             const s = useTwin.getState();
             scene.setBasemap(s.basemap);
             scene.setLayers(s.layers);
+            scene.setHiddenLayers(hiddenAt(s.def, s.captures, s.siteDate));
             scene.setSelected(s.selectedId);
             scene.sketch.set(s.sketch?.points ?? null, s.sketch?.single);
             scene.measure.set(s.measuring?.tool ?? null, s.measuring?.lock);
@@ -151,6 +152,12 @@ export default function CesiumView() {
         const unsubscribe = useTwin.subscribe((s, prev) => {
             if (s.basemap !== prev.basemap) scene.setBasemap(s.basemap);
             if (s.layers !== prev.layers) scene.setLayers(s.layers);
+            if (
+                s.captures !== prev.captures ||
+                s.siteDate !== prev.siteDate ||
+                s.def !== prev.def
+            )
+                scene.setHiddenLayers(hiddenAt(s.def, s.captures, s.siteDate));
             if (s.selectedId !== prev.selectedId)
                 scene.setSelected(s.selectedId);
             if (s.view && (s.view !== prev.view || s.colorBy !== prev.colorBy))
