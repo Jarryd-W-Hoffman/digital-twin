@@ -1573,8 +1573,12 @@ test('screenshots', async ({ page, context }) => {
         await expect(
             modbus.getByRole('button', { name: 'Save Modbus mappings' }),
         ).toBeDisabled();
+        // Tall enough for both mappings, so the section isn't cut off.
+        await page.setViewportSize({ width: 1600, height: 1700 });
         await modbus.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(500);
         await shot(modbus, 'modbus-mappings');
+        await page.setViewportSize({ width: 1600, height: 950 });
         await page.getByRole('button', { name: 'Close layout' }).click();
     });
 
