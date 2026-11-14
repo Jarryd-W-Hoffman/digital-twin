@@ -25,6 +25,7 @@ enum AuditAction: string
     case ProjectDeleted = 'project.deleted';
     case UploadAdded = 'upload.added';
     case UploadDeleted = 'upload.deleted';
+    case UploadDated = 'upload.dated';
     case DeviceAdded = 'device.added';
     case DevicePasswordReset = 'device.password_reset';
     case DeviceDeleted = 'device.deleted';
@@ -102,6 +103,7 @@ enum AuditAction: string
             self::ProjectDeleted => 'Deleted a project',
             self::UploadAdded => 'Uploaded to the library',
             self::UploadDeleted => 'Deleted an upload',
+            self::UploadDated => 'Dated an upload',
             self::DeviceAdded => 'Added a device',
             self::DevicePasswordReset => "Reset a device's password",
             self::DeviceDeleted => 'Deleted a device',
@@ -149,7 +151,7 @@ enum AuditAction: string
             self::MemberAdded, self::MemberRoleChanged, self::MemberRemoved, self::ApiTokenCreated, self::ApiTokenRevoked,
             self::SsoSaved, self::SsoRemoved, self::SsoLinked, self::SsoUnlinked,
             self::ScimTokenCreated, self::ScimTokenRevoked, self::ScimOwnerKept => 'access',
-            self::ProjectCreated, self::ProjectDeleted, self::UploadAdded, self::UploadDeleted, self::TypeSaved, self::TypeDeleted => 'projects',
+            self::ProjectCreated, self::ProjectDeleted, self::UploadAdded, self::UploadDeleted, self::UploadDated, self::TypeSaved, self::TypeDeleted => 'projects',
             self::DeviceAdded, self::DevicePasswordReset, self::DeviceDeleted, self::OpcUaServerAdded, self::OpcUaServerDeleted, self::ModbusDeviceAdded, self::ModbusDeviceDeleted,
             self::GatewayTokenIssued, self::GatewayTokenRevoked, self::OpcUaWritesChanged, self::ChannelAdded, self::ChannelDeleted,
             self::AnomalyMonitorSaved, self::AnomalyMonitorRemoved, self::AnomalyExclusionAdded, self::AnomalyExclusionRemoved => 'connections',

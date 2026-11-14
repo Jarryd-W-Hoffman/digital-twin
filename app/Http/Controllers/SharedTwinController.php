@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Middleware\ResolveShareLink;
+use App\Models\ProjectAsset;
 use App\Models\TwinShareLink;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -32,7 +33,20 @@ final readonly class SharedTwinController
             'expiresAt' => $link->expires_at->toIso8601String(),
             'definition' => $this->definition($link, $token),
             'startView' => $twin->openingView?->state,
+            'captures' => $this->captures($link),
         ]);
+    }
+
+    /**
+     * When each dated upload the twin shows was captured, and what it is.
+     *
+     * @return array<string, array{on: string, kind: string}>
+     */
+    private function captures(TwinShareLink $link): array
+    {
+        return $link->twin->project->assets()->whereKey($link->assetIds())->whereNotNull('captured_on')->get()
+            ->mapWithKeys(fn (ProjectAsset $asset): array => [$asset->id => ['on' => (string) $asset->captured_on?->toDateString(), 'kind' => $asset->kind->value]])
+            ->all();
     }
 
     /**
@@ -47,7 +61,7 @@ final readonly class SharedTwinController
             ? [...$layer, 'url' => str_replace('/assets/'.$layer['assetId'].'/files/', '/share/'.$token.'/assets/'.$layer['assetId'].'/files/', $layer['url'])]
             : $layer;
 
-        foreach (['tilesets', 'models'] as $field) {
+        foreach (['tilesets', 'models', 'vectors', 'imagery'] as $field) {
             if (is_array($definition[$field] ?? null)) {
                 $definition[$field] = array_map($through, $definition[$field]);
             }

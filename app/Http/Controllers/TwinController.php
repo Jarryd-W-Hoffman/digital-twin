@@ -128,6 +128,7 @@ final readonly class TwinController
                 'bytes' => $asset->bytes,
                 'files' => $asset->files,
                 'url' => $asset->url(),
+                'capturedOn' => $asset->captured_on?->toDateString(),
                 // Terrain or a point cloud that kept its heights, so it can be compared.
                 'survey' => in_array($asset->kind, [ProjectAssetKind::Terrain, ProjectAssetKind::PointCloud], true) && isset($asset->details['surface']),
             ]),

@@ -106,6 +106,8 @@ final class TwinShareLink extends Model
         $layers = [
             ...(is_array($definition['tilesets'] ?? null) ? $definition['tilesets'] : []),
             ...(is_array($definition['models'] ?? null) ? $definition['models'] : []),
+            ...(is_array($definition['vectors'] ?? null) ? $definition['vectors'] : []),
+            ...(is_array($definition['imagery'] ?? null) ? $definition['imagery'] : []),
             $definition['terrain'] ?? null,
         ];
 

@@ -8,7 +8,7 @@ use App\Models\ProjectAsset;
 
 test('to array', function (): void {
     expect(array_keys(ProjectAsset::factory()->create()->refresh()->toArray()))
-        ->toBe(['id', 'project_id', 'kind', 'name', 'original_name', 'directory', 'entry', 'bytes', 'files', 'created_at', 'updated_at', 'status', 'error', 'upload_id', 'options', 'progress', 'log', 'crs', 'details']);
+        ->toBe(['id', 'project_id', 'kind', 'name', 'original_name', 'directory', 'entry', 'bytes', 'files', 'created_at', 'updated_at', 'status', 'error', 'upload_id', 'options', 'progress', 'log', 'crs', 'details', 'captured_on']);
 });
 
 it('belongs to its project and loads from a route that names only itself', function (): void {
