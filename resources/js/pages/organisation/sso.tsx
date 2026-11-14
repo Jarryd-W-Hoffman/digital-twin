@@ -1,4 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useClipboard } from '@/hooks/use-clipboard';
 import AppLayout from '@/layouts/app-layout';
 import { destroy, show, update } from '@/routes/organisation/sso';
+import scimToken from '@/routes/organisation/sso/scim-token';
 import type { BreadcrumbItem } from '@/types';
 
 type Connection = {
@@ -18,6 +20,7 @@ type Connection = {
     autoJoin: boolean;
     defaultRole: string;
     linked: number;
+    scim: { hint: string | null; usedAt: string | null; provisioned: number };
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -35,11 +38,13 @@ export default function Sso({
     currentOrganisation: organisation,
     connection,
     redirectUri,
+    scimUrl,
     roles,
 }: {
     currentOrganisation: { id: string; name: string };
     connection: Connection | null;
     redirectUri: string;
+    scimUrl: string;
     roles: { value: string; label: string }[];
 }) {
     const form = useForm({
@@ -52,6 +57,16 @@ export default function Sso({
         default_role: connection?.defaultRole ?? 'viewer',
     });
     const [copied, copy] = useClipboard();
+    const [issued, setIssued] = useState<string | null>(null);
+
+    useEffect(
+        () =>
+            router.on('flash', (event) => {
+                const token = event.detail.flash.scimToken;
+                if (token) setIssued(token);
+            }),
+        [],
+    );
 
     return (
         <>
@@ -219,6 +234,112 @@ export default function Sso({
                         </Button>
                     </div>
                 </form>
+
+                {connection && (
+                    <section
+                        className="grid gap-4 rounded-xl border p-4"
+                        aria-label="Automatic provisioning"
+                    >
+                        <Heading
+                            variant="small"
+                            title="3. Provision people automatically (optional)"
+                            description="Give the identity provider this SCIM address and token, and it adds people to the organisation, and removes them when they leave, without anyone doing it here. People in the domains above join with the role for new people; owners are never removed."
+                        />
+                        <div className="grid gap-2">
+                            <Label htmlFor="sso-scim-url">SCIM base URL</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    id="sso-scim-url"
+                                    readOnly
+                                    value={scimUrl}
+                                    className="font-mono"
+                                />
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => void copy(scimUrl)}
+                                >
+                                    {copied === scimUrl ? 'Copied' : 'Copy'}
+                                </Button>
+                            </div>
+                        </div>
+                        {issued && (
+                            <div
+                                className="grid gap-2 rounded-md border border-amber-500/50 p-3"
+                                role="status"
+                                aria-label="New provisioning token"
+                            >
+                                <p className="text-sm">
+                                    Copy this token into the identity provider
+                                    now. It won't be shown again.
+                                </p>
+                                <div className="flex gap-2">
+                                    <Input
+                                        aria-label="Provisioning token"
+                                        readOnly
+                                        value={issued}
+                                        onFocus={(e) => e.target.select()}
+                                        className="font-mono"
+                                    />
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => void copy(issued)}
+                                    >
+                                        {copied === issued ? 'Copied' : 'Copy'}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                            <span className="text-muted-foreground">
+                                {connection.scim.hint
+                                    ? `Token mrs_…${connection.scim.hint} · ${connection.scim.usedAt ? `last used ${new Date(connection.scim.usedAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'not used yet'} · ${connection.scim.provisioned === 1 ? '1 person' : `${connection.scim.provisioned} people`} provisioned`
+                                    : 'No provisioning token yet.'}
+                            </span>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() =>
+                                        (!connection.scim.hint ||
+                                            confirm(
+                                                'Make a new provisioning token? The current one stops working at once.',
+                                            )) &&
+                                        router.post(
+                                            scimToken.store.url(),
+                                            {},
+                                            { preserveScroll: true },
+                                        )
+                                    }
+                                >
+                                    {connection.scim.hint
+                                        ? 'Make a new token'
+                                        : 'Make provisioning token'}
+                                </Button>
+                                {connection.scim.hint && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() =>
+                                            confirm(
+                                                'Revoke the provisioning token? The identity provider stops adding and removing people; everyone it added stays.',
+                                            ) &&
+                                            router.delete(
+                                                scimToken.destroy.url(),
+                                                {
+                                                    preserveScroll: true,
+                                                    onSuccess: () =>
+                                                        setIssued(null),
+                                                },
+                                            )
+                                        }
+                                    >
+                                        Revoke
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+                )}
 
                 {connection && (
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm">

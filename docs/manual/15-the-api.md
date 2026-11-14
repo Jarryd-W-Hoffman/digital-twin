@@ -185,5 +185,6 @@ curl -X POST -H "Authorization: Bearer mrd_…" -H "Accept: application/json" \
 ## See also
 
 - [Organisations and members](02-organisations-and-members.md#roles): who can make tokens.
+- [Provision people automatically](02-organisations-and-members.md#provision-people-automatically): the identity provider's own SCIM API, with its own token, for adding and removing members.
 - [Alerts, time travel and what-if](07-alerts-time-and-what-if.md#the-alert-log): the alert log the API reads, and webhooks, which push alerts, issue updates and [daily or weekly reports](07-alerts-time-and-what-if.md#reports) instead of waiting to be asked.
 - [Twins and the viewer](06-twins-and-the-viewer.md): issues in the scene.

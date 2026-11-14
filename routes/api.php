@@ -19,9 +19,12 @@ use App\Http\Controllers\GatewayOpcUaWriteController;
 use App\Http\Controllers\GatewayReadingController;
 use App\Http\Controllers\MqttAclController;
 use App\Http\Controllers\MqttUserController;
+use App\Http\Controllers\ScimServiceProviderConfigController;
+use App\Http\Controllers\ScimUserController;
 use App\Http\Middleware\AuthenticateApiToken;
 use App\Http\Middleware\AuthenticateBroker;
 use App\Http\Middleware\AuthenticateGateway;
+use App\Http\Middleware\AuthenticateScimToken;
 use App\Http\Middleware\EnsureApiTokenWrites;
 use Illuminate\Support\Facades\Route;
 
@@ -70,4 +73,16 @@ Route::middleware([AuthenticateApiToken::class, 'throttle:api'])->prefix('v1')->
         Route::delete('twins/{twin}/issues/{issue}/closure', [ApiIssueClosureController::class, 'destroy'])->middleware(EnsureApiTokenWrites::class)->name('twins.issues.closure.destroy');
         Route::post('twins/{twin}/alerts/{alert}/acknowledgement', [ApiAlertAcknowledgementController::class, 'store'])->middleware(EnsureApiTokenWrites::class)->name('twins.alerts.acknowledgement.store');
     });
+});
+
+// An organisation's identity provider provisions its people (SCIM 2.0) with
+// its single sign-on connection's provisioning token.
+Route::middleware([AuthenticateScimToken::class, 'throttle:scim'])->prefix('scim/v2')->name('scim.')->group(function (): void {
+    Route::get('ServiceProviderConfig', [ScimServiceProviderConfigController::class, 'show'])->name('service-provider-config');
+    Route::get('Users', [ScimUserController::class, 'index'])->name('users.index');
+    Route::post('Users', [ScimUserController::class, 'store'])->name('users.store');
+    Route::get('Users/{id}', [ScimUserController::class, 'show'])->name('users.show');
+    Route::put('Users/{id}', [ScimUserController::class, 'update'])->name('users.update');
+    Route::patch('Users/{id}', [ScimUserController::class, 'update'])->name('users.patch');
+    Route::delete('Users/{id}', [ScimUserController::class, 'destroy'])->name('users.destroy');
 });

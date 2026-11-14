@@ -213,6 +213,7 @@ it('lets owners set up single sign-on', function (): void {
         'autoJoin' => true,
         'defaultRole' => 'operator',
         'linked' => 1,
+        'scim' => ['hint' => null, 'usedAt' => null, 'provisioned' => 0],
     ]));
 
     $this->put(route('organisation.sso.update'), ['issuer' => IDP_ISSUER, 'client_id' => 'meridian', 'domains' => 'harbour.example', 'default_role' => 'viewer'])->assertSessionHasNoErrors();
