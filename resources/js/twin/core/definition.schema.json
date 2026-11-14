@@ -1204,7 +1204,15 @@
                             "x-message": "Modbus {0:address}: table must be holding, input, coil or discrete"
                         },
                         "type": {
-                            "enum": ["uint16", "int16", "uint32", "int32", "float32", "float64", "bool"],
+                            "enum": [
+                                "uint16",
+                                "int16",
+                                "uint32",
+                                "int32",
+                                "float32",
+                                "float64",
+                                "bool"
+                            ],
                             "x-message": "Modbus {0:address}: type must be uint16, int16, uint32, int32, float32, float64 or bool"
                         },
                         "wordOrder": {
