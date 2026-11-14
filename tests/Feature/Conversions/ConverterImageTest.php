@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\ConvertIfc;
 use App\Actions\ConvertImagery;
+use App\Actions\ConvertMesh;
 use App\Actions\ConvertPointCloud;
 use App\Actions\ConvertTerrain;
 use App\Actions\ConvertVector;
@@ -21,8 +22,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /*
- * Runs the real PDAL, py3dtiles, meridian-terrain, meridian-ifc, meridian-vector
- * meridian-imagery and meridian-volume, so it only runs
+ * Runs the real PDAL, py3dtiles, meridian-terrain, meridian-ifc, meridian-vector,
+ * meridian-imagery, meridian-volume and meridian-mesh (with Obj2Tiles), so it only runs
  * inside the converter image:
  *
  *     docker run --rm -v "$PWD":/var/www/html -e MERIDIAN_CONVERTER_TESTS=1 \
@@ -514,3 +515,105 @@ it('measures the fill between two DEMs inside an area, and draws where', functio
         ->and($result['highestFill'] ?? null)->toEqualWithDelta(2, 0.01)
         ->and(mb_substr((string) Storage::disk('local')->get($comparison->imageKey(1)), 1, 3, '8bit'))->toBe('PNG');
 })->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-volume (the converter image).');
+
+/**
+ * A 100 m by 60 m textured mound, written by scripts/generate-mesh.py with
+ * these options: zipped as an export, or the bare OBJ.
+ *
+ * @param  list<string>  $options
+ */
+function surveyMesh(string $work, array $options = [], bool $zipped = true): string
+{
+    $zip = $work.'/survey.zip';
+    Process::run(['python', base_path('scripts/generate-mesh.py'), $work.'/mesh', ...$options, ...($zipped ? ['--zip', $zip] : [])])->throw();
+
+    return $zipped ? $zip : $work.'/mesh/survey.obj';
+}
+
+/**
+ * The tileset's root box: its centre and the length of each half-axis.
+ *
+ * @return array{0: list<float>, 1: list<float>}
+ */
+function rootBox(string $tilesetJson): array
+{
+    /** @var array{root: array{boundingVolume: array{box: list<float>}}} $tileset */
+    $tileset = json_decode($tilesetJson, true);
+    $box = $tileset['root']['boundingVolume']['box'];
+
+    return [array_slice($box, 0, 3), array_map(
+        fn (int $axis): float => sqrt($box[3 + $axis * 3] ** 2 + $box[4 + $axis * 3] ** 2 + $box[5 + $axis * 3] ** 2),
+        [0, 1, 2],
+    )];
+}
+
+it('tiles a zipped photogrammetry export where its metadata.xml says, turned to true north', function (string $georeference, string $source): void {
+    $asset = ProjectAsset::factory()->mesh()->processing()->create(['details' => null, 'crs' => null, 'options' => []]);
+    Storage::disk('local')->put($asset->sourceKey(), File::get(surveyMesh($this->work, ['--georeference', $georeference])));
+
+    resolve(ConvertMesh::class)->handle($asset);
+
+    $tileset = (string) Storage::disk('local')->get($asset->directory.'/tileset.json');
+    [$lat, $lon] = rootLatLon($tileset);
+    [$centre, $half] = rootBox($tileset);
+    $placed = $asset->refresh()->details['origin'] ?? [];
+    // NZTM's grid north is about 1.06° off true north here, so the mesh's box
+    // is wider and deeper than 100 m by 60 m once turned.
+    $turn = deg2rad(1.06);
+
+    expect($asset->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($asset->crs)->toBe('EPSG:2193')
+        ->and($asset->details['triangles'] ?? null)->toBe(3000)
+        ->and($asset->files)->toBeGreaterThan(10)
+        ->and($placed['source'] ?? null)->toBe($source)
+        ->and($placed['lat'] ?? null)->toEqualWithDelta(-36.848, 0.001)
+        ->and($placed['lon'] ?? null)->toEqualWithDelta(174.767, 0.001)
+        ->and($placed['height'] ?? null)->toEqualWithDelta(33, 0.01)
+        ->and($lat)->toEqualWithDelta(-36.848, 0.001)
+        ->and($lon)->toEqualWithDelta(174.767, 0.001)
+        ->and($centre[0])->toEqualWithDelta(0, 0.1)
+        ->and($centre[1])->toEqualWithDelta(0, 0.1)
+        ->and($half[0])->toEqualWithDelta((100 * cos($turn) + 60 * sin($turn)) / 2, 0.1)
+        ->and($half[1])->toEqualWithDelta((60 * cos($turn) + 100 * sin($turn)) / 2, 0.1)
+        ->and($half[2])->toEqualWithDelta(3, 0.05)
+        ->and($asset->log)->toContain('in ')->toContain('tiles');
+})->with([
+    'ContextCapture and DJI Terra' => ['metadata', 'metadata.xml'],
+    'Pix4D' => ['pix4d', 'survey_offset.xyz'],
+])->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-mesh and Obj2Tiles (the converter image).');
+
+it('tiles a mesh that says nothing of where it is in local metres, z up or y up', function (array $options, array $asset): void {
+    $mesh = ProjectAsset::factory()->mesh()->processing()->create(['details' => null, 'crs' => null, 'original_name' => 'survey.obj', ...$asset]);
+    Storage::disk('local')->put($mesh->sourceKey(), File::get(surveyMesh($this->work, ['--georeference', 'none', ...$options], zipped: false)));
+
+    resolve(ConvertMesh::class)->handle($mesh);
+
+    /** @var array{root: array{transform: list<float>}} $tileset */
+    $tileset = json_decode((string) Storage::disk('local')->get($mesh->directory.'/tileset.json'), true);
+    [$centre, $half] = rootBox((string) json_encode($tileset));
+
+    expect($mesh->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($mesh->crs)->toBeNull()
+        ->and($mesh->details)->toBe(['triangles' => 3000, 'origin' => null])
+        ->and($mesh->log)->toContain('Not georeferenced')
+        ->and($tileset['root']['transform'])->toEqual([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+        ->and($centre)->toEqualWithDelta([50, 30, 3], 0.05)
+        ->and($half)->toEqualWithDelta([50, 30, 3], 0.05);
+})->with([
+    'z up' => [[], ['options' => []]],
+    'y up' => [['--y-up'], ['options' => ['y_up' => true]]],
+])->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-mesh and Obj2Tiles (the converter image).');
+
+it('refuses a zip with no OBJ, or with a file outside its folder', function (string $entry, string $reason): void {
+    $asset = ProjectAsset::factory()->mesh()->processing()->create(['details' => null, 'crs' => null, 'options' => []]);
+    $zip = new ZipArchive;
+    $zip->open($this->work.'/bad.zip', ZipArchive::CREATE);
+    $zip->addFromString($entry, 'nothing');
+    $zip->close();
+    Storage::disk('local')->put($asset->sourceKey(), File::get($this->work.'/bad.zip'));
+
+    expect(fn () => resolve(ConvertMesh::class)->handle($asset))->toThrow(ConversionFailed::class, $reason);
+})->with([
+    'no OBJ' => ['export/readme.txt', 'The upload has no OBJ file.'],
+    'outside its folder' => ['../escape.obj', 'The zip has a file outside its folder'],
+])->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-mesh and Obj2Tiles (the converter image).');

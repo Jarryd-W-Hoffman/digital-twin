@@ -17,7 +17,7 @@ final readonly class RetryConversion
      * optionally with new options (say, the EPSG code it was missing). What
      * the upload is stays as it was.
      *
-     * @param  array{epsg?: int, spacing?: float, as?: string}  $options
+     * @param  array{epsg?: int, spacing?: float, as?: string, y_up?: bool}  $options
      */
     public function handle(ProjectAsset $asset, array $options): void
     {

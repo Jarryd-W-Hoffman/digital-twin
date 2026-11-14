@@ -42,6 +42,7 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'Projects', href: index() }];
 const pointCloud = /\.(las|laz|e57)$/i;
 const terrain = /\.(tif|tiff|asc)$/i;
 const mapLayer = /\.(geojson|json|kml|kmz|dxf|gpkg)$/i;
+const objMesh = /\.obj$/i;
 /** Files that could be either of two kinds, and the choices. */
 const AMBIGUOUS: { test: RegExp; choices: [string, string][] }[] = [
     {
@@ -56,11 +57,12 @@ const AMBIGUOUS: { test: RegExp; choices: [string, string][] }[] = [
         choices: [
             ['', 'A 3D Tiles tileset'],
             ['vector', 'A map layer (a zipped shapefile)'],
+            ['mesh', 'A photogrammetry mesh (an OBJ export)'],
         ],
     },
 ];
 const EXTENSIONS =
-    /\.(glb|zip|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i;
+    /\.(glb|zip|obj|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i;
 
 export default function ShowProject({
     project,
@@ -91,19 +93,23 @@ export default function ShowProject({
         epsg: string;
         spacing: string;
         as: string;
+        y_up: boolean;
     }>({
         name: '',
         file: null,
         epsg: '',
         spacing: '',
         as: '',
+        y_up: false,
     });
     const filename = upload.data.file?.name ?? '';
     const isPointCloud = pointCloud.test(filename);
     const choices = AMBIGUOUS.find((a) => a.test.test(filename))?.choices;
+    const isMesh = objMesh.test(filename) || upload.data.as === 'mesh';
     // Anything converted with GDAL or PDAL may need the EPSG code of its coordinates.
     const needsCrs =
         isPointCloud ||
+        isMesh ||
         terrain.test(filename) ||
         mapLayer.test(filename) ||
         upload.data.as === 'vector';
@@ -148,6 +154,7 @@ export default function ShowProject({
                         spacing: upload.data.spacing || null,
                     }),
                     ...(choices && upload.data.as && { as: upload.data.as }),
+                    ...(isMesh && upload.data.y_up && { y_up: true }),
                 },
                 signal: cancel.current.signal,
                 onProgress: (fraction) =>
@@ -286,9 +293,10 @@ export default function ShowProject({
                         >
                             <div className="grid min-w-48 flex-1 gap-2">
                                 <Label htmlFor="upload-file">
-                                    File (.glb, a zipped 3D Tiles tileset or
-                                    shapefile, a .las, .laz or .e57 point cloud,
-                                    a .tif elevation model or image, an .asc
+                                    File (.glb, a zipped 3D Tiles tileset,
+                                    shapefile or photogrammetry export, an .obj
+                                    mesh, a .las, .laz or .e57 point cloud, a
+                                    .tif elevation model or image, an .asc
                                     elevation model, an .ifc building model, or
                                     a .geojson, .kml, .kmz, .dxf or .gpkg map
                                     layer)
@@ -296,7 +304,7 @@ export default function ShowProject({
                                 <Input
                                     id="upload-file"
                                     type="file"
-                                    accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc,.ifc,.geojson,.json,.kml,.kmz,.dxf,.gpkg"
+                                    accept=".glb,.zip,.obj,.las,.laz,.e57,.tif,.tiff,.asc,.ifc,.geojson,.json,.kml,.kmz,.dxf,.gpkg"
                                     required
                                     onChange={(e) => {
                                         const file =
@@ -305,6 +313,7 @@ export default function ShowProject({
                                             ...data,
                                             file,
                                             as: '',
+                                            y_up: false,
                                             name:
                                                 data.name ||
                                                 (file?.name.replace(
@@ -394,6 +403,21 @@ export default function ShowProject({
                                         </div>
                                     )}
                                 </>
+                            )}
+                            {isMesh && (
+                                <label className="flex h-9 items-center gap-2 text-sm">
+                                    <input
+                                        type="checkbox"
+                                        checked={upload.data.y_up}
+                                        onChange={(e) =>
+                                            upload.setData(
+                                                'y_up',
+                                                e.target.checked,
+                                            )
+                                        }
+                                    />
+                                    Y is up (a mesh in local metres)
+                                </label>
                             )}
                             <Button
                                 type="submit"

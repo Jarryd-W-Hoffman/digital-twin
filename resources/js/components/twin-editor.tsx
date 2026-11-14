@@ -43,7 +43,8 @@ export type TwinAssetSummary = {
         | 'terrain'
         | 'bim'
         | 'vector'
-        | 'imagery';
+        | 'imagery'
+        | 'mesh';
     name: string;
     originalName: string;
     bytes: number;
@@ -234,11 +235,12 @@ export function TwinEditor({
                 <p className="muted hint">
                     A model as .glb, a 3D Tiles tileset zipped with tileset.json
                     at the top, a LAS, LAZ or E57 point cloud, a DEM, an IFC
-                    model, or a GeoJSON, KML, KMZ, DXF or GeoPackage map layer.
-                    It goes into the project's library and is added here;
-                    anything converted first is added from the library once it's
-                    ready. Upload imagery and zipped shapefiles from the
-                    project's page, which asks what they are.
+                    model, an OBJ mesh, or a GeoJSON, KML, KMZ, DXF or
+                    GeoPackage map layer. It goes into the project's library and
+                    is added here; anything converted first is added from the
+                    library once it's ready. Upload imagery, zipped shapefiles
+                    and zipped photogrammetry exports from the project's page,
+                    which asks what they are.
                 </p>
                 <form
                     className="editor-form"
@@ -261,7 +263,7 @@ export function TwinEditor({
                     <input
                         aria-label="Upload file"
                         type="file"
-                        accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc,.ifc,.geojson,.json,.kml,.kmz,.dxf,.gpkg"
+                        accept=".glb,.zip,.obj,.las,.laz,.e57,.tif,.tiff,.asc,.ifc,.geojson,.json,.kml,.kmz,.dxf,.gpkg"
                         required
                         onChange={(e) => {
                             const file = e.target.files?.[0] ?? null;
@@ -271,7 +273,7 @@ export function TwinEditor({
                                 name:
                                     data.name ||
                                     (file?.name.replace(
-                                        /\.(glb|zip|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i,
+                                        /\.(glb|zip|obj|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i,
                                         '',
                                     ) ??
                                         ''),

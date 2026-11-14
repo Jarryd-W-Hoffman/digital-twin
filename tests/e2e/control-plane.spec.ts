@@ -401,6 +401,30 @@ test('a DEM converts to terrain on the queue, with only an EPSG option', async (
   await expect(item.getByRole('button', { name: 'Retry' })).toBeVisible();
 });
 
+test('a zipped photogrammetry export is taken as a mesh, and a bare OBJ can say y is up', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+
+  await page.getByLabel(/^File \(/).setInputFiles({ name: 'skid.obj', mimeType: 'text/plain', buffer: Buffer.from('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n') });
+  await expect(page.getByLabel('EPSG code', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('It is')).toHaveCount(0);
+  await page.getByLabel('Y is up (a mesh in local metres)').check();
+
+  await page.getByLabel(/^File \(/).setInputFiles({ name: 'survey.zip', mimeType: 'application/zip', buffer: Buffer.from('PK\x03\x04 not really an export') });
+  await expect(page.getByLabel('Y is up (a mesh in local metres)')).toHaveCount(0);
+  await page.getByLabel('It is').selectOption('mesh');
+  await expect(page.getByLabel('Y is up (a mesh in local metres)')).not.toBeChecked();
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  const item = page.getByRole('listitem').filter({ hasText: 'survey.zip' });
+  await expect(item).toContainText('Converting 0%');
+
+  // meridian-mesh only lives in the converter image, so here it fails.
+  execFileSync('php', ['artisan', 'queue:work', 'conversions', '--queue=conversions', '--stop-when-empty'], {
+    env: { ...process.env, DB_DATABASE: resolve('database/e2e.sqlite') },
+  });
+  await expect(item).toContainText('The mesh could not be converted', { timeout: 10_000 });
+  await expect(item.getByRole('button', { name: 'Retry' })).toBeVisible();
+});
+
 test('a bad archive is refused with the reason', async ({ page }) => {
   await logIn(page, 'test@example.com');
   await openTwin(page, 'Northshore Cold Chain Hub');

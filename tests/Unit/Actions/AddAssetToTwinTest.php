@@ -103,6 +103,20 @@ it('places a point cloud in local metres at the origin', function (): void {
     expect($layers[0]['placement'])->toBe(['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1]);
 });
 
+it('adds a georeferenced mesh as a tileset where it belongs, and places one in local metres at the origin', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $georeferenced = ProjectAsset::factory()->for($twin->project)->mesh(['lon' => 174.767, 'lat' => -36.848, 'height' => 33.0, 'source' => 'metadata.xml'])->create();
+    $local = ProjectAsset::factory()->for($twin->project)->mesh()->create(['name' => 'Pump skid scan']);
+
+    resolve(AddAssetToTwin::class)->handle($twin, $user, $georeferenced);
+    $layers = resolve(AddAssetToTwin::class)->handle($twin, $user, $local)?->definition['tilesets'];
+
+    expect($layers[0])->not->toHaveKey('placement')
+        ->and($layers[0]['assetId'])->toBe($georeferenced->id)
+        ->and($layers[1]['placement'])->toBe(['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1]);
+});
+
 it("makes terrain the twin's ground, replacing any it had", function (): void {
     [$user, $organisation] = member();
     $twin = twinIn($organisation);

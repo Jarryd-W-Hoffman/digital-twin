@@ -27,7 +27,7 @@ final readonly class StoreProjectAsset
      * cloud or DEM is kept as uploaded and queued for conversion. Nothing is shown
      * in a twin until it is added to one.
      *
-     * @param  array{epsg?: int, spacing?: float, as?: string}  $options  Conversion options.
+     * @param  array{epsg?: int, spacing?: float, as?: string, y_up?: bool}  $options  Conversion options.
      */
     public function handle(Project $project, UploadedFile $file, string $name, array $options = []): ProjectAsset
     {

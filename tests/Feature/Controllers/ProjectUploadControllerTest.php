@@ -37,7 +37,7 @@ it('checks what is about to be uploaded', function (): void {
     $project = Project::factory()->for($organisation)->create();
 
     $this->actingAs($user)->postJson(route('projects.uploads.store', $project), ['name' => '', 'filename' => '../evil.exe', 'bytes' => 2 * 1024 ** 3])
-        ->assertJsonValidationErrors(['name', 'bytes', 'filename' => 'Upload a .glb model, a zipped 3D Tiles tileset or shapefile, a LAS, LAZ or E57 point cloud, a GeoTIFF or ASCII grid, an IFC model, or a GeoJSON, KML, KMZ, DXF or GeoPackage map layer.']);
+        ->assertJsonValidationErrors(['name', 'bytes', 'filename' => 'Upload a .glb model, a zipped 3D Tiles tileset, shapefile or photogrammetry export, an OBJ mesh, a LAS, LAZ or E57 point cloud, a GeoTIFF or ASCII grid, an IFC model, or a GeoJSON, KML, KMZ, DXF or GeoPackage map layer.']);
 });
 
 it('signs parts, completes the upload and queues its checks', function (): void {

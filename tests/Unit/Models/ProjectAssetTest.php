@@ -49,13 +49,18 @@ it('tells models from tileset archives by extension', function (string $filename
     ['survey.gpkg', ProjectAssetKind::Vector],
     'a GeoTIFF as imagery' => ['ortho.tif', ProjectAssetKind::Imagery, 'imagery'],
     'a zipped shapefile' => ['parcels.zip', ProjectAssetKind::Vector, 'vector'],
+    'a zipped photogrammetry export' => ['survey.zip', ProjectAssetKind::Mesh, 'mesh'],
+    'an OBJ mesh' => ['survey.OBJ', ProjectAssetKind::Mesh],
+    'a mesh is only a zip or an OBJ' => ['ortho.tif', ProjectAssetKind::Terrain, 'mesh'],
     'imagery is only a GeoTIFF' => ['grid.asc', ProjectAssetKind::Terrain, 'imagery'],
     'a shapefile is only a zip' => ['ortho.tif', ProjectAssetKind::Terrain, 'vector'],
 ]);
 
-it('shows point clouds and tilesets as tilesets', function (): void {
+it('shows point clouds, meshes and tilesets as tilesets', function (): void {
     expect(ProjectAssetKind::Tileset->isTileset())->toBeTrue()
         ->and(ProjectAssetKind::PointCloud->isTileset())->toBeTrue()
+        ->and(ProjectAssetKind::Mesh->isTileset())->toBeTrue()
+        ->and(ProjectAssetKind::Mesh->isConverted())->toBeTrue()
         ->and(ProjectAssetKind::Model->isTileset())->toBeFalse()
         ->and(ProjectAssetKind::Terrain->isTileset())->toBeFalse()
         ->and(ProjectAssetKind::Bim->isTileset())->toBeFalse();

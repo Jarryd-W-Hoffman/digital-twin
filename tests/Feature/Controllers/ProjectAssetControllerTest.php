@@ -107,7 +107,21 @@ it('takes map layers and imagery, and says they are converting', function (strin
     'a DXF plan' => ['plan.dxf', null, ProjectAssetKind::Vector, 'Site uploaded. Converting it to a map layer…'],
     'a zipped shapefile' => ['parcels.zip', 'vector', ProjectAssetKind::Vector, 'Site uploaded. Converting it to a map layer…'],
     'an orthophoto' => ['ortho.tif', 'imagery', ProjectAssetKind::Imagery, 'Site uploaded. Tiling the image…'],
+    'a photogrammetry export' => ['survey.zip', 'mesh', ProjectAssetKind::Mesh, 'Site uploaded. Converting it to 3D Tiles…'],
+    'an OBJ mesh' => ['survey.obj', null, ProjectAssetKind::Mesh, 'Site uploaded. Converting it to 3D Tiles…'],
 ]);
+
+it('keeps whether a mesh in local metres has y up', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Skid', 'file' => UploadedFile::fake()->createWithContent('skid.obj', 'v 0 0 0'), 'y_up' => '1',
+    ])->assertSessionHasNoErrors();
+
+    expect($project->assets()->sole()->options)->toBe(['y_up' => true]);
+});
 
 it('refuses to take a file as anything but imagery or a map layer', function (): void {
     [$user, $organisation] = member();

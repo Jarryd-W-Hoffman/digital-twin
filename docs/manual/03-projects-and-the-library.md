@@ -29,6 +29,7 @@ Only editors (owners and admins) can create projects. The project page shows:
 | **`.tif`**, **`.tiff`** or **`.asc`** | **Terrain**, converted from a DEM         | See [Terrain](05-terrain.md)                                                                                                                                                                                          |
 | **`.ifc`** (IFC2X3 or IFC4)           | A **BIM model**, converted to a model     | See [BIM models](#bim-models)                                                                                                                                                                                         |
 | **`.geojson`**, **`.json`**, **`.kml`**, **`.kmz`**, **`.dxf`**, **`.gpkg`**, or a **`.zip`** of a shapefile | A **map layer**, drawn on the ground | See [Map layers and imagery](16-map-layers-and-imagery.md) |
+| An **`.obj`**, or a **`.zip`** of a photogrammetry export | A **mesh**, converted to a tileset | See [Photogrammetry meshes](20-photogrammetry-meshes.md) |
 | A **`.tif`** or **`.tiff`** orthophoto | **Imagery**, cut into map tiles           | See [Map layers and imagery](16-map-layers-and-imagery.md)                                                                                                                                                            |
 
 - **Models** are things you place by hand: a pump skid, a container, a piece of plant from CAD. You give them a position, heading and scale in the twin.

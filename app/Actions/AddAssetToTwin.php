@@ -29,8 +29,9 @@ final readonly class AddAssetToTwin
      * Shows a library upload in the twin as a new version: models at the
      * origin, ready to be placed, and tilesets where their own georeference
      * puts them. A converted IFC model starts where the file says it is, if
-     * that's near the twin. A point cloud is a tileset; one without a coordinate system
-     * is in local metres, so it starts placed at the origin too. Terrain
+     * that's near the twin. A point cloud or mesh is a tileset; one without a
+     * coordinate system is in local metres, so it starts placed at the origin
+     * too. Terrain
      * becomes the twin's ground, replacing any it had. Map layers and imagery
      * are already in longitude and latitude, so they go where they are. Null
      * when the latest version already shows it.
@@ -71,7 +72,7 @@ final readonly class AddAssetToTwin
 
         if ($asset->kind === ProjectAssetKind::Bim) {
             $layer['placement'] = $this->placeModel($definition, $asset->details['georeference'] ?? null);
-        } elseif ($asset->kind === ProjectAssetKind::Model || ($asset->kind === ProjectAssetKind::PointCloud && $asset->crs === null)) {
+        } elseif ($asset->kind === ProjectAssetKind::Model || (in_array($asset->kind, [ProjectAssetKind::PointCloud, ProjectAssetKind::Mesh], true) && $asset->crs === null)) {
             $layer['placement'] = self::ORIGIN;
         }
 

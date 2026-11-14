@@ -8,6 +8,7 @@ import {
     Mountain,
     RotateCcw,
     ScanLine,
+    Shapes,
     Trash2,
     TriangleAlert,
 } from 'lucide-react';
@@ -28,7 +29,8 @@ export type LibraryAsset = {
         | 'terrain'
         | 'bim'
         | 'vector'
-        | 'imagery';
+        | 'imagery'
+        | 'mesh';
     /** A map layer's feature count. */
     features: number | null;
     originalName: string;
@@ -64,6 +66,8 @@ const ready: Record<LibraryAsset['kind'], (asset: LibraryAsset) => string> = {
         `Map layer · ${asset.features ?? 0} features · ${asset.crs ?? 'unknown CRS'}`,
     imagery: (asset) =>
         `Imagery · ${asset.files} files · ${asset.crs ?? 'unknown CRS'}`,
+    mesh: (asset) =>
+        `Mesh · ${asset.files} files · ${asset.crs ?? 'local metres'}`,
 };
 
 /** Kinds converted on the queue, which show progress and can be retried. */
@@ -106,6 +110,8 @@ function Icon({ asset }: { asset: LibraryAsset }) {
         <MapIcon className={className} />
     ) : asset.kind === 'imagery' ? (
         <ImageIcon className={className} />
+    ) : asset.kind === 'mesh' ? (
+        <Shapes className={className} />
     ) : (
         <Box className={className} />
     );
