@@ -1,4 +1,5 @@
 import { mkdtempSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { OPCUACertificateManager } from 'node-opcua-certificate-manager';
@@ -15,90 +16,127 @@ import { OPCUAServer } from 'node-opcua-server';
  */
 
 export interface SimulatorOptions {
-  port?: number;
-  /** When set, only these logins may connect; otherwise anyone may, anonymously. */
-  users?: Record<string, string>;
+    port?: number;
+    /** When set, only these logins may connect; otherwise anyone may, anonymously. */
+    users?: Record<string, string>;
 }
 
 export const SIMULATED = {
-  'Store.TempC': DataType.Double,
-  'Store.DoorOpen': DataType.Boolean,
-  'Meter.EnergyWh': DataType.UInt32,
-  'Store.Status': DataType.String,
-  'Pump.StartBar': DataType.Double,
-  'Fan.SpeedPct': DataType.UInt16,
+    'Store.TempC': DataType.Double,
+    'Store.DoorOpen': DataType.Boolean,
+    'Meter.EnergyWh': DataType.UInt32,
+    'Store.Status': DataType.String,
+    'Pump.StartBar': DataType.Double,
+    'Fan.SpeedPct': DataType.UInt16,
 } as const;
 
 export type SimulatedNode = keyof typeof SIMULATED;
 
-export async function startSimulator(options: SimulatorOptions = {}) {
-  const values: Record<SimulatedNode, unknown> = {
-    'Store.TempC': -18.5,
-    'Store.DoorOpen': false,
-    'Meter.EnergyWh': 0,
-    'Store.Status': 'ok',
-    'Pump.StartBar': 6,
-    'Fan.SpeedPct': 50,
-  };
-  const writes: { node: SimulatedNode; value: unknown }[] = [];
-  const users = options.users;
-  const server = new OPCUAServer({
-    port: options.port ?? 4840,
-    resourcePath: '/meridian',
-    buildInfo: { productName: 'Meridian OPC UA simulator' },
-    serverCertificateManager: new OPCUACertificateManager({
-      rootFolder: mkdtempSync(join(tmpdir(), 'meridian-opcua-')),
-      automaticallyAcceptUnknownCertificate: true,
-    }),
-    allowAnonymous: !users,
-    ...(users ? { userManager: { isValidUser: (name: string, password: string) => users[name] === password } } : {}),
-  });
-  await server.initialize();
-  const addressSpace = server.engine.addressSpace!;
-  const namespace = addressSpace.getOwnNamespace();
-  const site = namespace.addObject({ organizedBy: addressSpace.rootFolder.objects, browseName: 'Site' });
-  for (const [name, dataType] of Object.entries(SIMULATED) as [SimulatedNode, DataType][]) {
-    namespace.addVariable({
-      componentOf: site,
-      nodeId: `s=${name}`,
-      browseName: name,
-      dataType,
-      minimumSamplingInterval: 100,
-      // Store.Status is read-only; the rest can be written, as a PLC's tags can.
-      ...(name === 'Store.Status'
-        ? { accessLevel: 'CurrentRead', userAccessLevel: 'CurrentRead' }
-        : { accessLevel: 'CurrentRead | CurrentWrite', userAccessLevel: 'CurrentRead | CurrentWrite' }),
-      value: {
-        get: () => new Variant({ dataType, value: values[name] }),
-        set: (variant: Variant) => {
-          values[name] = variant.value;
-          writes.push({ node: name, value: variant.value });
-          return StatusCodes.Good;
-        },
-      },
+/**
+ * A port nothing is listening on, from the operating system. Fixed ports in
+ * tests can already be taken by an outgoing connection, since they fall in
+ * the range the system hands those out from.
+ */
+export function freePort(): Promise<number> {
+    return new Promise((done, fail) => {
+        const probe = createServer();
+        probe.once('error', fail);
+        probe.listen(0, '127.0.0.1', () => {
+            const { port } = probe.address() as { port: number };
+            probe.close(() => done(port));
+        });
     });
-  }
-  await server.start();
-  return {
-    endpoint: server.getEndpointUrl().replace(/\/\/[^:/]+/, '//127.0.0.1'),
-    set(name: SimulatedNode, value: unknown) {
-      values[name] = value;
-    },
-    get: (name: SimulatedNode) => values[name],
-    /** What clients have written, oldest first. */
-    writes,
-    stop: () => server.shutdown(0),
-  };
+}
+
+export async function startSimulator(options: SimulatorOptions = {}) {
+    const values: Record<SimulatedNode, unknown> = {
+        'Store.TempC': -18.5,
+        'Store.DoorOpen': false,
+        'Meter.EnergyWh': 0,
+        'Store.Status': 'ok',
+        'Pump.StartBar': 6,
+        'Fan.SpeedPct': 50,
+    };
+    const writes: { node: SimulatedNode; value: unknown }[] = [];
+    const users = options.users;
+    const server = new OPCUAServer({
+        port: options.port ?? 4840,
+        resourcePath: '/meridian',
+        buildInfo: { productName: 'Meridian OPC UA simulator' },
+        serverCertificateManager: new OPCUACertificateManager({
+            rootFolder: mkdtempSync(join(tmpdir(), 'meridian-opcua-')),
+            automaticallyAcceptUnknownCertificate: true,
+        }),
+        allowAnonymous: !users,
+        ...(users
+            ? {
+                  userManager: {
+                      isValidUser: (name: string, password: string) =>
+                          users[name] === password,
+                  },
+              }
+            : {}),
+    });
+    await server.initialize();
+    const addressSpace = server.engine.addressSpace!;
+    const namespace = addressSpace.getOwnNamespace();
+    const site = namespace.addObject({
+        organizedBy: addressSpace.rootFolder.objects,
+        browseName: 'Site',
+    });
+    for (const [name, dataType] of Object.entries(SIMULATED) as [
+        SimulatedNode,
+        DataType,
+    ][]) {
+        namespace.addVariable({
+            componentOf: site,
+            nodeId: `s=${name}`,
+            browseName: name,
+            dataType,
+            minimumSamplingInterval: 100,
+            // Store.Status is read-only; the rest can be written, as a PLC's tags can.
+            ...(name === 'Store.Status'
+                ? { accessLevel: 'CurrentRead', userAccessLevel: 'CurrentRead' }
+                : {
+                      accessLevel: 'CurrentRead | CurrentWrite',
+                      userAccessLevel: 'CurrentRead | CurrentWrite',
+                  }),
+            value: {
+                get: () => new Variant({ dataType, value: values[name] }),
+                set: (variant: Variant) => {
+                    values[name] = variant.value;
+                    writes.push({ node: name, value: variant.value });
+                    return StatusCodes.Good;
+                },
+            },
+        });
+    }
+    await server.start();
+    return {
+        endpoint: server.getEndpointUrl().replace(/\/\/[^:/]+/, '//127.0.0.1'),
+        set(name: SimulatedNode, value: unknown) {
+            values[name] = value;
+        },
+        get: (name: SimulatedNode) => values[name],
+        /** What clients have written, oldest first. */
+        writes,
+        stop: () => server.shutdown(0),
+    };
 }
 
 if (process.argv[1] === import.meta.filename) {
-  const sim = await startSimulator({ port: Number(process.env.OPCUA_PORT ?? 4840) });
-  console.log(`OPC UA simulator on ${sim.endpoint}`);
-  let t = 0;
-  setInterval(() => {
-    t += 1;
-    sim.set('Store.TempC', Math.round((-18 + 2 * Math.sin(t / 30)) * 100) / 100);
-    sim.set('Store.DoorOpen', t % 120 < 10);
-    sim.set('Meter.EnergyWh', t * 25);
-  }, 1000);
+    const sim = await startSimulator({
+        port: Number(process.env.OPCUA_PORT ?? 4840),
+    });
+    console.log(`OPC UA simulator on ${sim.endpoint}`);
+    let t = 0;
+    setInterval(() => {
+        t += 1;
+        sim.set(
+            'Store.TempC',
+            Math.round((-18 + 2 * Math.sin(t / 30)) * 100) / 100,
+        );
+        sim.set('Store.DoorOpen', t % 120 < 10);
+        sim.set('Meter.EnergyWh', t * 25);
+    }, 1000);
 }
