@@ -44,7 +44,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
 
 COPY --from=micromamba /bin/micromamba /usr/local/bin/micromamba
 
-RUN micromamba create -y -p /opt/pointclouds -c conda-forge python=3.12 pdal=2.10.1 \
+RUN micromamba create -y -p /opt/pointclouds -c conda-forge python=3.12 pdal=2.10.2 \
         gdal=3.13.3 pydelatin=0.4.0 quantized-mesh-encoder=0.5.0 pip \
     && /opt/pointclouds/bin/pip install --no-cache-dir "py3dtiles[las]==12.1.1" "ifcopenshell==0.9.0.post1" \
     && micromamba clean -a -y
