@@ -27,9 +27,12 @@ Only editors (owners and admins) can create projects. The project page shows:
 | **`.las`**, **`.laz`** or **`.e57`**  | A **point cloud**, converted to a tileset | See [Point clouds](04-point-clouds.md)                                                                                                                                                                                |
 | **`.tif`**, **`.tiff`** or **`.asc`** | **Terrain**, converted from a DEM         | See [Terrain](05-terrain.md)                                                                                                                                                                                          |
 | **`.ifc`** (IFC2X3 or IFC4)           | A **BIM model**, converted to a model     | See [BIM models](#bim-models)                                                                                                                                                                                         |
+| **`.geojson`**, **`.json`**, **`.kml`**, **`.kmz`**, **`.dxf`**, **`.gpkg`**, or a **`.zip`** of a shapefile | A **map layer**, drawn on the ground | See [Map layers and imagery](16-map-layers-and-imagery.md) |
+| A **`.tif`** or **`.tiff`** orthophoto | **Imagery**, cut into map tiles           | See [Map layers and imagery](16-map-layers-and-imagery.md)                                                                                                                                                            |
 
 - **Models** are things you place by hand: a pump skid, a container, a piece of plant from CAD. You give them a position, heading and scale in the twin.
 - **Tilesets** are large or detailed scenes streamed in pieces: photogrammetry, a BIM export, a city model. A tileset usually knows where on Earth it belongs; if it was built in local metres, you can place it like a model.
+- **Map layers** and **imagery** are maps of the site: boundaries, plans, survey points, orthophotos. They know where they belong and lie on the ground.
 - **BIM models** are buildings from Revit, ArchiCAD or any tool that exports IFC. Meridian converts each one to a model, keeping every element (each wall, slab and pump) as a part you can pick.
 
 ## Upload to the library
@@ -37,7 +40,7 @@ Only editors (owners and admins) can create projects. The project page shows:
 ![The library while a point cloud converts: a tileset, the scan at 45% with its log open, and a model.](../images/library-converting.png)
 
 1. On the project page, under **Library**, choose the file. The **Name** fills in from the file name; change it to something people will recognise.
-2. For a point cloud, two more fields appear: **EPSG code** and **Thin to spacing (m)**. See [Point clouds](04-point-clouds.md). A DEM gets **EPSG code** only; see [Terrain](05-terrain.md).
+2. For a point cloud, two more fields appear: **EPSG code** and **Thin to spacing (m)**. See [Point clouds](04-point-clouds.md). A DEM gets **EPSG code** only; see [Terrain](05-terrain.md). A `.tif` or `.zip` also asks what **It is**: terrain or imagery, a tileset or a shapefile; see [Map layers and imagery](16-map-layers-and-imagery.md).
 3. Choose **Upload**. The button shows the progress.
 
 Each item in the library shows what it is, its size and the original file name, and its state:

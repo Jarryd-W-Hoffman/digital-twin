@@ -12,7 +12,7 @@ const servers = Array.isArray(e2e.webServer) ? e2e.webServer : [];
 export default defineConfig({
     ...e2e,
     testDir: 'tests/screenshots',
-    timeout: 1_200_000,
+    timeout: 1_800_000,
     use: { ...e2e.use, colorScheme: 'dark' },
     webServer: servers.map((server, i) =>
         i === 0

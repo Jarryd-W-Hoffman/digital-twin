@@ -11,18 +11,24 @@ enum ProjectAssetKind: string
     case PointCloud = 'pointcloud';
     case Terrain = 'terrain';
     case Bim = 'bim';
+    case Vector = 'vector';
+    case Imagery = 'imagery';
 
     /**
      * Kinds are told apart by extension; the file's contents are checked when
-     * it is processed.
+     * it is processed. Two extensions are ambiguous, so the uploader says: a
+     * GeoTIFF is terrain unless it's `imagery`, and a zip is a tileset unless
+     * it's a `vector` (a zipped shapefile).
      */
-    public static function fromFilename(string $filename): self
+    public static function fromFilename(string $filename, ?string $as = null): self
     {
         return match (mb_strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
-            'zip' => self::Tileset,
+            'zip' => $as === self::Vector->value ? self::Vector : self::Tileset,
             'las', 'laz', 'e57' => self::PointCloud,
-            'tif', 'tiff', 'asc' => self::Terrain,
+            'tif', 'tiff' => $as === self::Imagery->value ? self::Imagery : self::Terrain,
+            'asc' => self::Terrain,
             'ifc' => self::Bim,
+            'geojson', 'json', 'kml', 'kmz', 'dxf', 'gpkg' => self::Vector,
             default => self::Model,
         };
     }
@@ -36,10 +42,11 @@ enum ProjectAssetKind: string
     }
 
     /**
-     * Point clouds, DEMs and IFC models are kept as uploaded and converted on the queue.
+     * Point clouds, DEMs, IFC models, map layers and imagery are kept as
+     * uploaded and converted on the queue.
      */
     public function isConverted(): bool
     {
-        return in_array($this, [self::PointCloud, self::Terrain, self::Bim], true);
+        return $this !== self::Model && $this !== self::Tileset;
     }
 }

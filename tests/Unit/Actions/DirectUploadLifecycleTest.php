@@ -108,3 +108,13 @@ it('keeps conversion options for a point cloud only', function (): void {
         ->and($cloud->refresh()->options)->toBe(['spacing' => 0.1])
         ->and($model->refresh()->options)->toBeNull();
 });
+
+it('takes what an ambiguous file is from the uploader, without keeping it as an option', function (): void {
+    fakeDirectUploads(['CreateMultipartUpload' => new Result(['UploadId' => 'u'])]);
+    $project = Project::factory()->create();
+
+    $ortho = resolve(StartDirectUpload::class)->handle($project, 'Ortho', 'ortho.tif', 10, ['epsg' => 2193, 'as' => 'imagery'])['asset'];
+
+    expect($ortho->kind)->toBe(ProjectAssetKind::Imagery)
+        ->and($ortho->refresh()->options)->toBe(['epsg' => 2193]);
+});

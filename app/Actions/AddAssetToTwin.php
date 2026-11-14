@@ -31,8 +31,9 @@ final readonly class AddAssetToTwin
      * puts them. A converted IFC model starts where the file says it is, if
      * that's near the twin. A point cloud is a tileset; one without a coordinate system
      * is in local metres, so it starts placed at the origin too. Terrain
-     * becomes the twin's ground, replacing any it had. Null when the latest
-     * version already shows it.
+     * becomes the twin's ground, replacing any it had. Map layers and imagery
+     * are already in longitude and latitude, so they go where they are. Null
+     * when the latest version already shows it.
      */
     public function handle(Twin $twin, ?User $user, ProjectAsset $asset): ?TwinVersion
     {
@@ -54,7 +55,12 @@ final readonly class AddAssetToTwin
             return $this->versions->handle($twin, $user, $definition, __('Set the terrain to :name', ['name' => $asset->name]));
         }
 
-        $field = $asset->kind->isTileset() ? 'tilesets' : 'models';
+        $field = match (true) {
+            $asset->kind->isTileset() => 'tilesets',
+            $asset->kind === ProjectAssetKind::Vector => 'vectors',
+            $asset->kind === ProjectAssetKind::Imagery => 'imagery',
+            default => 'models',
+        };
         $layers = is_array($definition[$field] ?? null) ? array_values($definition[$field]) : [];
 
         if (array_any($layers, fn (mixed $layer): bool => is_array($layer) && ($layer['assetId'] ?? null) === $asset->id)) {

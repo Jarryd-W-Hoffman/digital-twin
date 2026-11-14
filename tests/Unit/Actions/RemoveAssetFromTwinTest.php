@@ -22,6 +22,22 @@ it('takes the layer out in a new version and keeps the upload', function (): voi
         ->and($asset->fresh())->not->toBeNull();
 });
 
+it('takes out map layers and imagery, leaving lists the twin never had absent', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $parcels = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Vector, 'entry' => 'layer.geojson']);
+    $ortho = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Imagery, 'entry' => 'imagery.json']);
+    resolve(AddAssetToTwin::class)->handle($twin, $user, $parcels);
+    resolve(AddAssetToTwin::class)->handle($twin, $user, $ortho);
+
+    $definition = resolve(RemoveAssetFromTwin::class)->handle($twin, $user, $parcels)?->definition;
+    expect($definition['vectors'])->toBe([])
+        ->and($definition['imagery'])->toHaveCount(1)
+        ->and($definition)->not->toHaveKey('models');
+
+    expect(resolve(RemoveAssetFromTwin::class)->handle($twin, $user, $ortho)?->definition['imagery'])->toBe([]);
+});
+
 it('saves nothing when the twin does not show the upload', function (): void {
     [$user, $organisation] = member();
     $twin = twinIn($organisation);

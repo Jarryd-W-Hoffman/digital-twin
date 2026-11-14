@@ -92,6 +92,32 @@ it('takes DEMs and says they are converting to terrain', function (): void {
     expect($project->assets()->sole()->kind)->toBe(ProjectAssetKind::Terrain);
 });
 
+it('takes map layers and imagery, and says they are converting', function (string $file, ?string $as, ProjectAssetKind $kind, string $message): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), array_filter([
+        'name' => 'Site', 'file' => UploadedFile::fake()->createWithContent($file, 'bytes'), 'epsg' => '2193', 'as' => $as,
+    ]))->assertInertiaFlash('toast', ['type' => 'success', 'message' => $message]);
+
+    expect($project->assets()->sole()->kind)->toBe($kind)
+        ->and($project->assets()->sole()->options)->toBe(['epsg' => 2193]);
+})->with([
+    'a DXF plan' => ['plan.dxf', null, ProjectAssetKind::Vector, 'Site uploaded. Converting it to a map layer…'],
+    'a zipped shapefile' => ['parcels.zip', 'vector', ProjectAssetKind::Vector, 'Site uploaded. Converting it to a map layer…'],
+    'an orthophoto' => ['ortho.tif', 'imagery', ProjectAssetKind::Imagery, 'Site uploaded. Tiling the image…'],
+]);
+
+it('refuses to take a file as anything but imagery or a map layer', function (): void {
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Site', 'file' => UploadedFile::fake()->createWithContent('ortho.tif', 'bytes'), 'as' => 'terrain',
+    ])->assertSessionHasErrors('as');
+});
+
 it('takes IFC models and says they are converting to a model', function (): void {
     Queue::fake();
     [$user, $organisation] = member();

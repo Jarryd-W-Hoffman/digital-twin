@@ -34,7 +34,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read int|null $progress
  * @property-read string|null $log
  * @property-read string|null $crs
- * @property-read array{elements?: int, georeference?: array{lon: float, lat: float, headingDeg: float, source: string}|null}|null $details
+ * @property-read array{elements?: int, georeference?: array{lon: float, lat: float, headingDeg: float, source: string}|null, features?: int, bounds?: list<float>, zooms?: list<int>}|null $details
  * @property-read Project $project
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at

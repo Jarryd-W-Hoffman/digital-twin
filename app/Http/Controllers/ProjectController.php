@@ -99,6 +99,7 @@ final readonly class ProjectController
                 'log' => $asset->log,
                 'crs' => $asset->crs,
                 'elements' => $asset->details['elements'] ?? null,
+                'features' => $asset->details['features'] ?? null,
                 'createdAt' => $asset->created_at->toIso8601String(),
             ]),
             'devices' => $project->devices()->orderBy('name')->get()->map(fn (Device $device): array => [

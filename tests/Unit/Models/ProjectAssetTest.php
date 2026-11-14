@@ -28,8 +28,8 @@ it('knows whether it is ready and where a direct upload lands', function (): voi
         ->and(ProjectAsset::factory()->create()->isReady())->toBeTrue();
 });
 
-it('tells models from tileset archives by extension', function (string $filename, ProjectAssetKind $kind): void {
-    expect(ProjectAssetKind::fromFilename($filename))->toBe($kind);
+it('tells models from tileset archives by extension', function (string $filename, ProjectAssetKind $kind, ?string $as = null): void {
+    expect(ProjectAssetKind::fromFilename($filename, $as))->toBe($kind);
 })->with([
     ['scan.ZIP', ProjectAssetKind::Tileset],
     ['pump.glb', ProjectAssetKind::Model],
@@ -41,6 +41,16 @@ it('tells models from tileset archives by extension', function (string $filename
     ['site.TIFF', ProjectAssetKind::Terrain],
     ['grid.asc', ProjectAssetKind::Terrain],
     ['shed.IFC', ProjectAssetKind::Bim],
+    ['parcels.geojson', ProjectAssetKind::Vector],
+    ['parcels.json', ProjectAssetKind::Vector],
+    ['route.KML', ProjectAssetKind::Vector],
+    ['route.kmz', ProjectAssetKind::Vector],
+    ['plan.dxf', ProjectAssetKind::Vector],
+    ['survey.gpkg', ProjectAssetKind::Vector],
+    'a GeoTIFF as imagery' => ['ortho.tif', ProjectAssetKind::Imagery, 'imagery'],
+    'a zipped shapefile' => ['parcels.zip', ProjectAssetKind::Vector, 'vector'],
+    'imagery is only a GeoTIFF' => ['grid.asc', ProjectAssetKind::Terrain, 'imagery'],
+    'a shapefile is only a zip' => ['ortho.tif', ProjectAssetKind::Terrain, 'vector'],
 ]);
 
 it('shows point clouds and tilesets as tilesets', function (): void {
@@ -55,6 +65,8 @@ it('converts point clouds, DEMs and IFC models on the queue', function (): void 
     expect(ProjectAssetKind::PointCloud->isConverted())->toBeTrue()
         ->and(ProjectAssetKind::Bim->isConverted())->toBeTrue()
         ->and(ProjectAssetKind::Terrain->isConverted())->toBeTrue()
+        ->and(ProjectAssetKind::Vector->isConverted())->toBeTrue()
+        ->and(ProjectAssetKind::Imagery->isConverted())->toBeTrue()
         ->and(ProjectAssetKind::Tileset->isConverted())->toBeFalse()
         ->and(ProjectAssetKind::Model->isConverted())->toBeFalse();
 });

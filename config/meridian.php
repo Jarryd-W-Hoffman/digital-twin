@@ -62,6 +62,24 @@ return [
     ],
 
     /*
+    | Map layers (GeoJSON, KML, KMZ, zipped shapefiles, DXF, GeoPackage) are
+    | converted to GeoJSON in WGS84 by meridian-vector, and georeferenced images
+    | (GeoTIFF orthophotos) to web map tiles by meridian-imagery, both GDAL, on
+    | the same queue.
+    */
+    'vector' => [
+        'converter' => env('MERIDIAN_VECTOR_CONVERTER', 'meridian-vector'),
+        'max_features' => (int) env('MERIDIAN_VECTOR_MAX_FEATURES', 250_000),
+        'timeout_minutes' => (int) env('MERIDIAN_VECTOR_TIMEOUT_MINUTES', 30),
+    ],
+
+    'imagery' => [
+        'tiler' => env('MERIDIAN_IMAGERY_TILER', 'meridian-imagery'),
+        'jobs' => (int) env('MERIDIAN_IMAGERY_JOBS', 2),
+        'timeout_minutes' => (int) env('MERIDIAN_IMAGERY_TIMEOUT_MINUTES', 240),
+    ],
+
+    /*
     | Readings gateways report (from MQTT or POST /ingest) are kept this long
     | for history charts. TimescaleDB drops older chunks itself; elsewhere the
     | scheduled model:prune does.

@@ -34,7 +34,7 @@ From the project's library:
 
 A BIM model that knows where it is lands there, turned to match the file; one that doesn't starts at the twin's origin. See [BIM models](03-projects-and-the-library.md#bim-models).
 
-A converted DEM shows **Use as terrain** instead: the twin stands on it, replacing any terrain it had. See [Terrain](05-terrain.md).
+A converted DEM shows **Use as terrain** instead: the twin stands on it, replacing any terrain it had. See [Terrain](05-terrain.md). Map layers and imagery are added with **Add** and need no placing; see [Map layers and imagery](16-map-layers-and-imagery.md).
 
 Or upload something new straight into this twin:
 

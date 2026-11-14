@@ -31,7 +31,14 @@ export type TwinVersionSummary = {
 
 export type TwinAssetSummary = {
     id: string;
-    kind: 'model' | 'tileset' | 'pointcloud' | 'terrain' | 'bim';
+    kind:
+        | 'model'
+        | 'tileset'
+        | 'pointcloud'
+        | 'terrain'
+        | 'bim'
+        | 'vector'
+        | 'imagery';
     name: string;
     originalName: string;
     bytes: number;
@@ -116,6 +123,16 @@ export function TwinEditor({
         ...(definition.tilesets ?? []).map((l) => ({
             ...l,
             kind: 'Tileset' as const,
+        })),
+        ...(definition.vectors ?? []).map((l) => ({
+            ...l,
+            placement: undefined,
+            kind: 'Map layer' as const,
+        })),
+        ...(definition.imagery ?? []).map((l) => ({
+            ...l,
+            placement: undefined,
+            kind: 'Imagery' as const,
         })),
     ];
     const dirty = Object.keys(drafts).length > 0;
@@ -205,9 +222,12 @@ export function TwinEditor({
                 <h3>Upload</h3>
                 <p className="muted hint">
                     A model as .glb, a 3D Tiles tileset zipped with tileset.json
-                    at the top, or a LAS, LAZ or E57 point cloud. It goes into
-                    the project's library and is added here; a point cloud is
-                    converted first, then added from the library.
+                    at the top, a LAS, LAZ or E57 point cloud, a DEM, an IFC
+                    model, or a GeoJSON, KML, KMZ, DXF or GeoPackage map layer.
+                    It goes into the project's library and is added here;
+                    anything converted first is added from the library once it's
+                    ready. Upload imagery and zipped shapefiles from the
+                    project's page, which asks what they are.
                 </p>
                 <form
                     className="editor-form"
@@ -230,7 +250,7 @@ export function TwinEditor({
                     <input
                         aria-label="Upload file"
                         type="file"
-                        accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc,.ifc"
+                        accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc,.ifc,.geojson,.json,.kml,.kmz,.dxf,.gpkg"
                         required
                         onChange={(e) => {
                             const file = e.target.files?.[0] ?? null;
@@ -240,7 +260,7 @@ export function TwinEditor({
                                 name:
                                     data.name ||
                                     (file?.name.replace(
-                                        /\.(glb|zip|las|laz|e57|tif|tiff|asc)$/i,
+                                        /\.(glb|zip|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i,
                                         '',
                                     ) ??
                                         ''),
@@ -309,10 +329,14 @@ export function TwinEditor({
                         const asset = assets.find(
                             (a) => a.id === layer.assetId,
                         );
-                        const draft =
-                            layer.id in drafts
-                                ? drafts[layer.id]
-                                : savedPlacement(definition, layer.id);
+                        // Map layers and imagery are where their coordinates say.
+                        const placeable =
+                            layer.kind === 'Model' || layer.kind === 'Tileset';
+                        const draft = !placeable
+                            ? undefined
+                            : layer.id in drafts
+                              ? drafts[layer.id]
+                              : savedPlacement(definition, layer.id);
                         const placed = draft !== undefined;
                         return (
                             <li key={layer.id}>
@@ -496,7 +520,9 @@ export function TwinEditor({
                                                 ? 'point cloud'
                                                 : asset.kind === 'bim'
                                                   ? 'BIM model'
-                                                  : asset.kind}{' '}
+                                                  : asset.kind === 'vector'
+                                                    ? 'map layer'
+                                                    : asset.kind}{' '}
                                             · {size(asset.bytes)}
                                         </span>
                                     </span>

@@ -89,3 +89,25 @@ it('converts an IFC model to a GLB', function (): void {
     expect($this->asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
         ->and($this->asset->entry)->toBe('model.glb');
 });
+
+it('converts a map layer to GeoJSON', function (): void {
+    fakeVectorConverter();
+    $this->asset->update(['kind' => ProjectAssetKind::Vector, 'original_name' => 'parcels.zip']);
+    Storage::disk('local')->put($this->asset->sourceKey(), 'PK');
+
+    dispatch_sync(new ConvertUpload($this->asset));
+
+    expect($this->asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($this->asset->entry)->toBe('layer.geojson');
+});
+
+it('tiles an image', function (): void {
+    fakeImageryTiler();
+    $this->asset->update(['kind' => ProjectAssetKind::Imagery, 'original_name' => 'ortho.tif']);
+    Storage::disk('local')->put($this->asset->sourceKey(), "II*\0");
+
+    dispatch_sync(new ConvertUpload($this->asset));
+
+    expect($this->asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($this->asset->entry)->toBe('imagery.json');
+});

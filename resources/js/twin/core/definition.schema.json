@@ -954,6 +954,95 @@
                 }
             }
         },
+        "vectors": {
+            "type": "array",
+            "x-message": "vectors must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "A map layer has no id",
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "x-message": "A map layer has no id",
+                        "title": "Id"
+                    }
+                },
+                "if": {
+                    "required": ["id"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["url"],
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "minLength": 1,
+                            "x-message": "Map layer {0:id}: needs a url"
+                        },
+                        "color": {
+                            "type": "string",
+                            "pattern": "^#[0-9a-fA-F]{6}$",
+                            "x-message": "Map layer {0:id}: color must be #rrggbb"
+                        },
+                        "opacity": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "x-message": "Map layer {0:id}: opacity must be 0..1"
+                        }
+                    }
+                }
+            }
+        },
+        "imagery": {
+            "type": "array",
+            "x-message": "imagery must be an array",
+            "items": {
+                "type": "object",
+                "x-message": "An imagery layer has no id",
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "x-message": "An imagery layer has no id",
+                        "title": "Id"
+                    }
+                },
+                "if": {
+                    "required": ["id"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["url"],
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "minLength": 1,
+                            "x-message": "Imagery {0:id}: needs a url"
+                        },
+                        "opacity": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "x-message": "Imagery {0:id}: opacity must be 0..1"
+                        }
+                    }
+                }
+            }
+        },
         "telemetry": {
             "type": "array",
             "x-message": "telemetry must be an array",

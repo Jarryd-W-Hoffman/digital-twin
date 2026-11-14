@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""
+Turns a vector file (GeoJSON, KML or KMZ, a zipped shapefile, DXF, a
+GeoPackage, anything OGR reads) into one GeoJSON FeatureCollection in WGS84
+longitude and latitude, for the viewer to drape on the ground:
+
+    open the file (a .zip through /vsizip/, so a shapefile's parts are read together)
+    for each layer:
+        take its coordinate system, or the one given when it has none
+        for each feature with a geometry:
+            reproject it, drop heights, keep its fields
+            add the layer's name as "layer"
+    write layer.geojson
+
+Prints a one-line JSON summary: the coordinate system, the counts and the bounds.
+"""
+
+import argparse
+import datetime
+import json
+import os
+import sys
+
+from osgeo import gdal, ogr, osr
+
+gdal.UseExceptions()
+ogr.UseExceptions()
+osr.UseExceptions()
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    sys.exit(2)
+
+
+def crs_label(reference: osr.SpatialReference) -> str:
+    authority, code = reference.GetAuthorityName(None), reference.GetAuthorityCode(None)
+    return f"{authority}:{code}" if authority and code else (reference.GetName() or "Custom")
+
+
+def plain(value):
+    """Field values JSON can carry; dates and times as ISO text."""
+    if isinstance(value, (datetime.date, datetime.datetime, datetime.time)):
+        return value.isoformat()
+    if isinstance(value, bytes):
+        return None
+    return value
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Converts a vector file to GeoJSON in WGS84.")
+    parser.add_argument("source")
+    parser.add_argument("out")
+    parser.add_argument("--srs", help="The file's coordinate system, when it carries none (EPSG:2193)")
+    parser.add_argument("--max-features", type=int, default=250_000)
+    parser.add_argument("--name", help="What to call a layer named after the working copy, such as the uploaded file's name")
+    args = parser.parse_args()
+
+    path = f"/vsizip/{args.source}" if args.source.lower().endswith(".zip") else args.source
+    try:
+        dataset = gdal.OpenEx(path, gdal.OF_VECTOR)
+    except RuntimeError:
+        dataset = None
+    if dataset is None or dataset.GetLayerCount() == 0:
+        fail("The file has no map layers that can be read.")
+
+    wgs84 = osr.SpatialReference()
+    wgs84.ImportFromEPSG(4326)
+    wgs84.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    given = None
+    if args.srs:
+        given = osr.SpatialReference()
+        given.SetFromUserInput(args.srs)
+        given.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+
+    features = 0
+    layers = 0
+    kinds: dict[str, int] = {}
+    crs = None
+    west, south, east, north = 180.0, 90.0, -180.0, -90.0
+
+    with open(args.out, "w", encoding="utf-8") as out:
+        out.write('{"type":"FeatureCollection","features":[')
+        for index in range(dataset.GetLayerCount()):
+            layer = dataset.GetLayerByIndex(index)
+            source = layer.GetSpatialRef()
+            if source is None:
+                source = given
+            if source is None:
+                fail(f"Layer {layer.GetName()} has no coordinate system. Give the file's EPSG code.")
+            source = source.Clone()
+            source.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+            crs = crs or crs_label(source)
+            transform = osr.CoordinateTransformation(source, wgs84)
+            # A single-layer file names its layer after the file, which here is the working copy.
+            name = layer.GetName()
+            if args.name and name == os.path.splitext(os.path.basename(args.source))[0]:
+                name = args.name
+            names = [layer.GetLayerDefn().GetFieldDefn(i).GetName() for i in range(layer.GetLayerDefn().GetFieldCount())]
+            counted = False
+
+            for feature in layer:
+                geometry = feature.GetGeometryRef()
+                if geometry is None or geometry.IsEmpty():
+                    continue
+                if features >= args.max_features:
+                    fail(f"The file has over {args.max_features:,} features. Split it, or simplify it first.")
+                geometry = geometry.Clone()
+                geometry.Transform(transform)
+                geometry.FlattenTo2D()
+                minx, maxx, miny, maxy = geometry.GetEnvelope()
+                west, east = min(west, minx), max(east, maxx)
+                south, north = min(south, miny), max(north, maxy)
+                kind = ogr.GeometryTypeToName(geometry.GetGeometryType())
+                kinds[kind] = kinds.get(kind, 0) + 1
+
+                properties = {name: plain(feature.GetField(name)) for name in names}
+                properties["layer"] = name
+                record = {
+                    "type": "Feature",
+                    "geometry": json.loads(geometry.ExportToJson(["COORDINATE_PRECISION=7"])),
+                    "properties": properties,
+                }
+                out.write(("," if features else "") + json.dumps(record, separators=(",", ":"), default=str))
+                features += 1
+                counted = True
+
+            layers += 1 if counted else 0
+        out.write("]}")
+
+    if features == 0:
+        fail("The file has no features with a shape.")
+    if west < -180 or east > 180 or south < -90 or north > 90:
+        fail("The shapes land off the globe. Check the file's EPSG code.")
+
+    print(json.dumps({
+        "crs": crs,
+        "features": features,
+        "layers": layers,
+        "kinds": kinds,
+        "bounds": [round(west, 7), round(south, 7), round(east, 7), round(north, 7)],
+    }))
+
+
+if __name__ == "__main__":
+    main()

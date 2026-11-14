@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { hasUploadedLayers } from '../core/layers.ts';
 import {
     formatMetric,
     metricDefFor,
@@ -26,7 +27,7 @@ const LAYERS: { id: keyof Layers; label: string }[] = [
     { id: 'labels', label: 'Labels' },
     { id: 'flows', label: 'Energy flows' },
     { id: 'zones', label: 'Zones and routes' },
-    { id: 'context', label: 'Neighbouring buildings' },
+    { id: 'context', label: 'Uploaded layers' },
     { id: 'shadows', label: 'Sun shadows' },
 ];
 
@@ -127,9 +128,7 @@ export function LeftPanel() {
                 <div className="control-group">
                     <h3>Layers</h3>
                     {LAYERS.filter(
-                        (l) =>
-                            l.id !== 'context' ||
-                            (def?.tilesets?.length ?? 0) > 0,
+                        (l) => l.id !== 'context' || hasUploadedLayers(def),
                     ).map((l) => (
                         <label key={l.id} className="check">
                             <input
