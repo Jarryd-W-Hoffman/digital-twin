@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Models\OpcUaServer;
 
 /**
@@ -13,8 +14,12 @@ use App\Models\OpcUaServer;
  */
 final readonly class DeleteOpcUaServer
 {
+    public function __construct(private RecordAuditEvent $audit) {}
+
     public function handle(OpcUaServer $server): void
     {
         $server->delete();
+
+        $this->audit->handle(AuditAction::OpcUaServerDeleted, $server->project, $server->name);
     }
 }

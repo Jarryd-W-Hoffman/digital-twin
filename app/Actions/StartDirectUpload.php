@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
 use App\Models\Project;
@@ -14,7 +15,7 @@ use Illuminate\Support\Str;
 
 final readonly class StartDirectUpload
 {
-    public function __construct(private DirectUploads $uploads) {}
+    public function __construct(private DirectUploads $uploads, private RecordAuditEvent $audit) {}
 
     /**
      * Adds the upload to the library as uploading and opens a multipart upload
@@ -42,6 +43,8 @@ final readonly class StartDirectUpload
             ]);
 
             $asset->update(['upload_id' => $this->uploads->start($asset->sourceKey())]);
+
+            $this->audit->handle(AuditAction::UploadAdded, $project, $name, ['kind' => $kind->value, 'file' => $asset->original_name]);
 
             return [
                 'asset' => $asset,

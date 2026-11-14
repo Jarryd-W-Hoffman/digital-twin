@@ -826,6 +826,7 @@ test('screenshots', async ({ page, context }) => {
             severity: string,
             quiet?: [string, string],
             escalateAfter?: string,
+            report?: string,
         ) => {
             const form = channels.getByRole('form', {
                 name: 'Add a notification channel',
@@ -846,6 +847,11 @@ test('screenshots', async ({ page, context }) => {
                     .selectOption('escalate');
                 await form.getByLabel('Minutes to wait').fill(escalateAfter);
             }
+            if (report) {
+                await form
+                    .getByLabel('Reports')
+                    .selectOption({ label: report });
+            }
             await form.getByRole('button', { name: 'Add channel' }).click();
             await expect(
                 channels
@@ -865,6 +871,7 @@ test('screenshots', async ({ page, context }) => {
             'warning',
             undefined,
             '15',
+            'Weekly, Mondays at 7:00',
         );
         await expect(page.getByText('Operations manager added.')).toBeHidden({
             timeout: 15_000,
@@ -1176,6 +1183,29 @@ test('screenshots', async ({ page, context }) => {
             page.getByRole('status', { name: 'New token' }).getByLabel('Token'),
         ).toHaveValue(/^mrd_/);
         await shot(page, 'api-tokens');
+        await page.goto('/organisation/audit');
+        await expect(
+            page.getByRole('table', { name: 'Audit log' }),
+        ).toContainText('Made an API token: Maintenance system');
+        await shot(page, 'audit-log');
+        // Filled in but not saved: saving fetches the provider's discovery document.
+        await page.goto('/organisation/sso');
+        await page
+            .getByLabel('Issuer')
+            .fill(
+                'https://login.microsoftonline.com/4f6c1b2e-northshore/v2.0',
+            );
+        await page
+            .getByLabel('Client ID')
+            .fill('8a1d5c3e-0b7f-4e21-9d6a-meridian');
+        await page.getByLabel('Client secret').fill('a-client-secret');
+        await page
+            .getByLabel('Email domains')
+            .fill('northshore.example, northshore-logistics.example');
+        await page
+            .getByLabel('Add people signing in for the first time as')
+            .check();
+        await shot(page, 'sso-settings');
         await page.goto('/settings/two-factor');
         await page.getByLabel('Password', { exact: true }).fill('password');
         await page.getByRole('button', { name: 'Confirm password' }).click();

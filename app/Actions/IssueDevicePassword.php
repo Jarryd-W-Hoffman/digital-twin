@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Models\Device;
 use Illuminate\Support\Str;
 
@@ -13,11 +14,15 @@ use Illuminate\Support\Str;
  */
 final readonly class IssueDevicePassword
 {
+    public function __construct(private RecordAuditEvent $audit) {}
+
     public function handle(Device $device): string
     {
         $password = 'mdv_'.Str::random(40);
 
         $device->update(['password_hash' => hash('sha256', $password), 'last_seen_at' => null]);
+
+        $this->audit->handle(AuditAction::DevicePasswordReset, $device->project, $device->name);
 
         return $password;
     }

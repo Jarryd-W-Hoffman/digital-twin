@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\ApiAlertAcknowledgementController;
+use App\Http\Controllers\ApiAuditController;
 use App\Http\Controllers\ApiIssueClosureController;
 use App\Http\Controllers\ApiIssueCommentController;
 use App\Http\Controllers\ApiIssuePhotoController;
@@ -52,6 +53,7 @@ Route::middleware(AuthenticateBroker::class)->prefix('mqtt/{secret}')->name('mqt
 // those that may write raise and comment on issues and acknowledge alerts.
 Route::middleware([AuthenticateApiToken::class, 'throttle:api'])->prefix('v1')->name('api.v1.')->group(function (): void {
     Route::get('token', [ApiTokenController::class, 'show'])->name('token.show');
+    Route::get('audit', [ApiAuditController::class, 'index'])->name('audit.index');
     Route::get('projects', [ApiProjectController::class, 'index'])->name('projects.index');
     Route::get('projects/{project}', [ApiProjectController::class, 'show'])->name('projects.show');
     Route::get('twins', [ApiTwinController::class, 'index'])->name('twins.index');

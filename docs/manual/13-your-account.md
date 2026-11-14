@@ -40,6 +40,15 @@ A passkey signs you in with your device's fingerprint, face or PIN instead of a 
 
 Next time, choose **Sign in with a passkey** on the sign-in page. To remove one, choose **Remove passkey** beside it. If your browser says **Passkeys are not supported in this browser.**, use your password instead.
 
+## Single sign-on
+
+If your organisation signs in through its own identity provider, link your account to it to sign in that way from then on.
+
+1. Sign in with your password or passkey, then choose **Single sign-on** in **Settings**.
+2. Choose **Link** with your organisation's name. You're sent to your identity provider, and back.
+
+Your linked identities are listed with the email the provider knows you by and when you last signed in through it. Choose **Unlink** to stop; you then sign in with your password or passkey. See [Single sign-on](02-organisations-and-members.md#single-sign-on) for how it works.
+
 ## Appearance
 
 Under **Appearance**, choose **Light**, **Dark** or **System** (follow your computer's setting). It applies to the control plane's pages; the twin viewer is always dark, so the 3D scene and its colours read the same for everyone.
@@ -47,4 +56,4 @@ Under **Appearance**, choose **Light**, **Dark** or **System** (follow your comp
 ## See also
 
 - [Getting started](01-getting-started.md#sign-in): signing in.
-- [Organisations and members](02-organisations-and-members.md): your role in each organisation.
+- [Organisations and members](02-organisations-and-members.md): your role in each organisation, and single sign-on.

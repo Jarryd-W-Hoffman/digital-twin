@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Models\Twin;
 
 final readonly class RevokeGatewayToken
 {
+    public function __construct(private RecordAuditEvent $audit) {}
+
     public function handle(Twin $twin): void
     {
         $twin->update([
@@ -17,5 +20,7 @@ final readonly class RevokeGatewayToken
             'gateway_mqtt' => null,
             'gateway_opcua' => null,
         ]);
+
+        $this->audit->handle(AuditAction::GatewayTokenRevoked, $twin, $twin->name);
     }
 }

@@ -14,6 +14,9 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Single sign-on** ([#42]): owners connect the organisation's OpenID Connect identity provider (Microsoft Entra ID, Okta, Google Workspace, Keycloak and others) under **Single sign-on**, for its email domains. **Sign in with single sign-on** on the sign-in page takes a work email to the provider and back, with PKCE, state and nonce checked. Someone new can join with a chosen role (viewer or operator); someone with an account links it under **Settings**, **Single sign-on**, so a provider never takes over an account by email. The provider must be on a public `https://` address unless `MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS` allows otherwise. Setting it up, turning it off, linking and joining are in the audit log. Roadmap item 14 is done.
+- **Audit log** ([#41]): **Audit log** in the sidebar, for owners and admins, keeps who did what in the organisation: members added, re-roled and removed, API tokens made and revoked, projects, uploads, types, twins and versions, gateway tokens, devices, OPC UA servers and writes, notification channels, acknowledged alerts and issues. Each entry names who did it (a person, an API token, or Meridian for the scheduler), from which address, what it was done to and where, with the names things had, so it still reads right after they're deleted. It filters by area, pages 50 at a time, is kept for two years (`MERIDIAN_AUDIT_RETENTION_DAYS`), and is readable at `GET /api/v1/audit`. Roadmap item 14, **Single sign-on and an audit log**, starts here.
+- **Reports** ([#40]): a notification channel can take the project's report **daily** at 7:00 or **weekly** on Mondays, in its time zone. For each twin it gives the alerts raised, how many were acknowledged and the median time to it, those nobody acknowledged and those still open, the assets that alerted most, and the issues raised, closed, open and overdue (listing the overdue ones). Email gets a table per twin, Slack and Teams a line per twin, and webhooks the figures (`report`). Quiet hours hold a report until they end, and **Send report now** sends one at once. Roadmap item 13 is done.
 - **Writing through the API** ([#39]): a token can have **Read and write** access. With it, another system raises issues (with or without a camera, a first comment and photo, and the alert they follow up), comments on them, closes and reopens them, and acknowledges alerts. What it does is signed with the token's name, such as **Maintenance system (API)**, in the twin, the alert log and the API, and stays after the token is revoked; channels hear about its issues as they do a person's. Read-only tokens get `403`.
 - **The API** ([#38]): **API** in the sidebar, where admins and owners make tokens for other systems (shown once, optionally expiring after 30, 90 or 365 days) and revoke them, and everyone sees when each was last used. A token reads its organisation's projects, twins and their assets, a metric's recorded history, the alert log and issues with their comments and photos as JSON under `/api/v1`, 120 requests a minute. A new user manual chapter, **The API**, covers it. Roadmap item 13, **API and reports**, starts here.
 - **Issues that reach people** ([#37]): an issue's author or an operator assigns it to anyone in the organisation, with a due date; the assignee is emailed, can close it, and finds it under **Mine**, and an issue past its date shows **Overdue**. **Raise issue** on an alert in the alert log opens the twin with the issue pinned on the alert's asset and linked to the alert. Notification channels can take **issue updates** (raised, assigned, closed) by email, Slack, Teams or webhook (`issue.raised`, `issue.assigned`, `issue.closed`), outside their quiet hours. Roadmap item 12 is done.
@@ -44,6 +47,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Fixed
 
+- **Sidebar on organisation pages** ([#41]): **Members**, **Types** and **API** showed no organisation switcher, because each page's own organisation details hid the shared ones.
 - **Issues after leaving an organisation** ([#37]): someone removed from an organisation can no longer close or delete the issues and comments they left there.
 - **Terrain relief shows** ([#31]): terrain is hillshaded, lit from the north-west, so slopes read at site scale where Cesium leaves the ground unlit. Flat ground is unchanged.
 - **Deleting an account keeps every organisation owned** ([#31]): it's refused while you're the only owner of an organisation with other members, with the organisation named, and you stay signed in. An organisation you're the only member of is deleted with you, its projects' files too.
@@ -233,6 +237,9 @@ Dates are when the change was merged into `main` (UTC).
 [#37]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/37
 [#38]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/38
 [#39]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/39
+[#40]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/40
+[#41]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/41
+[#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#36]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/36
 [#34]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/34
 [#33]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/33

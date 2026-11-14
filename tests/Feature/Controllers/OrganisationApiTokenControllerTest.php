@@ -19,7 +19,7 @@ it("lists the organisation's tokens without their secrets", function (Organisati
     $this->actingAs($user)->get(route('organisation.api-tokens.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('organisation/api-tokens')
-            ->where('organisation', ['id' => $organisation->id, 'name' => $organisation->name])
+            ->where('currentOrganisation', ['id' => $organisation->id, 'name' => $organisation->name])
             ->has('tokens', 2)
             ->where('tokens.0.id', $new->id)
             ->where('tokens.0.createdBy', null)

@@ -23,7 +23,7 @@ type Debug = {
 const PORT = 8797;
 const RECEIVER_PORT = 8796;
 
-type Delivery = { event: string; signature: string; body: string; json: { alert: { message: string }; issue: { title: string } } };
+type Delivery = { event: string; signature: string; body: string; json: { alert: { message: string }; issue: { title: string }; totals: { alerts: number; acknowledged: number; raisedIssues: number }; twins: { name: string }[] } };
 
 /** A webhook receiver on this machine, keeping what it's sent. */
 function receiver(): { server: Server; deliveries: Delivery[] } {
@@ -122,9 +122,11 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
     await channelForm.getByLabel('Webhook URL').fill(`http://127.0.0.1:${RECEIVER_PORT}/hook`);
     await channelForm.getByLabel('Send', { exact: true }).selectOption('info');
     await channelForm.getByLabel(/Also issue updates/).check();
+    await channelForm.getByLabel('Reports').selectOption({ label: 'Daily, at 7:00' });
     await channelForm.getByRole('button', { name: 'Add channel' }).click();
     const channel = owner.getByRole('list', { name: 'Notification channels' }).getByRole('listitem').filter({ hasText: 'Receiver' });
     const secret = await channel.getByLabel('Signing secret').innerText();
+    const projectUrl = owner.url();
     expect(secret).toMatch(/^whsec_/);
     await channel.getByRole('button', { name: 'Send test' }).click();
     await expect(owner.getByText('Test sent to Receiver.')).toBeVisible();
@@ -182,6 +184,18 @@ test('a gateway runs the twin from the control plane, and the twin page follows 
     await owner.goto(`${twinUrl}/alerts`);
     await expect(logged.getByRole('link', { name: /^Issue #\d+$/ })).toBeVisible();
     await expect(logged.getByRole('link', { name: 'Raise issue' })).toHaveCount(0);
+
+    // The channel takes a daily report; one can be sent at once, counting the day's alert and issue.
+    await owner.goto(projectUrl);
+    await expect(channel).toContainText('daily report');
+    await channel.getByRole('button', { name: 'Send report now' }).click();
+    await expect(owner.getByText('Report sent to Receiver.')).toBeVisible();
+    const report = hook.deliveries.find((d) => d.event === 'report');
+    expect(report && signed(report)).toBe(true);
+    expect(report!.json.totals.alerts).toBeGreaterThanOrEqual(1);
+    expect(report!.json.totals.acknowledged).toBeGreaterThanOrEqual(1);
+    expect(report!.json.totals.raisedIssues).toBe(1);
+    expect(report!.json.twins.map((t) => t.name)).toContain('Northshore Cold Chain Hub');
     await owner.goto(twinUrl);
     await expect(owner.locator('canvas').first()).toBeVisible({ timeout: 45_000 });
 

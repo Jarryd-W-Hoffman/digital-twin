@@ -71,6 +71,13 @@ return [
     ],
 
     /*
+    | How long an organisation's audit log is kept, in days.
+    */
+    'audit' => [
+        'retention_days' => (int) env('MERIDIAN_AUDIT_RETENTION_DAYS', 730),
+    ],
+
+    /*
     | Devices and gateways log in to the MQTT broker, which asks the control
     | plane through mosquitto-go-auth's HTTP backend. The broker sends the
     | secret in the URLs it calls; without one, those URLs answer 404. The
@@ -97,6 +104,16 @@ return [
         'allow_private_webhooks' => (bool) env('MERIDIAN_ALLOW_PRIVATE_WEBHOOKS', false),
         // The queue connection deliveries go on; empty for the default one.
         'connection' => (string) env('MERIDIAN_NOTIFICATIONS_QUEUE', ''),
+    ],
+
+    /*
+    | Single sign-on through an organisation's OpenID Connect identity
+    | provider. Meridian talks to the provider itself, so like webhooks it
+    | only reaches public https addresses, unless an identity provider on a
+    | private network (an on-premises Keycloak or AD FS) is allowed.
+    */
+    'sso' => [
+        'allow_private_issuers' => (bool) env('MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS', false),
     ],
 
 ];

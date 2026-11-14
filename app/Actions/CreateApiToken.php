@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\ApiTokenAccess;
+use App\Enums\AuditAction;
 use App\Models\ApiToken;
 use App\Models\Organisation;
 use App\Models\User;
@@ -17,6 +18,8 @@ use Illuminate\Support\Str;
  */
 final readonly class CreateApiToken
 {
+    public function __construct(private RecordAuditEvent $audit) {}
+
     /**
      * @return array{ApiToken, string}
      */
@@ -32,6 +35,8 @@ final readonly class CreateApiToken
             'access' => $access,
             'expires_at' => $expiresAt,
         ]);
+
+        $this->audit->handle(AuditAction::ApiTokenCreated, $organisation, $name, ['access' => $access->value, 'expiresAt' => $expiresAt?->toIso8601String()]);
 
         return [$apiToken, $token];
     }

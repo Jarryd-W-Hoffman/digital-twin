@@ -23,11 +23,11 @@ type LibraryType = {
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Types', href: index() }];
 
 export default function Types({
-    organisation,
+    currentOrganisation: organisation,
     types,
     canManage,
 }: {
-    organisation: { id: string; name: string };
+    currentOrganisation: { id: string; name: string };
     types: LibraryType[];
     canManage: boolean;
 }) {

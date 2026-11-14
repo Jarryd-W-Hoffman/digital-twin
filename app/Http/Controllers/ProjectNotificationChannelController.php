@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateNotificationChannel;
+use App\Actions\DeleteNotificationChannel;
 use App\Http\Requests\StoreNotificationChannelRequest;
 use App\Models\NotificationChannel;
 use App\Models\Project;
@@ -32,11 +33,11 @@ final readonly class ProjectNotificationChannelController
         return to_route('projects.show', $project);
     }
 
-    public function destroy(Project $project, NotificationChannel $notificationChannel): RedirectResponse
+    public function destroy(Project $project, NotificationChannel $notificationChannel, DeleteNotificationChannel $action): RedirectResponse
     {
         Gate::authorize('update', $project);
 
-        $notificationChannel->delete();
+        $action->handle($notificationChannel);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name deleted.', ['name' => $notificationChannel->name])]);
 

@@ -268,3 +268,51 @@ function northshoreType(string $id): array
 
     return array_find($definition['types'], fn (array $type): bool => $type['id'] === $id) ?? throw new RuntimeException('No type '.$id);
 }
+
+const IDP_ISSUER = 'https://93.184.216.34/realms/harbour';
+
+/**
+ * An ID token as an identity provider's token endpoint gives it: unsigned
+ * here, since Meridian takes its claims from that direct answer.
+ *
+ * @param  array<string, mixed>  $claims
+ */
+function idToken(array $claims): string
+{
+    $encode = fn (array $part): string => mb_rtrim(strtr(base64_encode((string) json_encode($part)), '+/', '-_'), '=');
+
+    return $encode(['alg' => 'RS256', 'typ' => 'JWT']).'.'.$encode($claims).'.signature';
+}
+
+/**
+ * Fakes an OpenID Connect provider at IDP_ISSUER that signs in whoever the
+ * claims say, for the given nonce.
+ *
+ * @param  array<string, mixed>  $claims
+ */
+function fakeIdentityProvider(array $claims = [], string $nonce = 'nonce-from-the-browser'): void
+{
+    Http::fake([
+        IDP_ISSUER.'/.well-known/openid-configuration' => Http::response([
+            'issuer' => IDP_ISSUER,
+            'authorization_endpoint' => IDP_ISSUER.'/protocol/openid-connect/auth',
+            'token_endpoint' => IDP_ISSUER.'/protocol/openid-connect/token',
+        ]),
+        IDP_ISSUER.'/protocol/openid-connect/token' => Http::response([
+            'access_token' => 'access',
+            'token_type' => 'Bearer',
+            'id_token' => idToken([
+                'iss' => IDP_ISSUER,
+                'aud' => 'meridian',
+                'exp' => now()->addMinutes(5)->getTimestamp(),
+                'iat' => now()->getTimestamp(),
+                'nonce' => $nonce,
+                'sub' => 'ana-at-harbour',
+                'email' => 'ana@harbour.example',
+                'email_verified' => true,
+                'name' => 'Ana Ruiz',
+                ...$claims,
+            ]),
+        ]),
+    ]);
+}
