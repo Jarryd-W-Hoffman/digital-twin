@@ -24,6 +24,7 @@ final class SsoConnectionFactory extends Factory
             'issuer' => 'https://93.184.216.34/realms/harbour',
             'client_id' => 'meridian',
             'client_secret' => 'idp-secret',
+            'required' => false,
             'auto_join' => false,
             'default_role' => OrganisationRole::Viewer,
         ];
@@ -49,5 +50,13 @@ final class SsoConnectionFactory extends Factory
     public function autoJoin(OrganisationRole $role = OrganisationRole::Viewer): self
     {
         return $this->state(['auto_join' => true, 'default_role' => $role]);
+    }
+
+    /**
+     * Members other than owners must sign in through it.
+     */
+    public function required(): self
+    {
+        return $this->state(['required' => true]);
     }
 }

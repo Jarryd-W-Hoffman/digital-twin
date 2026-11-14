@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read string $issuer
  * @property-read string $client_id
  * @property-read string $client_secret
+ * @property-read bool $required
  * @property-read bool $auto_join
  * @property-read OrganisationRole $default_role
  * @property-read CarbonInterface $created_at
@@ -50,6 +51,7 @@ final class SsoConnection extends Model
             'issuer' => 'string',
             'client_id' => 'string',
             'client_secret' => 'encrypted',
+            'required' => 'boolean',
             'auto_join' => 'boolean',
             'default_role' => OrganisationRole::class,
             'created_at' => 'datetime',

@@ -34,6 +34,7 @@ final class SaveSsoConnectionRequest extends FormRequest
             'client_id' => ['required', 'string', 'max:255'],
             'client_secret' => [$this->existing() instanceof SsoConnection ? 'nullable' : 'required', 'string', 'max:2000'],
             'domains' => ['required', 'string', 'max:1000'],
+            'required' => ['boolean'],
             'auto_join' => ['boolean'],
             'default_role' => ['required', Rule::enum(OrganisationRole::class)->only([OrganisationRole::Viewer, OrganisationRole::Operator])],
         ];
@@ -85,7 +86,7 @@ final class SaveSsoConnectionRequest extends FormRequest
     }
 
     /**
-     * @return array{issuer: string, client_id: string, client_secret: string|null, domains: list<string>, auto_join: bool, default_role: OrganisationRole}
+     * @return array{issuer: string, client_id: string, client_secret: string|null, domains: list<string>, required: bool, auto_join: bool, default_role: OrganisationRole}
      */
     public function settings(): array
     {
@@ -94,6 +95,7 @@ final class SaveSsoConnectionRequest extends FormRequest
             'client_id' => mb_trim($this->string('client_id')->value()),
             'client_secret' => $this->filled('client_secret') ? $this->string('client_secret')->value() : null,
             'domains' => $this->domains(),
+            'required' => $this->boolean('required'),
             'auto_join' => $this->boolean('auto_join'),
             'default_role' => $this->enum('default_role', OrganisationRole::class) ?? OrganisationRole::Viewer,
         ];

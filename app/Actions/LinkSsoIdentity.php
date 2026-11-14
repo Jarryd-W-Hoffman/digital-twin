@@ -37,7 +37,10 @@ final readonly class LinkSsoIdentity
             'last_signed_in_at' => now(),
         ]);
 
-        $this->audit->handle(AuditAction::SsoLinked, $connection->organisation, $user->email, ['identity' => $claims['email']]);
+        // Signing in again through it to work in the organisation isn't news.
+        if ($identity->wasRecentlyCreated || $identity->wasChanged('subject')) {
+            $this->audit->handle(AuditAction::SsoLinked, $connection->organisation, $user->email, ['identity' => $claims['email']]);
+        }
 
         return $identity;
     }

@@ -20,6 +20,7 @@ function ssoSettings(array $settings = []): array
         'client_id' => 'meridian',
         'client_secret' => 'idp-secret',
         'domains' => ['harbour.example'],
+        'required' => false,
         'auto_join' => false,
         'default_role' => OrganisationRole::Viewer,
         ...$settings,
@@ -30,17 +31,18 @@ it('sets up an identity provider and its domains, and records it', function (): 
     fakeIdentityProvider();
     $organisation = Organisation::factory()->create();
 
-    $connection = resolve(SaveSsoConnection::class)->handle($organisation, ssoSettings(['domains' => ['harbour.example', 'harbour.example.nz'], 'auto_join' => true, 'default_role' => OrganisationRole::Operator]));
+    $connection = resolve(SaveSsoConnection::class)->handle($organisation, ssoSettings(['domains' => ['harbour.example', 'harbour.example.nz'], 'required' => true, 'auto_join' => true, 'default_role' => OrganisationRole::Operator]));
 
     expect($connection->fresh())
         ->issuer->toBe(IDP_ISSUER)
         ->client_secret->toBe('idp-secret')
+        ->required->toBeTrue()
         ->auto_join->toBeTrue()
         ->default_role->toBe(OrganisationRole::Operator)
         ->and($connection->domains->pluck('domain')->all())->toBe(['harbour.example', 'harbour.example.nz'])
         ->and(AuditEvent::query()->sole())
         ->action->toBe(AuditAction::SsoSaved)
-        ->details->toBe(['domains' => 'harbour.example, harbour.example.nz', 'autoJoin' => 'operator']);
+        ->details->toBe(['domains' => 'harbour.example, harbour.example.nz', 'required' => 'yes', 'autoJoin' => 'operator']);
 });
 
 it('changes it, keeping the secret unless a new one is given', function (): void {
@@ -54,7 +56,7 @@ it('changes it, keeping the secret unless a new one is given', function (): void
         ->client_secret->toBe('idp-secret')
         ->domains->pluck('domain')->sort()->values()->all()->toBe(['harbour.example', 'new.example'])
         ->and(SsoConnection::query()->count())->toBe(1)
-        ->and(AuditEvent::query()->sole()->details)->toBe(['domains' => 'harbour.example, new.example', 'autoJoin' => 'off']);
+        ->and(AuditEvent::query()->sole()->details)->toBe(['domains' => 'harbour.example, new.example', 'required' => 'no', 'autoJoin' => 'off']);
 });
 
 it('refuses an issuer without a discovery document', function (): void {

@@ -98,8 +98,9 @@ Owners set it up. Choose **Single sign-on** in the sidebar.
 
 3. Enter the **Client ID** and **Client secret**. The secret is kept encrypted and never shown again; to change it, enter a new one.
 4. Enter the **Email domains** whose people sign in this way, such as `northshore.example`, separated by commas. Each domain can belong to one organisation only.
-5. Choose whether to **Add people signing in for the first time** as viewers or operators. Leave it off to add people yourself first.
-6. Choose **Save**. Meridian fetches the issuer's discovery document straight away and says if it can't, or if the provider calls itself something else.
+5. Choose whether to **Require single sign-on for everyone but owners** (see [Require it](#require-it)).
+6. Choose whether to **Add people signing in for the first time** as viewers or operators. Leave it off to add people yourself first.
+7. Choose **Save**. Meridian fetches the issuer's discovery document straight away and says if it can't, or if the provider calls itself something else.
 
 To stop using it, choose **Turn off single sign-on**. Everyone keeps their account and signs in with a password or passkey instead; people who only ever signed in through the provider choose **Forgot password?** to set one.
 
@@ -131,6 +132,23 @@ Who comes in:
 
 Meridian's own two-factor authentication isn't asked for when signing in this way: the identity provider handles the second factor.
 
+### Require it
+
+With **Require single sign-on for everyone but owners** on, members other than owners can only work in the organisation once they've signed in through its identity provider in this session. So a password that leaked, or someone who left but still knows theirs, gets nobody in.
+
+- Someone who signs in with a password or passkey and opens the organisation sees **Single sign-on required**. **Continue with single sign-on** takes them through the identity provider and back to where they were going. If their account isn't linked yet, this links it.
+- Links straight to a project or twin are refused too, from any organisation they're working in.
+- Their other organisations still work with a password; they're in the switcher at the top of the sidebar.
+- **Owners are exempt**, so if the identity provider breaks, an owner can still sign in with a password and turn the requirement off. Keep at least one owner's password and second factor safe.
+- API tokens aren't affected: they belong to the organisation, not to a person.
+
+```
+opening anything in the organisation (a page, an action, a twin's stream):
+    member, not an owner, the organisation requires single sign-on,
+    and this session hasn't signed in through its provider
+        → refused; its pages go to "Single sign-on required"
+```
+
 ## The audit log
 
 The **audit log** keeps who did what in the organisation, so that months later you can still answer *who removed that device?* or *when did OPC UA writes get turned on, and by whom?* Owners and admins read it: choose **Audit log** in the sidebar.
@@ -141,7 +159,7 @@ Each entry gives **when** it happened, **who** did it, from which address, and *
 
 | Area                                   | What's kept                                                                                                                       |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Members, API tokens and single sign-on | Members added (also by single sign-on), roles changed, members removed; API tokens made (with their access and expiry) and revoked; single sign-on set up, turned off, and linked or unlinked by people |
+| Members, API tokens and single sign-on | Members added (also by single sign-on), roles changed, members removed; API tokens made (with their access and expiry) and revoked; single sign-on set up (whether it's required), turned off, and linked or unlinked by people |
 | Projects, uploads and types            | Projects created and deleted; uploads added to and deleted from a library; types saved to and deleted from the type library       |
 | Twins and versions                     | Twins created, renamed or described, and deleted; versions saved, with their note; the opening view changed                       |
 | Gateways, devices, OPC UA and channels | Gateway tokens issued and revoked; devices added, their passwords reset, deleted; OPC UA servers added and deleted, and writes turned on or off; notification channels added and deleted |
@@ -167,7 +185,7 @@ flowchart LR
 
 - **Give people the smallest role that works.** A control room that only needs to watch and respond to alerts can be operators; people who only need to look can be viewers.
 - **Keep shared equipment in the library.** Save a type from the twin where you got it right, and other twins can take it from there.
-- **Use single sign-on for a large team.** People leaving at the identity provider can no longer sign in, and their second factor is the one they already use.
+- **Use single sign-on for a large team, and require it.** People leaving at the identity provider can no longer sign in, and their second factor is the one they already use. Requiring it means an old password gets nobody in either.
 - **Check the audit log after a surprise.** If a device stops reporting or a twin looks different, the log says who last changed it and when.
 - **Use separate organisations for separate clients.** Nothing is shared between organisations, so a consultant can keep each client's sites apart and switch between them.
 

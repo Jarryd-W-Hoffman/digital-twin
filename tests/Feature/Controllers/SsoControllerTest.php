@@ -199,7 +199,7 @@ it('lets owners set up single sign-on', function (): void {
 
     $this->put(route('organisation.sso.update'), [
         'issuer' => IDP_ISSUER, 'client_id' => 'meridian', 'client_secret' => 'idp-secret',
-        'domains' => "Harbour.example,\n harbour.example.nz harbour.example", 'auto_join' => true, 'default_role' => 'operator',
+        'domains' => "Harbour.example,\n harbour.example.nz harbour.example", 'required' => true, 'auto_join' => true, 'default_role' => 'operator',
     ])->assertRedirect(route('organisation.sso.show'))->assertSessionHasNoErrors();
 
     $connection = $organisation->ssoConnection()->sole();
@@ -209,13 +209,14 @@ it('lets owners set up single sign-on', function (): void {
         'issuer' => IDP_ISSUER,
         'clientId' => 'meridian',
         'domains' => 'harbour.example, harbour.example.nz',
+        'required' => true,
         'autoJoin' => true,
         'defaultRole' => 'operator',
         'linked' => 1,
     ]));
 
     $this->put(route('organisation.sso.update'), ['issuer' => IDP_ISSUER, 'client_id' => 'meridian', 'domains' => 'harbour.example', 'default_role' => 'viewer'])->assertSessionHasNoErrors();
-    expect($connection->fresh())->client_secret->toBe('idp-secret')->auto_join->toBeFalse();
+    expect($connection->fresh())->client_secret->toBe('idp-secret')->auto_join->toBeFalse()->required->toBeFalse();
 
     $this->delete(route('organisation.sso.destroy'))->assertRedirect(route('organisation.sso.show'));
     $this->assertModelMissing($connection);

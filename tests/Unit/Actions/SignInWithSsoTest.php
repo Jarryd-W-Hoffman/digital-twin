@@ -83,6 +83,7 @@ it('links an account to its identity, and unlinks it', function (): void {
     $user = User::factory()->create();
 
     $identity = resolve(LinkSsoIdentity::class)->handle($user, $connection, ANA);
+    resolve(LinkSsoIdentity::class)->handle($user, $connection, ANA);
     resolve(LinkSsoIdentity::class)->handle($user, $connection, [...ANA, 'subject' => 'ana-2']);
 
     expect($connection->identities()->sole())->user_id->toBe($user->id)->subject->toBe('ana-2');

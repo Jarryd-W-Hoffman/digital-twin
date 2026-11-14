@@ -6,6 +6,9 @@ import { expect, test, type Page } from '@playwright/test';
  * signs in whoever the login hint names, at once. Runs on the seeded e2e app.
  */
 
+// The second test needs the connection the first one makes.
+test.describe.configure({ mode: 'serial' });
+
 const port = 8797;
 const issuer = `http://127.0.0.1:${port}`;
 let idp: Server;
@@ -74,6 +77,7 @@ test.afterAll(async () => {
 });
 
 async function logIn(page: Page, email: string) {
+  await page.context().clearCookies();
   await page.goto('/login');
   await page.getByLabel('Email address').fill(email);
   await page.getByLabel('Password', { exact: true }).fill('password');
@@ -131,4 +135,35 @@ test('an owner sets up single sign-on; a newcomer joins through it, and a member
   await expect(log.getByRole('row', { name: /Test User.*Set up single sign-on/ })).toBeVisible();
   await page.getByRole('link', { name: 'Single sign-on' }).click();
   await expect(page.getByText('2 people sign in through it.')).toBeVisible();
+});
+
+test('an organisation that requires single sign-on sends a member signed in with a password through it, but not an owner', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  await page.getByRole('link', { name: 'Single sign-on' }).click();
+  await page.getByLabel('Require single sign-on for everyone but owners').check();
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByLabel('Require single sign-on for everyone but owners')).toBeChecked();
+
+  try {
+    // The operator signs in with a password, and is sent through the provider before working.
+    await page.context().clearCookies();
+    await page.goto('/login');
+    await page.getByLabel('Email address').fill('operator@example.com');
+    await page.getByLabel('Password', { exact: true }).fill('password');
+    await page.getByRole('button', { name: 'Log in' }).click();
+    await expect(page.getByRole('heading', { name: 'Single sign-on required' })).toBeVisible();
+    await page.getByRole('button', { name: 'Continue with single sign-on' }).click();
+    await expect(page).toHaveURL(/\/projects$/);
+    await expect(page.getByRole('link', { name: /^Pilot sites/ })).toBeVisible();
+
+    // The owner still comes in with a password.
+    await logIn(page, 'test@example.com');
+    await expect(page.getByRole('link', { name: /^Pilot sites/ })).toBeVisible();
+  } finally {
+    await logIn(page, 'test@example.com');
+    await page.goto('/organisation/sso');
+    await page.getByLabel('Require single sign-on for everyone but owners').uncheck();
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByLabel('Require single sign-on for everyone but owners')).not.toBeChecked();
+  }
 });

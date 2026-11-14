@@ -16,7 +16,7 @@ final readonly class IssueCommentPolicy
 {
     public function delete(User $user, IssueComment $comment): bool
     {
-        $role = $user->roleIn($comment->issue->twin->organisation);
+        $role = $user->accessIn($comment->issue->twin->organisation);
 
         return $role instanceof OrganisationRole && ($comment->author_id === $user->id || $role->canEditTwins());
     }

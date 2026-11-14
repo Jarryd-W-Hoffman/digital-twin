@@ -10,6 +10,7 @@ use App\Actions\StartSsoSignIn;
 use App\Models\SsoConnection;
 use App\Models\User;
 use App\Support\OpenIdConnect;
+use App\Support\SsoRequirement;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,12 +25,17 @@ use InvalidArgumentException;
  */
 final readonly class SsoCallbackController
 {
-    public function show(Request $request, OpenIdConnect $oidc, SignInWithSso $signIn, LinkSsoIdentity $link): RedirectResponse
+    public function show(Request $request, OpenIdConnect $oidc, SignInWithSso $signIn, LinkSsoIdentity $link, SsoRequirement $requirement): RedirectResponse
     {
-        /** @var array{connection: string, state: string, nonce: string, verifier: string, link: string|null}|null $flow */
+        /** @var array{connection: string, state: string, nonce: string, verifier: string, link: string|null, then?: string|null}|null $flow */
         $flow = $request->session()->pull(StartSsoSignIn::SESSION);
         $linking = is_array($flow) && $flow['link'] !== null;
-        $back = $linking ? to_route('user-sso.index') : to_route('sso.create');
+        $then = is_array($flow) ? ($flow['then'] ?? null) : null;
+        $back = match (true) {
+            $then !== null => to_route('sso.required'),
+            $linking => to_route('user-sso.index'),
+            default => to_route('sso.create'),
+        };
         $field = $linking ? 'sso' : 'email';
 
         $state = $request->query('state');
@@ -55,6 +61,12 @@ final readonly class SsoCallbackController
                 $user = $request->user();
                 abort_unless($user instanceof User && $user->id === $flow['link'], 403);
                 $link->handle($user, $connection, $claims);
+                $requirement->verify($connection);
+
+                if ($then !== null) {
+                    return redirect()->to($then);
+                }
+
                 Inertia::flash('toast', ['type' => 'success', 'message' => __("You can now sign in through :organisation's single sign-on.", ['organisation' => $connection->organisation->name])]);
 
                 return to_route('user-sso.index');
@@ -69,6 +81,7 @@ final readonly class SsoCallbackController
 
         Auth::login($user);
         $request->session()->regenerate();
+        $requirement->verify($connection);
         $user->forceFill(['current_organisation_id' => $connection->organisation_id])->save();
 
         return redirect()->intended(route('dashboard', absolute: false));

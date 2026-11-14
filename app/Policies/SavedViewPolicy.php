@@ -32,6 +32,6 @@ final readonly class SavedViewPolicy
 
     private function edits(User $user, SavedView $view): bool
     {
-        return $user->roleIn($view->twin->organisation)?->canEditTwins() ?? false;
+        return $user->accessIn($view->twin->organisation)?->canEditTwins() ?? false;
     }
 }
