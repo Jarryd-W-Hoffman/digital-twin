@@ -12,6 +12,8 @@ use App\Enums\ProjectAssetStatus;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
 use App\Models\Alert;
+use App\Models\AnomalyExclusion;
+use App\Models\AnomalyMonitor;
 use App\Models\AssetType;
 use App\Models\Issue;
 use App\Models\IssueComment;
@@ -196,6 +198,8 @@ final readonly class TwinController
                 'opcua' => $online ? $twin->gateway_opcua : null,
                 'ticket' => $online ? $tickets->handle($twin, $user, $canOperate, $user->can('update', $twin)) : null,
             ],
+            // The metrics watched for anomalies, how far each has learned, and what's open.
+            'anomalies' => fn (): array => $this->anomalies($twin),
             // The links showing it outside the organisation, for those who make them.
             'shareLinks' => fn (): array => $user->can('share', $twin) ? $twin->shareLinks()->with('creator:id,name')->latest()->limit(50)->get()
                 ->map(fn (TwinShareLink $link): array => [
@@ -258,6 +262,39 @@ final readonly class TwinController
                 'delete' => $user->can('delete', $view),
                 'share' => $user->can('share', $view),
             ],
+        ];
+    }
+
+    /**
+     * @return array{monitors: list<array<string, mixed>>, exclusions: list<array<string, mixed>>, learningDays: int}
+     */
+    private function anomalies(Twin $twin): array
+    {
+        $open = $twin->openAlerts()->where('rule', 'like', AnomalyMonitor::RULE_PREFIX.'%')->get(['rule', 'asset', 'message']);
+
+        return [
+            'monitors' => array_values($twin->anomalyMonitors()->orderBy('asset')->orderBy('metric')->get()
+                ->map(fn (AnomalyMonitor $monitor): array => [
+                    'id' => $monitor->id,
+                    'asset' => $monitor->asset,
+                    'metric' => $monitor->metric,
+                    'sensitivity' => $monitor->sensitivity->value,
+                    'severity' => $monitor->severity->value,
+                    'bands' => $monitor->bands,
+                    'flatlineHours' => $monitor->flatline_hours,
+                    'learnedDays' => $monitor->baseline['days'] ?? 0.0,
+                    'ready' => $monitor->ready(),
+                    'open' => array_values($open->filter(fn (Alert $alert): bool => $alert->asset === $monitor->asset
+                        && in_array($alert->rule, [$monitor->rule(), $monitor->rule(true)], true))->pluck('message')->all()),
+                ])->all()),
+            'exclusions' => array_values($twin->anomalyExclusions()->latest('starts_at')->limit(50)->get()
+                ->map(fn (AnomalyExclusion $exclusion): array => [
+                    'id' => $exclusion->id,
+                    'startsAt' => $exclusion->starts_at->toIso8601String(),
+                    'endsAt' => $exclusion->ends_at->toIso8601String(),
+                    'note' => $exclusion->note,
+                ])->all()),
+            'learningDays' => AnomalyMonitor::LEARNING_DAYS,
         ];
     }
 

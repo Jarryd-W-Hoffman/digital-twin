@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\AlertEvent;
 use App\Enums\AlertSeverity;
 use App\Models\Alert;
+use App\Models\AnomalyMonitor;
 use App\Models\Twin;
 use Illuminate\Support\Facades\DB;
 
@@ -29,7 +30,8 @@ final readonly class SyncAlerts
     {
         $changes = DB::transaction(function () use ($twin, $open): array {
             $now = now();
-            $current = $twin->openAlerts()->lockForUpdate()->get()
+            // Anomalies are the control plane's own; the gateway reports only its rules.
+            $current = $twin->openAlerts()->where('rule', 'not like', AnomalyMonitor::RULE_PREFIX.'%')->lockForUpdate()->get()
                 ->keyBy(fn (Alert $alert): string => $alert->rule."\n".$alert->asset);
             $reported = collect($open)->keyBy(fn (array $alert): string => $alert['rule']."\n".$alert['asset']);
 

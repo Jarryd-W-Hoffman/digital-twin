@@ -39,6 +39,10 @@ enum AuditAction: string
     case TwinDeleted = 'twin.deleted';
     case ShareLinkCreated = 'share_link.created';
     case ShareLinkRevoked = 'share_link.revoked';
+    case AnomalyMonitorSaved = 'anomaly.monitor_saved';
+    case AnomalyMonitorRemoved = 'anomaly.monitor_removed';
+    case AnomalyExclusionAdded = 'anomaly.exclusion_added';
+    case AnomalyExclusionRemoved = 'anomaly.exclusion_removed';
     case VersionSaved = 'twin.version_saved';
     case OpeningViewChanged = 'twin.opening_view_changed';
     case GatewayTokenIssued = 'gateway_token.issued';
@@ -60,7 +64,7 @@ enum AuditAction: string
             'access' => 'Members, API tokens and single sign-on',
             'projects' => 'Projects, uploads and types',
             'twins' => 'Twins and versions',
-            'connections' => 'Gateways, devices, OPC UA and channels',
+            'connections' => 'Gateways, devices, OPC UA, channels and anomaly detection',
             'operations' => 'Alerts and issues',
         ];
     }
@@ -106,6 +110,10 @@ enum AuditAction: string
             self::TwinDeleted => 'Deleted a twin',
             self::ShareLinkCreated => 'Shared a twin by link',
             self::ShareLinkRevoked => 'Revoked a share link',
+            self::AnomalyMonitorSaved => 'Watched a metric for anomalies',
+            self::AnomalyMonitorRemoved => 'Stopped watching a metric for anomalies',
+            self::AnomalyExclusionAdded => 'Left a period out of anomaly detection',
+            self::AnomalyExclusionRemoved => 'Counted a period in anomaly detection again',
             self::VersionSaved => 'Saved a version',
             self::OpeningViewChanged => 'Changed the opening view',
             self::GatewayTokenIssued => 'Issued a gateway token',
@@ -131,7 +139,8 @@ enum AuditAction: string
             self::ScimTokenCreated, self::ScimTokenRevoked, self::ScimOwnerKept => 'access',
             self::ProjectCreated, self::ProjectDeleted, self::UploadAdded, self::UploadDeleted, self::TypeSaved, self::TypeDeleted => 'projects',
             self::DeviceAdded, self::DevicePasswordReset, self::DeviceDeleted, self::OpcUaServerAdded, self::OpcUaServerDeleted,
-            self::GatewayTokenIssued, self::GatewayTokenRevoked, self::OpcUaWritesChanged, self::ChannelAdded, self::ChannelDeleted => 'connections',
+            self::GatewayTokenIssued, self::GatewayTokenRevoked, self::OpcUaWritesChanged, self::ChannelAdded, self::ChannelDeleted,
+            self::AnomalyMonitorSaved, self::AnomalyMonitorRemoved, self::AnomalyExclusionAdded, self::AnomalyExclusionRemoved => 'connections',
             self::TwinCreated, self::TwinRenamed, self::TwinDeleted, self::VersionSaved, self::OpeningViewChanged,
             self::ShareLinkCreated, self::ShareLinkRevoked => 'twins',
             self::AlertAcknowledged, self::IssueRaised, self::IssueAssigned, self::IssueClosed, self::IssueReopened, self::IssueDeleted => 'operations',

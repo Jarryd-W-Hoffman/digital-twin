@@ -135,6 +135,22 @@ final class Twin extends Model
     }
 
     /**
+     * @return HasMany<AnomalyMonitor, $this>
+     */
+    public function anomalyMonitors(): HasMany
+    {
+        return $this->hasMany(AnomalyMonitor::class);
+    }
+
+    /**
+     * @return HasMany<AnomalyExclusion, $this>
+     */
+    public function anomalyExclusions(): HasMany
+    {
+        return $this->hasMany(AnomalyExclusion::class);
+    }
+
+    /**
      * @return HasMany<TwinShareLink, $this>
      */
     public function shareLinks(): HasMany

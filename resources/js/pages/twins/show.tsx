@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DefinitionEditor } from '@/components/definition-editor';
 import type { GatewayStatus } from '@/components/gateway-panel';
 import type { OpcUaWrites } from '@/components/opcua-panel';
+import { TwinAnomalies, type Anomalies } from '@/components/twin-anomalies';
 import {
     TwinEditor,
     type LibraryTypeSummary,
@@ -70,6 +71,8 @@ type Props = {
     views: SavedViewSummary[];
     /** The view to open at: the one linked (`?view=`), or the twin's opening view. */
     startView: { id: string; state: unknown } | null;
+    /** The metrics watched for anomalies, and the periods left out. */
+    anomalies: Anomalies;
     /** The links showing it outside the organisation; empty unless they can share. */
     shareLinks: ShareLinkSummary[];
     can: {
@@ -96,6 +99,7 @@ export default function ShowTwin({
     raise,
     views,
     startView,
+    anomalies,
     shareLinks,
     can,
 }: Props) {
@@ -105,9 +109,14 @@ export default function ShowTwin({
         | 'settings'
         | 'issues'
         | 'views'
+        | 'anomalies'
         | 'share'
         | null
     >(issue || raise ? 'issues' : null);
+    const openAnomalies = anomalies.monitors.reduce(
+        (n, m) => n + m.open.length,
+        0,
+    );
     // Follow the gateway when one is connected, unless the user picks the simulator.
     const [preferSimulator, setPreferSimulator] = useState(false);
     const live =
@@ -117,7 +126,7 @@ export default function ShowTwin({
 
     // The gateway's status comes and goes; tickets are refreshed with it.
     usePoll(15_000, {
-        only: ['gateway', 'alerts', 'issues', 'issue', 'views'],
+        only: ['gateway', 'alerts', 'issues', 'issue', 'views', 'anomalies'],
     });
     const ticket = useRef(gateway?.ticket ?? null);
     useEffect(() => {
@@ -320,6 +329,22 @@ export default function ShowTwin({
                         >
                             Views
                         </button>
+                        <button
+                            className={
+                                editing === 'anomalies' ? 'primary' : 'ghost'
+                            }
+                            aria-expanded={editing === 'anomalies'}
+                            onClick={() =>
+                                setEditing(
+                                    editing === 'anomalies'
+                                        ? null
+                                        : 'anomalies',
+                                )
+                            }
+                        >
+                            Anomalies
+                            {openAnomalies > 0 ? ` (${openAnomalies})` : ''}
+                        </button>
                         {can.share && (
                             <button
                                 className={
@@ -392,6 +417,15 @@ export default function ShowTwin({
                     <TwinViews
                         twinId={twin.id}
                         views={views}
+                        canEdit={can.update}
+                        onClose={() => setEditing(null)}
+                    />
+                )}
+                {editing === 'anomalies' && (
+                    <TwinAnomalies
+                        twinId={twin.id}
+                        definition={definition}
+                        anomalies={anomalies}
                         canEdit={can.update}
                         onClose={() => setEditing(null)}
                     />

@@ -200,6 +200,70 @@ Answer with a 2xx status; anything else, a redirect or no answer within 10 secon
 
 ![The refrigeration board trip applied live, coloured by temperature: a beacon over the tripped board, de-energised chillers, both stores warming, and alerts on the timeline.](../images/cascade.png)
 
+## Anomalies
+
+Rules catch what you can put a number on: above 5 °C, below 60 %. **Anomaly detection** catches what's unusual _for the time_, such as the store at 3 °C at 3 a.m. when it's always 1 °C then, or a sensor stuck reading the same value for hours. It learns what's usual for each metric from the readings the gateway has recorded, and raises an alert through the [alert log](#the-alert-log) and the project's [channels](#who-is-told), with escalation, like any other.
+
+```mermaid
+flowchart LR
+    H["Four weeks of recorded readings<br/>minus periods left out"] -->|nightly| B["The usual band<br/>per local hour, weekdays and weekends"]
+    L["The last half hour"] -->|every 5 minutes| C{"Far outside<br/>the band?"}
+    B --> C
+    C -->|yes| A["Alert: anomaly"]
+    C -->|"back well inside"| X["Clears"]
+    S["The last N hours"] -->|every 5 minutes| F{"Unchanged?"}
+    F -->|yes| A
+```
+
+### Watch a metric
+
+Admins and owners choose **Anomalies** in the top bar of a twin, then, under **Watch a metric**:
+
+1. Choose the **Metric**, such as **Seafood store · Temperature**.
+2. Leave **Alert when unusual for the time of day** on, and choose a **Sensitivity**: **Low** alerts only when it's far from usual, **High** when it's a little off.
+3. To be told when a sensor sticks, fill in **Alert when unchanged for (hours)**.
+4. Choose the alerts' **Severity**, and **Watch**.
+
+It learns from the history already recorded at once, and again every night. Until it has two weeks of readings it shows **learning, n of 14 days** and raises nothing for being unusual (a stuck sensor is still caught). Only metrics the gateway records can be learned: map them first under [Telemetry](10-devices-and-mqtt.md) or [OPC UA](11-opc-ua.md).
+
+Everyone who can see the twin sees what's watched and what's unusual now; **Anomalies** in the top bar counts the anomalies open. **Change** alters how a metric is watched, and **Stop watching** clears what it had open.
+
+![The Anomalies panel for Harbour Depot: the seafood store's temperature watched at medium sensitivity and for six hours unchanged, with an open anomaly: the store well above its usual temperature for the hour.](../images/anomalies.png)
+
+### How it decides
+
+For each local hour of the day (in the twin's time zone), on weekdays and weekends apart, it takes the hourly averages of the last four weeks, their **median** (the usual value) and how far they usually stray from it (the **spread**, from the median absolute deviation). Medians, rather than averages, keep one bad night from moving the band.
+
+```text
+nightly, for each watched metric
+    hours  ← hourly averages of the last 28 days, leaving out excluded periods
+    for each local hour h, on weekdays and weekends:
+        usual[h]  ← median(hours at h)
+        spread[h] ← 1.4826 × median(|hour − usual[h]|), at least 1 % of usual
+    an hour with fewer than 4 samples on weekends (or weekdays) uses both together
+
+every 5 minutes, unless an excluded period is running
+    now      ← average of the last 30 minutes
+    distance ← |now − usual[this hour]| ÷ spread[this hour]
+    raise  when distance ≥ 4 (low), 3 (medium) or 2 (high)
+    clear  when distance < three quarters of that, so it doesn't flicker
+    stuck  when every reading in the last N hours is the same, from the first hour to the last
+```
+
+Averaging half an hour means one odd reading isn't enough. A metric that stops reporting raises nothing here: the gateway's status shows that.
+
+### See the usual range
+
+A watched metric that has learned shows its usual range, shaded, behind its chart under **Recorded** in the inspector, for the sensitivity chosen: inside is normal for that hour, outside unusual. Share links that show history show it too.
+
+![The seafood store selected, its recorded temperature over the last day inside the shaded usual range except for an excursion and the last few minutes.](../images/anomaly-band.png)
+
+### Leave a period out
+
+A shutdown, commissioning or a long defrost isn't normal, and shouldn't be learned as if it were. Under **Left out**, editors give **From**, **To** and **Why**, and choose **Leave out**: the period is left out of what every watched metric in the twin learns (they relearn at once), and nothing is checked while it lasts, so a planned shutdown can be entered in advance. **Count it again** puts it back.
+
+Watching, changing, leaving out and counting again are in the [audit log](02-organisations-and-members.md).
+
 ## Look back in time
 
 The twin keeps the last 24 hours of site time. The timeline at the bottom is the site load over that day, with a mark for each alert.
@@ -248,6 +312,8 @@ The results show:
 - **Keep quiet hours for warnings.** Critical alerts always get through, so the night shift is only woken when it matters.
 - **Send managers a weekly report.** They see how quickly alerts are acknowledged and what's overdue without being paged for each one.
 - **Escalate rather than copy everyone.** Send alerts to the people on call, and let an escalation channel bring in a manager only when nobody responds.
+- **Watch the metrics that drift slowly.** A store that's a degree warmer every night never passes its limit, but it isn't usual; anomaly detection notices.
+- **Enter shutdowns before they happen.** A period left out isn't checked, so nobody is paged for a planned stop.
 - **Use replay after an incident.** Find the first alert, choose **Replay from here**, and step forward at 60× to see the order things happened in.
 
 ## See also

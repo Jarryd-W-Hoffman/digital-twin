@@ -22,7 +22,7 @@ final class StoreGatewayAlertsRequest extends FormRequest
         return [
             'open' => ['present', 'array', 'list', 'max:500'],
             'open.*' => ['array:rule,asset,severity,message,value'],
-            'open.*.rule' => ['required', 'string', 'max:64'],
+            'open.*.rule' => ['required', 'string', 'max:64', 'not_regex:/^anomaly:/'],
             'open.*.asset' => ['required', 'string', 'max:64'],
             'open.*.severity' => ['required', Rule::enum(AlertSeverity::class)],
             'open.*.message' => ['required', 'string', 'max:500'],
