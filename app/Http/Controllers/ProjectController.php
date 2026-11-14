@@ -129,6 +129,8 @@ final readonly class ProjectController
                 'minSeverity' => $channel->min_severity->value,
                 'notifyCleared' => $channel->notify_cleared,
                 'notifyIssues' => $channel->notify_issues,
+                'report' => $channel->report?->value,
+                'lastReportAt' => $channel->last_report_at?->toIso8601String(),
                 'escalateAfterMinutes' => $channel->escalate_after_minutes,
                 'quietFrom' => $channel->quiet_from,
                 'quietUntil' => $channel->quiet_until,

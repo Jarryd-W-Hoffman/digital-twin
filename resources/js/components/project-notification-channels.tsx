@@ -1,5 +1,5 @@
 import { router, useForm } from '@inertiajs/react';
-import { BellRing, Mail, Send, Trash2, Webhook } from 'lucide-react';
+import { BarChart3, BellRing, Mail, Send, Trash2, Webhook } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     destroy as destroyChannel,
+    report as reportChannel,
     store as storeChannel,
     test as testChannel,
 } from '@/routes/projects/notification-channels';
@@ -24,6 +25,9 @@ export type ProjectNotificationChannel = {
     notifyCleared: boolean;
     /** Also told when issues are raised, assigned and closed. */
     notifyIssues: boolean;
+    /** Sent the project's report each morning or each Monday, at 7:00 in its time zone. */
+    report: 'daily' | 'weekly' | null;
+    lastReportAt: string | null;
     /** Told only of alerts still unacknowledged this long; null when told at once. */
     escalateAfterMinutes: number | null;
     quietFrom: string | null;
@@ -98,6 +102,7 @@ export default function ProjectNotificationChannels({
         min_severity: 'warning' as Severity,
         notify_cleared: true,
         notify_issues: false,
+        report: '' as '' | 'daily' | 'weekly',
         escalate_after_minutes: '',
         quiet_from: '',
         quiet_until: '',
@@ -238,6 +243,26 @@ export default function ProjectNotificationChannels({
                         />
                         Also issue updates: raised, assigned, closed
                     </label>
+                    <div className="grid gap-2">
+                        <Label htmlFor="channel-report">Reports</Label>
+                        <select
+                            id="channel-report"
+                            className={selectClass}
+                            value={form.data.report}
+                            onChange={(e) =>
+                                form.setData(
+                                    'report',
+                                    e.target.value as '' | 'daily' | 'weekly',
+                                )
+                            }
+                        >
+                            <option value="">No reports</option>
+                            <option value="daily">Daily, at 7:00</option>
+                            <option value="weekly">
+                                Weekly, Mondays at 7:00
+                            </option>
+                        </select>
+                    </div>
                     <div className="grid gap-2">
                         <Label htmlFor="channel-when">When</Label>
                         <select
@@ -387,6 +412,11 @@ export default function ProjectNotificationChannels({
                                             {channel.notifyIssues
                                                 ? ' · issue updates'
                                                 : ''}
+                                            {channel.report === 'daily'
+                                                ? ' · daily report'
+                                                : channel.report === 'weekly'
+                                                  ? ' · weekly report'
+                                                  : ''}
                                             {channel.quietFrom &&
                                                 ` · quiet ${channel.quietFrom}–${channel.quietUntil} ${channel.timezone}, except critical`}
                                         </span>
@@ -420,6 +450,27 @@ export default function ProjectNotificationChannels({
                                             >
                                                 <Send /> Send test
                                             </Button>
+                                            {channel.report && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        router.post(
+                                                            reportChannel.url([
+                                                                projectId,
+                                                                channel.id,
+                                                            ]),
+                                                            {},
+                                                            {
+                                                                preserveScroll: true,
+                                                            },
+                                                        )
+                                                    }
+                                                >
+                                                    <BarChart3 /> Send report
+                                                    now
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 size="sm"

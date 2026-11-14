@@ -93,6 +93,8 @@ it('shows a project with its twins, library and abilities', function (Organisati
                 'minSeverity' => 'warning',
                 'notifyCleared' => true,
                 'notifyIssues' => false,
+                'report' => null,
+                'lastReportAt' => null,
                 'escalateAfterMinutes' => 30,
                 'quietFrom' => '22:00',
                 'quietUntil' => '07:00',

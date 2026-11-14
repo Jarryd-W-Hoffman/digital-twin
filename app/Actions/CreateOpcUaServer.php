@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Enums\OpcUaSecurityMode;
 use App\Enums\OpcUaSecurityPolicy;
 use App\Models\OpcUaServer;
@@ -15,6 +16,8 @@ use App\Models\Project;
  */
 final readonly class CreateOpcUaServer
 {
+    public function __construct(private RecordAuditEvent $audit) {}
+
     public function handle(
         Project $project,
         string $name,
@@ -24,7 +27,7 @@ final readonly class CreateOpcUaServer
         ?string $username = null,
         ?string $password = null,
     ): OpcUaServer {
-        return $project->opcUaServers()->create([
+        $server = $project->opcUaServers()->create([
             'name' => $name,
             'endpoint' => $endpoint,
             'security_mode' => $mode,
@@ -32,5 +35,9 @@ final readonly class CreateOpcUaServer
             'username' => $username,
             'password' => $username === null ? null : $password,
         ]);
+
+        $this->audit->handle(AuditAction::OpcUaServerAdded, $project, $name, ['endpoint' => $endpoint]);
+
+        return $server;
     }
 }

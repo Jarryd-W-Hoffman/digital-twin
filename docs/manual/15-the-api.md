@@ -1,6 +1,6 @@
 # The API
 
-Other systems can read what Meridian knows: a maintenance system pulling open issues into work orders, a BI tool charting a freezer's temperature over the month, or a script checking every morning for alerts nobody acknowledged. They do it through the **API**, a set of JSON addresses under `/api/v1`, using an **API token** made for the organisation.
+Other systems can read what Meridian knows, and, with a token that may write, add to it: a maintenance system pulling open issues into work orders, a BI tool charting a freezer's temperature over the month, or a script checking every morning for alerts nobody acknowledged. They do it through the **API**, a set of JSON addresses under `/api/v1`, using an **API token** made for the organisation.
 
 ![The API page for Northshore Logistics: a token for the maintenance system, just made and shown once with a request to try it, and the form to make another.](../images/api-tokens.png)
 
@@ -18,7 +18,7 @@ flowchart LR
     API --> I["Issues, comments, photos"]
 ```
 
-A token belongs to the **organisation**, not to whoever made it, so an integration keeps working when that person leaves. It reads everything in the organisation, in every project, and nothing in any other.
+A token belongs to the **organisation**, not to whoever made it, so an integration keeps working when that person leaves. It reads everything in the organisation, in every project, and nothing in any other. A token that may also write raises, comments on and closes issues and acknowledges alerts, and what it does is signed with its name.
 
 ## Make a token
 
@@ -26,8 +26,9 @@ Admins and owners make and revoke tokens; everyone else in the organisation can 
 
 1. Choose **API** in the sidebar.
 2. Under **Make a token**, give it a **Name** after what will use it, such as *Maintenance system*.
-3. Choose when it **Expires**: in 30 days, 90 days, a year, or never.
-4. Choose **Make token**.
+3. Choose its **Access**: **Read only**, or **Read and write** for a system that also raises and closes issues or acknowledges alerts. Give a system only what it needs.
+4. Choose when it **Expires**: in 30 days, 90 days, a year, or never.
+5. Choose **Make token**.
 
 The token is shown **once**, starting `mrd_`, with a `curl` command to try it. Copy it into the other system straight away: Meridian keeps only a fingerprint of it, so it can't be shown again. If it's lost, make a new one and revoke the old.
 
@@ -58,6 +59,7 @@ curl -H "Authorization: Bearer mrd_…" -H "Accept: application/json" \
 | `GET /api/v1/twins/{twin}/issues` | The twin's issues, newest first: `?state=open` (the default), `closed` or `all` |
 | `GET /api/v1/twins/{twin}/issues/{issue}` | One issue with its comments |
 | `GET /api/v1/twins/{twin}/issues/{issue}/comments/{comment}/photo` | A comment's photo |
+| `GET /api/v1/audit` | The organisation's [audit log](#the-audit-log), newest first. `?since=` for entries since a time; `?area=` for one area: `access`, `projects`, `twins`, `connections` or `operations` |
 
 Every answer has its content under `data`. Times are ISO 8601 in UTC, except readings, which use Unix milliseconds like the [recorded history](10-devices-and-mqtt.md#see-what-was-recorded).
 
@@ -114,24 +116,74 @@ while url:
     url = page.links.next
 ```
 
+### The audit log
+
+The organisation's [audit log](02-organisations-and-members.md#the-audit-log) comes newest first, by cursor, so a security system (SIEM) can collect it. Each entry names who did it (`actor`, and `viaApi` when it was a token), what (`action` and its `label`), what it was done to (`subject`), where (`project` and `twin`, with the names they had), and `details`:
+
+```json
+{
+  "data": [ { "id": "…", "at": "2026-11-14T03:12:40+00:00",
+              "actor": "Test User", "actorId": "…", "viaApi": false,
+              "action": "member.role_changed", "label": "Changed a role", "area": "access",
+              "subject": "operator@example.com", "project": null, "twin": null,
+              "details": { "from": "viewer", "to": "operator" }, "ip": "203.0.113.7" } ],
+  "links": { "next": "https://meridian.example.com/api/v1/audit?cursor=…" }
+}
+```
+
+A token reads the log whatever its access, so give one that collects it **Read only** access, and a name like *SIEM*.
+
+## Write through the API
+
+A token with **Read and write** access can also:
+
+| Address | What it does |
+| --- | --- |
+| `POST /api/v1/twins/{twin}/issues` | Raises an issue: `title`, `at` (`lon`, `lat`, `height`), and optionally `view` (the camera: `lon`, `lat`, `height`, `heading`, `pitch`, `roll`), a first comment's `body` and `photo`, and the `alert` it follows up. Answers `201` with the issue |
+| `POST /api/v1/twins/{twin}/issues/{issue}/comments` | Adds a comment: `body`, `photo`, or both. Answers `201` with the comment |
+| `POST /api/v1/twins/{twin}/issues/{issue}/closure` | Closes the issue. If it's already closed, whoever closed it first is kept |
+| `DELETE /api/v1/twins/{twin}/issues/{issue}/closure` | Reopens it |
+| `POST /api/v1/twins/{twin}/alerts/{alert}/acknowledgement` | Acknowledges the alert. The first acknowledgement is kept |
+
+Send JSON, or `multipart/form-data` to include a photo (JPEG, PNG or WebP, up to 10 MB). Without a `view`, the issue opens looking north at its pin from 80 m south and 60 m above it.
+
+Everything a token does is signed with its name, such as **Maintenance system (API)**: as an issue's author, a comment's, who closed an issue, and who acknowledged an alert, in the twin, the alert log and the API alike. The name stays after the token is revoked. Raising and closing issues tells the project's [channels](07-alerts-time-and-what-if.md#who-is-told) that take issue updates, as when a person does it.
+
+```
+work order created in the CMMS for an alert:
+    POST …/alerts/{alert}/acknowledgement                 → nobody else is paged for it
+    POST …/issues  title, at (the asset's place), alert   → keep the issue's id with the work order
+work order updated:   POST …/issues/{issue}/comments  body
+work order completed: POST …/issues/{issue}/closure
+```
+
+```bash
+curl -X POST -H "Authorization: Bearer mrd_…" -H "Accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{"title": "Work order 4471: door seal", "at": {"lon": 174.7633, "lat": -36.8485, "height": 12}}' \
+     https://meridian.example.com/api/v1/twins/{twin}/issues
+```
+
 ### Errors and limits
 
 | Status | Means |
 | --- | --- |
 | `401` | No token, an unknown or revoked one, or one that has expired |
+| `403` | A write with a token that may only read |
 | `404` | Nothing with that id in the token's organisation (another organisation's twin looks the same as one that doesn't exist) |
 | `422` | A parameter is wrong; `errors` says which |
 | `429` | More than 120 requests in a minute with this token. Wait the seconds in `Retry-After` |
 
 ## Tips
 
+- **Write only where needed.** A BI tool needs **Read only**; keep **Read and write** for the systems that act on issues and alerts.
 - **One token per system.** Name it after what uses it, so **Last used** tells you whether it's still needed, and revoking one doesn't break the others.
 - **Let tokens expire.** A token that expires in 90 days limits the harm if it leaks; set a reminder to make the next one.
-- **Poll the alert log with `since`.** Remember when you last asked, and ask only for what's new.
+- **Poll the alert log and audit log with `since`.** Remember when you last asked, and ask only for what's new.
 - **Open issues where they live.** Each issue's `url` opens the twin flown to it, so a work order can link straight back to the scene.
 
 ## See also
 
 - [Organisations and members](02-organisations-and-members.md#roles): who can make tokens.
-- [Alerts, time travel and what-if](07-alerts-time-and-what-if.md#the-alert-log): the alert log the API reads, and webhooks, which push alerts and issue updates instead of waiting to be asked.
+- [Alerts, time travel and what-if](07-alerts-time-and-what-if.md#the-alert-log): the alert log the API reads, and webhooks, which push alerts, issue updates and [daily or weekly reports](07-alerts-time-and-what-if.md#reports) instead of waiting to be asked.
 - [Twins and the viewer](06-twins-and-the-viewer.md): issues in the scene.

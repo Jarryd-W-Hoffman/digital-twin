@@ -38,4 +38,12 @@ final class ApiTokenFactory extends Factory
     {
         return $this->state(['token_hash' => hash('sha256', $token), 'hint' => mb_substr($token, -4)]);
     }
+
+    /**
+     * May raise, comment on and close issues, and acknowledge alerts.
+     */
+    public function writes(): self
+    {
+        return $this->state(['access' => ApiTokenAccess::Write]);
+    }
 }

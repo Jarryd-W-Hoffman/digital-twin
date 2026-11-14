@@ -46,3 +46,10 @@ it("reaches only its own organisation's projects and twins", function (): void {
         ->and($token->reaches(Project::factory()->create()))->toBeFalse()
         ->and($token->reaches(Twin::factory()->create()))->toBeFalse();
 });
+
+it('may write only with write access', function (): void {
+    expect(ApiTokenAccess::Read->canWrite())->toBeFalse()
+        ->and(ApiTokenAccess::Write->canWrite())->toBeTrue()
+        ->and(ApiTokenAccess::Write->label())->toBe('Read and write')
+        ->and(ApiToken::factory()->writes()->make()->access)->toBe(ApiTokenAccess::Write);
+});

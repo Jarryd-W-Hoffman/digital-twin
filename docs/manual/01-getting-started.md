@@ -28,7 +28,7 @@ flowchart TD
 ## Sign in
 
 1. Open Meridian's address in your browser. On a development machine that's usually `http://localhost:8000` (or `http://localhost:8085` with Docker).
-2. Enter your **Email address** and **Password**, and choose **Log in**. If you've added a passkey, choose **Sign in with a passkey** instead. With two-factor authentication on, you're asked for a code next.
+2. Enter your **Email address** and **Password**, and choose **Log in**. If you've added a passkey, choose **Sign in with a passkey** instead. With two-factor authentication on, you're asked for a code next. If your organisation uses [single sign-on](02-organisations-and-members.md#single-sign-on), choose **Sign in with single sign-on**, enter your work email, and sign in at your organisation's identity provider.
 3. No account yet? Choose **Sign up**. Someone in your organisation then [adds you as a member](02-organisations-and-members.md#add-a-member). Forgotten your password? Choose **Forgot password?** and follow the link in the email.
 
 > **Trying the demo?** The seeded database has `test@example.com` (an owner), `operator@example.com` and `viewer@example.com`, all with the password `password`. The sample twins also run without an account at `/demo`.

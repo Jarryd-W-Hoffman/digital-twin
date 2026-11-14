@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateTwin;
 use App\Actions\DeleteTwin;
 use App\Actions\IssueGatewayTicket;
+use App\Actions\UpdateTwin;
 use App\Enums\ProjectAssetStatus;
 use App\Http\Requests\StoreTwinRequest;
 use App\Http\Requests\UpdateTwinRequest;
@@ -155,7 +156,7 @@ final readonly class TwinController
                     'id' => $alert->id,
                     'rule' => $alert->rule,
                     'asset' => $alert->asset,
-                    'acknowledgedBy' => $alert->acknowledger?->name,
+                    'acknowledgedBy' => $alert->acknowledgerName(),
                     'acknowledgedAt' => $alert->acknowledged_at?->toIso8601String(),
                 ]),
             // The issues pinned in the scene, and the one open in the Issues panel (`?issue=`).
@@ -168,7 +169,7 @@ final readonly class TwinController
                     'closed' => $issue->closed_at !== null,
                     'at' => [$issue->lon, $issue->lat, $issue->height],
                     'view' => $issue->view,
-                    'author' => $issue->author?->name,
+                    'author' => $issue->authorName(),
                     'assignee' => $issue->assignee?->name,
                     'mine' => $issue->assignee_id === $user->id,
                     'dueOn' => $issue->due_on?->format('Y-m-d'),
@@ -202,14 +203,11 @@ final readonly class TwinController
         ]);
     }
 
-    public function update(UpdateTwinRequest $request, Twin $twin): RedirectResponse
+    public function update(UpdateTwinRequest $request, Twin $twin, UpdateTwin $action): RedirectResponse
     {
         Gate::authorize('update', $twin);
 
-        $twin->update([
-            'name' => $request->string('name')->value(),
-            'description' => $request->filled('description') ? $request->string('description')->value() : null,
-        ]);
+        $action->handle($twin, $request->string('name')->value(), $request->filled('description') ? $request->string('description')->value() : null);
 
         return to_route('twins.show', $twin);
     }
@@ -286,10 +284,10 @@ final readonly class TwinController
             'title' => $issue->title,
             'at' => [$issue->lon, $issue->lat, $issue->height],
             'view' => $issue->view,
-            'author' => $issue->author?->name,
+            'author' => $issue->authorName(),
             'createdAt' => $issue->created_at->toIso8601String(),
             'closedAt' => $issue->closed_at?->toIso8601String(),
-            'closedBy' => $issue->closer?->name,
+            'closedBy' => $issue->closerName(),
             'assignee' => $issue->assignee === null ? null : ['id' => $issue->assignee->id, 'name' => $issue->assignee->name],
             'dueOn' => $issue->due_on?->format('Y-m-d'),
             'overdue' => $issue->isOverdue(),
@@ -305,7 +303,7 @@ final readonly class TwinController
                 ->map(fn (User $member): array => ['id' => $member->id, 'name' => $member->name]) : [],
             'comments' => $issue->comments->map(fn (IssueComment $comment): array => [
                 'id' => $comment->id,
-                'author' => $comment->author?->name,
+                'author' => $comment->authorName(),
                 'body' => $comment->body,
                 'photo' => $comment->photo === null ? null : route('twins.issues.comments.photo', [$twin, $issue, $comment], false),
                 'createdAt' => $comment->created_at->toIso8601String(),

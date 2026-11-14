@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\IssueEvent;
 use App\Jobs\DeliverIssueNotification;
+use App\Models\ApiToken;
 use App\Models\Issue;
 use App\Models\User;
 use App\Support\IssueMessage;
@@ -17,7 +18,7 @@ use App\Support\IssueMessage;
  */
 final readonly class NotifyIssue
 {
-    public function handle(Issue $issue, IssueEvent $event, ?User $by): void
+    public function handle(Issue $issue, IssueEvent $event, User|ApiToken|null $by): void
     {
         $channels = $issue->twin->project->notificationChannels()->where('notify_issues', true)->orderBy('name')->get();
         if ($channels->isEmpty()) {

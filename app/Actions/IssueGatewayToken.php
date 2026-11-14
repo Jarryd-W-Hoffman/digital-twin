@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Models\Twin;
 use Illuminate\Support\Str;
 
@@ -13,6 +14,8 @@ use Illuminate\Support\Str;
  */
 final readonly class IssueGatewayToken
 {
+    public function __construct(private RecordAuditEvent $audit) {}
+
     public function handle(Twin $twin): string
     {
         $token = 'mgw_'.Str::random(48);
@@ -24,6 +27,8 @@ final readonly class IssueGatewayToken
             'gateway_mqtt' => null,
             'gateway_opcua' => null,
         ]);
+
+        $this->audit->handle(AuditAction::GatewayTokenIssued, $twin, $twin->name);
 
         return $token;
     }

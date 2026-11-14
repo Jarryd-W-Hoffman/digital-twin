@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\ApiTokenAccess;
+use App\Support\Actor;
 use Carbon\CarbonInterface;
 use Database\Factories\ApiTokenFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -89,6 +90,14 @@ final class ApiToken extends Model
     public function masked(): string
     {
         return self::PREFIX.'…'.$this->hint;
+    }
+
+    /**
+     * How what the token does is signed: its name, marked as the API's.
+     */
+    public function signature(): string
+    {
+        return (string) Actor::apiName($this->name);
     }
 
     /**

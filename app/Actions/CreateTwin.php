@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Models\Project;
 use App\Models\Twin;
 use App\Models\User;
@@ -11,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class CreateTwin
 {
-    public function __construct(private SaveTwinVersion $versions) {}
+    public function __construct(private SaveTwinVersion $versions, private RecordAuditEvent $audit) {}
 
     /**
      * @param  array<string, mixed>  $definition  An already validated definition.
@@ -26,6 +27,7 @@ final readonly class CreateTwin
             ]);
 
             $this->versions->handle($twin, $user, $definition, __('Created'));
+            $this->audit->handle(AuditAction::TwinCreated, $twin, $name);
 
             return $twin;
         });

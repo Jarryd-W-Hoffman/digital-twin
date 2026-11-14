@@ -60,11 +60,7 @@ final readonly class SendChannelMessage
             return $request;
         }
 
-        $parts = parse_url($channel->target);
-        $host = is_array($parts) ? ($parts['host'] ?? '') : '';
-        $port = is_array($parts) ? ($parts['port'] ?? (($parts['scheme'] ?? '') === 'http' ? 80 : 443)) : 443;
-
-        return $request->withOptions(['curl' => [CURLOPT_RESOLVE => [sprintf('%s:%d:%s', $host, $port, $address)]]]);
+        return WebhookGuard::pin($request, $channel->target, $address);
     }
 
     /**
