@@ -259,6 +259,73 @@ test('an owner adds a device, is shown its broker login once, and can reset or d
   await expect(login).toHaveCount(0);
 });
 
+test('an owner makes an API token, is shown it once, reads twins and raises an issue with it, and revokes it', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  await page.getByRole('link', { name: 'API', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'API' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Audit log' })).toBeVisible();
+
+  await page.getByLabel('Name').fill('Maintenance system');
+  await page.getByLabel('Access').selectOption({ label: 'Read and write' });
+  await page.getByLabel('Expires').selectOption({ label: 'In 30 days' });
+  await page.getByRole('button', { name: 'Make token' }).click();
+  const issued = page.getByRole('status', { name: 'New token' });
+  await expect(issued.getByLabel('Token')).toHaveValue(/^mrd_[A-Za-z0-9]{48}$/);
+  const token = await issued.getByLabel('Token').inputValue();
+  await expect(issued.getByText(`curl -H "Authorization: Bearer ${token}" `)).toBeVisible();
+  const row = page.getByRole('row', { name: /Maintenance system/ });
+  await expect(row.getByText(`mrd_…${token.slice(-4)}`)).toBeVisible();
+  await expect(row.getByRole('cell', { name: 'Never', exact: true })).toBeVisible();
+
+  const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+  const twins = await page.request.get('/api/v1/twins', { headers });
+  expect(twins.status()).toBe(200);
+  const list = (await twins.json()) as { data: { id: string; name: string }[] };
+  const depot = list.data.find((twin) => twin.name === 'Harbour Depot');
+  expect(depot).toBeDefined();
+  const twin = (await (await page.request.get(`/api/v1/twins/${depot!.id}`, { headers })).json()) as { data: { assets: { id: string }[] } };
+  expect(twin.data.assets.map((asset) => asset.id)).toContain('store');
+  const raised = await page.request.post(`/api/v1/twins/${depot!.id}/issues`, {
+    headers,
+    data: { title: 'Work order 4471: door seal', at: { lon: 174.7633, lat: -36.8485, height: 12 }, body: 'Booked for Tuesday' },
+  });
+  expect(raised.status()).toBe(201);
+  expect(((await raised.json()) as { data: { author: string } }).data.author).toBe('Maintenance system (API)');
+
+  await page.reload();
+  await expect(issued).toHaveCount(0);
+  await expect(row.getByRole('cell', { name: 'Never', exact: true })).toHaveCount(0);
+
+  page.once('dialog', (dialog) => void dialog.accept());
+  await row.getByRole('button', { name: 'Revoke' }).click();
+  await expect(page.getByText('No tokens yet.')).toBeVisible();
+  expect((await page.request.get('/api/v1/twins', { headers })).status()).toBe(401);
+
+  await page.goto('/twins');
+  await openTwin(page, 'Harbour Depot');
+  await page.getByRole('button', { name: /^Issues/ }).click();
+  const panel = page.getByRole('complementary', { name: 'Issues' });
+  await expect(panel.getByText('Work order 4471: door seal')).toBeVisible({ timeout: 30_000 });
+  await expect(panel.getByText(/Maintenance system \(API\)/).first()).toBeVisible();
+
+  await page.goto('/dashboard');
+  await page.getByRole('link', { name: 'Audit log' }).click();
+  const log = page.getByRole('table', { name: 'Audit log' });
+  await expect(log.getByRole('row').nth(1)).toContainText('Revoked an API token: Maintenance system');
+  await expect(log.getByRole('row', { name: /Maintenance system \(API\).*Raised an issue: #\d+ Work order 4471: door seal/ })).toContainText('Harbour Depot');
+  await expect(log.getByRole('row', { name: /Test User.*Made an API token: Maintenance system/ })).toContainText('access: write');
+  await page.getByLabel('Show').selectOption({ label: 'Alerts and issues' });
+  await expect(log.getByText('Made an API token')).toHaveCount(0);
+  await expect(log.getByText(/Raised an issue: #\d+ Work order 4471/)).toBeVisible();
+});
+
+test('only admins and owners see the audit log', async ({ page }) => {
+  await logIn(page, 'operator@example.com');
+  await expect(page.getByRole('link', { name: 'Members' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Audit log' })).toHaveCount(0);
+  expect((await page.request.get('/organisation/audit')).status()).toBe(403);
+});
+
 test('a point cloud waits for the converter, shows why it failed, and can be retried with an EPSG code', async ({ page }) => {
   await logIn(page, 'test@example.com');
 

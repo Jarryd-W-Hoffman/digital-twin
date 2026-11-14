@@ -51,7 +51,7 @@ final readonly class TwinAlertController
                 'raisedAt' => $alert->raised_at->toIso8601String(),
                 'clearedAt' => $alert->cleared_at?->toIso8601String(),
                 'acknowledgedAt' => $alert->acknowledged_at?->toIso8601String(),
-                'acknowledgedBy' => $alert->acknowledger?->name,
+                'acknowledgedBy' => $alert->acknowledgerName(),
                 // The issues raised to follow it up.
                 'issues' => $alert->issues->map(fn (Issue $issue): array => [
                     'id' => $issue->id,

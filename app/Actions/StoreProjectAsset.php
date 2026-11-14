@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
 use App\Jobs\ConvertUpload;
@@ -17,7 +18,7 @@ use Throwable;
 
 final readonly class StoreProjectAsset
 {
-    public function __construct(private ProcessProjectAssetFile $process) {}
+    public function __construct(private ProcessProjectAssetFile $process, private RecordAuditEvent $audit) {}
 
     /**
      * Adds a file uploaded through the app to the project's library. A GLB
@@ -45,6 +46,7 @@ final readonly class StoreProjectAsset
                 'status' => ProjectAssetStatus::Processing,
                 'options' => $kind->isConverted() ? $options : null,
             ]);
+            $this->audit->handle(AuditAction::UploadAdded, $project, $name, ['kind' => $kind->value, 'file' => $asset->original_name]);
 
             if ($kind->isConverted()) {
                 $key = $asset->sourceKey();

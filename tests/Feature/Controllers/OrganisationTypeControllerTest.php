@@ -23,7 +23,7 @@ it('lists the library for every member, with what each type reads', function (Or
     $this->actingAs($user)->get(route('organisation.types.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('organisation/types')
-            ->where('organisation', ['id' => $organisation->id, 'name' => $organisation->name])
+            ->where('currentOrganisation', ['id' => $organisation->id, 'name' => $organisation->name])
             ->has('types', 2)
             ->where('types.0.slug', 'water-tank')
             ->where('types.0.name', 'Fire water tank')

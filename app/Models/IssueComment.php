@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\Actor;
 use Carbon\CarbonInterface;
 use Database\Factories\IssueCommentFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $id
  * @property-read string $issue_id
  * @property-read string|null $author_id
+ * @property-read string|null $author_api
  * @property-read string|null $body
  * @property-read string|null $photo
  * @property-read Issue $issue
@@ -41,6 +43,7 @@ final class IssueComment extends Model
             'id' => 'string',
             'issue_id' => 'string',
             'author_id' => 'string',
+            'author_api' => 'string',
             'body' => 'string',
             'photo' => 'string',
             'created_at' => 'datetime',
@@ -62,5 +65,13 @@ final class IssueComment extends Model
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');
+    }
+
+    /**
+     * Who wrote it: a person, or the API token that did.
+     */
+    public function authorName(): ?string
+    {
+        return $this->author->name ?? Actor::apiName($this->author_api);
     }
 }

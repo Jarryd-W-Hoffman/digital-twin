@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\AuthenticateApiToken;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -9,6 +10,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -25,6 +27,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $carriesDefinition = fn (Request $request): bool => is_array($request->input('definition'));
         $middleware->trimStrings(except: [$carriesDefinition]);
         $middleware->convertEmptyStringsToNull(except: [$carriesDefinition]);
+
+        // The API token is checked before the rate limit, which counts per
+        // token, and before route models are found, so a caller without one
+        // can't tell which ids exist.
+        $middleware->prependToPriorityList(ThrottleRequests::class, AuthenticateApiToken::class);
 
         $middleware->web(append: [
             HandleAppearance::class,

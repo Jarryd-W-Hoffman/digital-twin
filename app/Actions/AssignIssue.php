@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Enums\IssueEvent;
 use App\Mail\IssueMail;
 use App\Models\Issue;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\Mail;
  */
 final readonly class AssignIssue
 {
-    public function __construct(private NotifyIssue $notify)
+    public function __construct(private NotifyIssue $notify, private RecordAuditEvent $audit)
     {
         //
     }
@@ -30,6 +31,8 @@ final readonly class AssignIssue
 
         $issue->update(['assignee_id' => $assignee?->id, 'due_on' => $dueOn]);
         $issue->setRelation('assignee', $assignee);
+
+        $this->audit->handle(AuditAction::IssueAssigned, $issue->twin, sprintf('#%d %s', $issue->number, $issue->title), ['assignee' => $assignee?->name, 'dueOn' => $dueOn?->format('Y-m-d')]);
 
         if (! $reassigned) {
             return;

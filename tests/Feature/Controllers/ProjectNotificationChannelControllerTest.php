@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Enums\AlertSeverity;
 use App\Enums\NotificationChannelKind;
 use App\Enums\OrganisationRole;
+use App\Enums\ReportFrequency;
 use App\Mail\AlertMail;
+use App\Mail\ReportMail;
 use App\Models\NotificationChannel;
 use App\Models\Project;
 use Illuminate\Support\Facades\Http;
@@ -59,6 +61,55 @@ it('adds a channel that takes issue updates too', function (): void {
     $this->actingAs($user)->post(route('projects.notification-channels.store', $project), channelForm(['notify_issues' => true]))->assertSessionHasNoErrors();
 
     expect($project->notificationChannels()->sole()->notify_issues)->toBeTrue();
+});
+
+it('adds a channel that takes reports', function (): void {
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.notification-channels.store', $project), channelForm(['report' => 'weekly']))->assertSessionHasNoErrors();
+    $this->actingAs($user)->post(route('projects.notification-channels.store', $project), channelForm(['name' => 'Day', 'report' => '']))->assertSessionHasNoErrors();
+    $this->actingAs($user)->post(route('projects.notification-channels.store', $project), channelForm(['name' => 'Odd', 'report' => 'hourly']))->assertSessionHasErrors('report');
+
+    expect($project->notificationChannels()->where('name', 'Night shift')->sole()->report)->toBe(ReportFrequency::Weekly)
+        ->and($project->notificationChannels()->where('name', 'Day')->sole()->report)->toBeNull();
+});
+
+it('sends the report now, and says when it worked', function (): void {
+    $this->freezeSecond();
+    Mail::fake();
+    [$user, $organisation] = member();
+    $channel = NotificationChannel::factory()->for(Project::factory()->for($organisation)->create(['name' => 'Pilot sites']))->reports(ReportFrequency::Weekly)->create(['name' => 'Night shift', 'last_error' => 'old']);
+    $daily = NotificationChannel::factory()->for($channel->project)->create(['name' => 'Day']);
+
+    $this->actingAs($user)->post(route('projects.notification-channels.report', [$channel->project, $channel]))
+        ->assertRedirectToRoute('projects.show', $channel->project)
+        ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Report sent to Night shift.']);
+    Mail::assertSent(ReportMail::class, fn (ReportMail $mail): bool => $mail->report->frequency === ReportFrequency::Weekly
+        && $mail->report->from->equalTo(now()->subWeek())
+        && $mail->report->to->equalTo(now()));
+    expect($channel->refresh()->last_error)->toBeNull()
+        ->and($channel->last_sent_at)->not->toBeNull()
+        ->and($channel->last_report_at)->toBeNull();
+
+    $this->actingAs($user)->post(route('projects.notification-channels.report', [$daily->project, $daily]))->assertRedirect();
+    Mail::assertSent(ReportMail::class, fn (ReportMail $mail): bool => $mail->report->frequency === ReportFrequency::Daily);
+});
+
+it('sends the report now, and says why it failed', function (): void {
+    Http::fake(['*' => Http::response('nope', 500)]);
+    [$user, $organisation] = member();
+    $channel = NotificationChannel::factory()->for(Project::factory()->for($organisation))
+        ->webhook(NotificationChannelKind::Slack, 'https://hooks.slack.com/services/x')->reports()->create(['name' => 'Slack']);
+    [$operator] = member(OrganisationRole::Operator);
+    $channel->project->organisation->memberships()->create(['user_id' => $operator->id, 'role' => OrganisationRole::Operator]);
+
+    $this->actingAs($operator)->post(route('projects.notification-channels.report', [$channel->project, $channel]))->assertForbidden();
+    $this->actingAs($user)->post(route('projects.notification-channels.report', [$channel->project, $channel]))
+        ->assertRedirectToRoute('projects.show', $channel->project)
+        ->assertInertiaFlash('toast.type', 'error');
+
+    expect($channel->refresh()->last_error)->toContain('500');
 });
 
 it('adds a webhook with a signing secret, shown once', function (): void {

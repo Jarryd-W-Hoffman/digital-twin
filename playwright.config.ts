@@ -32,6 +32,8 @@ export default defineConfig({
         MERIDIAN_NOTIFICATIONS_QUEUE: 'sync',
         MAIL_MAILER: 'array',
         MERIDIAN_ALLOW_PRIVATE_WEBHOOKS: 'true',
+        // Single sign-on reaches the mock identity provider in sso.spec.ts.
+        MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS: 'true',
       },
       url: 'http://127.0.0.1:8199/up',
       reuseExistingServer: false,

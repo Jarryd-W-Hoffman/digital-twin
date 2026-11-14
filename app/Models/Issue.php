@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\Actor;
 use Carbon\CarbonInterface;
 use Database\Factories\IssueFactory;
 use Illuminate\Database\Eloquent\Collection;
@@ -27,11 +28,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read float $height
  * @property-read array{lon: float, lat: float, height: float, heading: float, pitch: float, roll: float} $view
  * @property-read string|null $author_id
+ * @property-read string|null $author_api
  * @property-read string|null $assignee_id
  * @property-read CarbonInterface|null $due_on
  * @property-read string|null $alert_id
  * @property-read CarbonInterface|null $closed_at
  * @property-read string|null $closed_by
+ * @property-read string|null $closed_by_api
  * @property-read int|null $comments_count
  * @property-read Twin $twin
  * @property-read User|null $author
@@ -64,11 +67,13 @@ final class Issue extends Model
             'height' => 'float',
             'view' => 'array',
             'author_id' => 'string',
+            'author_api' => 'string',
             'assignee_id' => 'string',
             'due_on' => 'date',
             'alert_id' => 'string',
             'closed_at' => 'datetime',
             'closed_by' => 'string',
+            'closed_by_api' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -88,6 +93,14 @@ final class Issue extends Model
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');
+    }
+
+    /**
+     * Who raised it: a person, or the API token that did.
+     */
+    public function authorName(): ?string
+    {
+        return $this->author->name ?? Actor::apiName($this->author_api);
     }
 
     /**
@@ -124,6 +137,14 @@ final class Issue extends Model
     public function closer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    /**
+     * Who closed it: a person, or the API token that did.
+     */
+    public function closerName(): ?string
+    {
+        return $this->closer->name ?? Actor::apiName($this->closed_by_api);
     }
 
     /**

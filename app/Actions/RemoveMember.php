@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Enums\OrganisationRole;
 use App\Models\Membership;
 use Illuminate\Support\Facades\DB;
 
 final readonly class RemoveMember
 {
-    public function __construct(private EnsureAnotherOwner $owners) {}
+    public function __construct(private EnsureAnotherOwner $owners, private RecordAuditEvent $audit) {}
 
     public function handle(Membership $membership): void
     {
@@ -21,6 +22,8 @@ final readonly class RemoveMember
 
             $user = $membership->user;
             $membership->delete();
+
+            $this->audit->handle(AuditAction::MemberRemoved, $membership->organisation, $user->email, ['role' => $membership->role->value]);
 
             if ($user->current_organisation_id === $membership->organisation_id) {
                 $next = $user->memberships()->value('organisation_id');

@@ -23,7 +23,7 @@ it('stops a view nobody else can see from opening the twin', function (): void {
     [, $organisation] = member();
     $twin = twinIn($organisation);
     $view = SavedView::factory()->for($twin)->create();
-    new SetOpeningView()->handle($twin, $view);
+    resolve(SetOpeningView::class)->handle($twin, $view);
 
     expect($view->refresh()->shared)->toBeTrue()
         ->and($twin->refresh()->opening_view_id)->toBe($view->id);
@@ -37,9 +37,9 @@ it('stops a view nobody else can see from opening the twin', function (): void {
 it('opens the twin at the whole site again given no view', function (): void {
     [, $organisation] = member();
     $twin = twinIn($organisation);
-    new SetOpeningView()->handle($twin, SavedView::factory()->for($twin)->create());
+    resolve(SetOpeningView::class)->handle($twin, SavedView::factory()->for($twin)->create());
 
-    new SetOpeningView()->handle($twin, null);
+    resolve(SetOpeningView::class)->handle($twin, null);
 
     expect($twin->refresh()->opening_view_id)->toBeNull();
 });
@@ -48,7 +48,7 @@ it('forgets the opening view when it is deleted', function (): void {
     [, $organisation] = member();
     $twin = twinIn($organisation);
     $view = SavedView::factory()->for($twin)->create();
-    new SetOpeningView()->handle($twin, $view);
+    resolve(SetOpeningView::class)->handle($twin, $view);
 
     $view->delete();
 

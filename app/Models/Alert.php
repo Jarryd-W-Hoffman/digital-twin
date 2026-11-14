@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\AlertSeverity;
+use App\Support\Actor;
 use Carbon\CarbonInterface;
 use Database\Factories\AlertFactory;
 use Illuminate\Database\Eloquent\Attributes\WithoutTimestamps;
@@ -31,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read CarbonInterface|null $cleared_at
  * @property-read CarbonInterface|null $acknowledged_at
  * @property-read string|null $acknowledged_by
+ * @property-read string|null $acknowledged_by_api
  * @property-read Twin $twin
  * @property-read User|null $acknowledger
  * @property-read Collection<int, AlertNotification> $notifications
@@ -61,6 +63,7 @@ final class Alert extends Model
             'cleared_at' => 'datetime',
             'acknowledged_at' => 'datetime',
             'acknowledged_by' => 'string',
+            'acknowledged_by_api' => 'string',
         ];
     }
 
@@ -98,5 +101,13 @@ final class Alert extends Model
     public function acknowledger(): BelongsTo
     {
         return $this->belongsTo(User::class, 'acknowledged_by');
+    }
+
+    /**
+     * Who acknowledged it: a person, or the API token that did.
+     */
+    public function acknowledgerName(): ?string
+    {
+        return $this->acknowledger->name ?? Actor::apiName($this->acknowledged_by_api);
     }
 }

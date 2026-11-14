@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Models\ProjectAsset;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -11,7 +12,7 @@ use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteProjectAsset
 {
-    public function __construct(private RemoveAssetFromTwin $layers) {}
+    public function __construct(private RemoveAssetFromTwin $layers, private RecordAuditEvent $audit) {}
 
     /**
      * Takes the upload out of every twin in the project that still shows it,
@@ -27,6 +28,8 @@ final readonly class DeleteProjectAsset
             }
 
             $asset->delete();
+
+            $this->audit->handle(AuditAction::UploadDeleted, $asset->project, $asset->name, ['kind' => $asset->kind->value]);
         });
 
         $disk = Storage::disk(config()->string('meridian.assets_disk'));

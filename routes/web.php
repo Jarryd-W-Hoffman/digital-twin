@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\OrganisationApiTokenController;
+use App\Http\Controllers\OrganisationAuditController;
 use App\Http\Controllers\OrganisationController;
 use App\Http\Controllers\OrganisationMemberController;
+use App\Http\Controllers\OrganisationSsoController;
 use App\Http\Controllers\OrganisationTypeController;
 use App\Http\Controllers\ProjectAssetController;
 use App\Http\Controllers\ProjectAssetConversionController;
@@ -12,12 +15,15 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDeviceController;
 use App\Http\Controllers\ProjectDevicePasswordController;
 use App\Http\Controllers\ProjectNotificationChannelController;
+use App\Http\Controllers\ProjectNotificationChannelReportController;
 use App\Http\Controllers\ProjectNotificationChannelTestController;
 use App\Http\Controllers\ProjectOpcUaServerController;
 use App\Http\Controllers\ProjectUploadCompletionController;
 use App\Http\Controllers\ProjectUploadController;
 use App\Http\Controllers\ProjectUploadPartController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SsoCallbackController;
+use App\Http\Controllers\SsoSessionController;
 use App\Http\Controllers\TwinAlertAcknowledgementController;
 use App\Http\Controllers\TwinAlertController;
 use App\Http\Controllers\TwinAssetController;
@@ -43,6 +49,7 @@ use App\Http\Controllers\UserEmailVerificationNotificationController;
 use App\Http\Controllers\UserPasskeyController;
 use App\Http\Controllers\UserPasswordController;
 use App\Http\Controllers\UserProfileController;
+use App\Http\Controllers\UserSsoIdentityController;
 use App\Http\Controllers\UserTwoFactorAuthenticationController;
 use App\Http\Middleware\EnsureCurrentOrganisation;
 use Illuminate\Support\Facades\Route;
@@ -69,6 +76,7 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('projects/{project}/notification-channels', [ProjectNotificationChannelController::class, 'store'])->name('projects.notification-channels.store');
     Route::delete('projects/{project}/notification-channels/{notificationChannel}', [ProjectNotificationChannelController::class, 'destroy'])->scopeBindings()->name('projects.notification-channels.destroy');
     Route::post('projects/{project}/notification-channels/{notificationChannel}/test', [ProjectNotificationChannelTestController::class, 'store'])->scopeBindings()->middleware('throttle:10,1')->name('projects.notification-channels.test');
+    Route::post('projects/{project}/notification-channels/{notificationChannel}/report', [ProjectNotificationChannelReportController::class, 'store'])->scopeBindings()->middleware('throttle:10,1')->name('projects.notification-channels.report');
     Route::post('projects/{project}/uploads', [ProjectUploadController::class, 'store'])->name('projects.uploads.store');
     Route::post('projects/{project}/uploads/{asset}/parts', [ProjectUploadPartController::class, 'store'])->scopeBindings()->name('projects.uploads.parts');
     Route::post('projects/{project}/uploads/{asset}/complete', [ProjectUploadCompletionController::class, 'store'])->scopeBindings()->name('projects.uploads.complete');
@@ -114,6 +122,13 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class])->group
     Route::post('organisation/members', [OrganisationMemberController::class, 'store'])->name('organisation.members.store');
     Route::patch('organisation/members/{membership}', [OrganisationMemberController::class, 'update'])->name('organisation.members.update');
     Route::delete('organisation/members/{membership}', [OrganisationMemberController::class, 'destroy'])->name('organisation.members.destroy');
+    Route::get('organisation/audit', [OrganisationAuditController::class, 'index'])->name('organisation.audit.index');
+    Route::get('organisation/sso', [OrganisationSsoController::class, 'show'])->name('organisation.sso.show');
+    Route::put('organisation/sso', [OrganisationSsoController::class, 'update'])->middleware('throttle:10,1')->name('organisation.sso.update');
+    Route::delete('organisation/sso', [OrganisationSsoController::class, 'destroy'])->name('organisation.sso.destroy');
+    Route::get('organisation/api-tokens', [OrganisationApiTokenController::class, 'index'])->name('organisation.api-tokens.index');
+    Route::post('organisation/api-tokens', [OrganisationApiTokenController::class, 'store'])->middleware('throttle:20,1')->name('organisation.api-tokens.store');
+    Route::delete('organisation/api-tokens/{apiToken}', [OrganisationApiTokenController::class, 'destroy'])->name('organisation.api-tokens.destroy');
     Route::get('organisation/types', [OrganisationTypeController::class, 'index'])->name('organisation.types.index');
     Route::post('organisation/types', [OrganisationTypeController::class, 'store'])->name('organisation.types.store');
     Route::get('organisation/types/{type}', [OrganisationTypeController::class, 'show'])->name('organisation.types.show');
@@ -147,9 +162,21 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     // User Passkeys...
     Route::get('settings/passkeys', [UserPasskeyController::class, 'index'])
         ->name('user-passkey.index');
+
+    // Single sign-on...
+    Route::get('settings/sso', [UserSsoIdentityController::class, 'index'])->name('user-sso.index');
+    Route::post('settings/sso', [UserSsoIdentityController::class, 'store'])->middleware('throttle:sso')->name('user-sso.store');
+    Route::delete('settings/sso/{identity}', [UserSsoIdentityController::class, 'destroy'])->name('user-sso.destroy');
 });
 
+// Where identity providers send people back, signed in or linking.
+Route::get('sso/callback', [SsoCallbackController::class, 'show'])->middleware('throttle:sso-callback')->name('sso.callback');
+
 Route::middleware('guest')->group(function (): void {
+    // Single sign-on...
+    Route::get('sso', [SsoSessionController::class, 'create'])->name('sso.create');
+    Route::post('sso', [SsoSessionController::class, 'store'])->middleware('throttle:sso')->name('sso.store');
+
     // User...
     Route::get('register', [UserController::class, 'create'])
         ->name('register');

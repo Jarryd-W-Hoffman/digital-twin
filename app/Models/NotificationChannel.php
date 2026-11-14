@@ -8,6 +8,7 @@ use App\Enums\AlertEvent;
 use App\Enums\AlertNotificationStatus;
 use App\Enums\AlertSeverity;
 use App\Enums\NotificationChannelKind;
+use App\Enums\ReportFrequency;
 use Carbon\CarbonInterface;
 use Database\Factories\NotificationChannelFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -32,6 +33,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read AlertSeverity $min_severity
  * @property-read bool $notify_cleared
  * @property-read bool $notify_issues
+ * @property-read ReportFrequency|null $report
+ * @property-read CarbonInterface|null $last_report_at
  * @property-read int|null $escalate_after_minutes
  * @property-read string|null $quiet_from
  * @property-read string|null $quiet_until
@@ -64,6 +67,8 @@ final class NotificationChannel extends Model
             'min_severity' => AlertSeverity::class,
             'notify_cleared' => 'boolean',
             'notify_issues' => 'boolean',
+            'report' => ReportFrequency::class,
+            'last_report_at' => 'datetime',
             'escalate_after_minutes' => 'integer',
             'quiet_from' => 'string',
             'quiet_until' => 'string',
