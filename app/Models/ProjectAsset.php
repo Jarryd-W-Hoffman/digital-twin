@@ -30,11 +30,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read ProjectAssetStatus $status
  * @property-read string|null $error
  * @property-read string|null $upload_id
- * @property-read array{epsg?: int, spacing?: float}|null $options
+ * @property-read array{epsg?: int, spacing?: float, y_up?: bool}|null $options
  * @property-read int|null $progress
  * @property-read string|null $log
  * @property-read string|null $crs
- * @property-read array{surface?: string, elements?: int, georeference?: array{lon: float, lat: float, headingDeg: float, source: string}|null, features?: int, bounds?: list<float>, zooms?: list<int>}|null $details
+ * @property-read array{surface?: string, elements?: int, georeference?: array{lon: float, lat: float, headingDeg: float, source: string}|null, triangles?: int, origin?: array{lon: float, lat: float, height: float, source: string}|null, features?: int, bounds?: list<float>, zooms?: list<int>}|null $details
+ * @property-read CarbonInterface|null $captured_on
  * @property-read Project $project
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -75,6 +76,7 @@ final class ProjectAsset extends Model
             'log' => 'string',
             'crs' => 'string',
             'details' => 'array',
+            'captured_on' => 'date',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

@@ -103,3 +103,73 @@ export function hasUploadedLayers(def: TwinDefinition | undefined): boolean {
         0
     );
 }
+
+/** When each dated library upload was captured (YYYY-MM-DD), and its kind. */
+export type Captures = Record<string, { on: string; kind: string }>;
+
+/** A date as it reads in the viewer and the library: 12 Mar 2026. */
+export function captureLabel(date: string): string {
+    return new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', {
+        timeZone: 'UTC',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    });
+}
+
+/** The dates the twin's layers were captured, oldest first, without repeats. */
+export function captureDates(
+    def: TwinDefinition | undefined,
+    captures: Captures,
+): string[] {
+    const dates = datedLayers(def, captures).map((l) => l.on);
+    return [...new Set(dates)].sort();
+}
+
+/**
+ * The layers hidden when the site is shown as it was on a date (null: as it
+ * is now). Undated layers always show. A dated layer shows from its date:
+ * models and map layers stay from then on, while a scan, mesh, tileset or
+ * image is replaced by the next capture of the same kind, so stepping
+ * through the dates steps through the surveys.
+ */
+export function hiddenAt(
+    def: TwinDefinition | undefined,
+    captures: Captures,
+    date: string | null,
+): Set<string> {
+    const layers = datedLayers(def, captures);
+    const current = layers.filter((l) => date === null || l.on <= date);
+    const latest = new Map<string, string>();
+    for (const l of current) {
+        if (l.replaced && (latest.get(l.kind) ?? '') < l.on)
+            latest.set(l.kind, l.on);
+    }
+    return new Set(
+        layers
+            .filter(
+                (l) =>
+                    !current.includes(l) ||
+                    (l.replaced && l.on < latest.get(l.kind)!),
+            )
+            .map((l) => l.id),
+    );
+}
+
+function datedLayers(
+    def: TwinDefinition | undefined,
+    captures: Captures,
+): { id: string; on: string; kind: string; replaced: boolean }[] {
+    const lists: [{ id: string; assetId?: string }[] | undefined, boolean][] = [
+        [def?.tilesets, true],
+        [def?.imagery, true],
+        [def?.models, false],
+        [def?.vectors, false],
+    ];
+    return lists.flatMap(([list, replaced]) =>
+        (list ?? []).flatMap((l) => {
+            const capture = l.assetId ? captures[l.assetId] : undefined;
+            return capture ? [{ id: l.id, ...capture, replaced }] : [];
+        }),
+    );
+}

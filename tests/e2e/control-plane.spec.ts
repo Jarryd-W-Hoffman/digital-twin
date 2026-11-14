@@ -255,9 +255,9 @@ test('an owner renames a twin and describes it, then deletes it', async ({ page 
 
 test('an owner adds a device, is shown its broker login once, and can reset or delete it', async ({ page }) => {
   await logIn(page, 'test@example.com');
-  const devices = page.getByRole('region', { name: 'Devices' });
+  const devices = page.getByRole('region', { name: 'Devices', exact: true });
   const login = devices.getByRole('status', { name: 'Device login' });
-  const list = devices.getByRole('list', { name: 'Devices' });
+  const list = devices.getByRole('list', { name: 'Devices', exact: true });
   await expect(devices.getByText(/below p\/pilot-sites-[a-z0-9]{4}\//)).toBeVisible();
 
   await devices.getByLabel('Device name').fill('Freezer probe 1');
@@ -401,6 +401,98 @@ test('a DEM converts to terrain on the queue, with only an EPSG option', async (
   await expect(item.getByRole('button', { name: 'Retry' })).toBeVisible();
 });
 
+test('a zipped photogrammetry export is taken as a mesh, and a bare OBJ can say y is up', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+
+  await page.getByLabel(/^File \(/).setInputFiles({ name: 'skid.obj', mimeType: 'text/plain', buffer: Buffer.from('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n') });
+  await expect(page.getByLabel('EPSG code', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('It is')).toHaveCount(0);
+  await page.getByLabel('Y is up (a mesh in local metres)').check();
+
+  await page.getByLabel(/^File \(/).setInputFiles({ name: 'survey.zip', mimeType: 'application/zip', buffer: Buffer.from('PK\x03\x04 not really an export') });
+  await expect(page.getByLabel('Y is up (a mesh in local metres)')).toHaveCount(0);
+  await page.getByLabel('It is').selectOption('mesh');
+  await expect(page.getByLabel('Y is up (a mesh in local metres)')).not.toBeChecked();
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  const item = page.getByRole('listitem').filter({ hasText: 'survey.zip' });
+  await expect(item).toContainText('Converting 0%');
+
+  // meridian-mesh only lives in the converter image, so here it fails.
+  execFileSync('php', ['artisan', 'queue:work', 'conversions', '--queue=conversions', '--stop-when-empty'], {
+    env: { ...process.env, DB_DATABASE: resolve('database/e2e.sqlite') },
+  });
+  await expect(item).toContainText('The mesh could not be converted', { timeout: 10_000 });
+  await expect(item.getByRole('button', { name: 'Retry' })).toBeVisible();
+});
+
+test('uploads dated by when they were captured show the site as it was on each date', async ({ page }) => {
+  type Dated = {
+    __twin: { getState(): { def?: { tilesets?: { id: string; name: string }[]; models?: { id: string; name: string }[] } } };
+    __scene: { layerShown(id: string): boolean | null };
+  };
+  const shown = (name: string) => page.evaluate((layer) => {
+    const w = window as unknown as Dated;
+    const def = w.__twin.getState().def;
+    const id = [...(def?.tilesets ?? []), ...(def?.models ?? [])].find((l) => l.name === layer)?.id;
+    return id ? w.__scene.layerShown(id) : null;
+  }, name);
+
+  await logIn(page, 'test@example.com');
+  for (const [name, file, date] of [
+    ['March survey', tilesetZip(), '2026-03-10'],
+    ['May survey', tilesetZip(), '2026-05-12'],
+    ['Site office', model, '2026-04-02'],
+  ] as const) {
+    await page.getByLabel(/^File \(/).setInputFiles(file);
+    await page.getByLabel('Name', { exact: true }).fill(name);
+    await page.getByLabel('Captured on', { exact: true }).fill(date);
+    await page.getByRole('button', { name: 'Upload', exact: true }).click();
+    await expect(page.getByLabel(`Captured on for ${name}`)).toHaveValue(date);
+  }
+  // A survey dated wrongly is put right in the library.
+  await page.getByLabel('Captured on for May survey').fill('2026-05-20');
+  await expect(page.getByText('May survey dated 2026-05-20.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'New twin' }).click();
+  await expect(page.getByLabel('Project')).toHaveValue(/.+/);
+  await page.getByLabel('Name', { exact: true }).fill('Survey history');
+  await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Empty' });
+  await page.getByLabel('Latitude').fill('-36.85');
+  await page.getByLabel('Longitude').fill('174.76');
+  await page.getByRole('button', { name: 'Create twin' }).click();
+  await expect(page.locator('.twin-name')).toHaveText('Survey history');
+  await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Dated).__twin.getState().def)), { timeout: 90_000 }).toBe(true);
+  await expect(page.getByRole('slider', { name: 'Site on' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const library = page.getByRole('complementary', { name: 'Layout' }).getByRole('list', { name: 'Library' });
+  for (const [i, name] of ['March survey', 'May survey', 'Site office'].entries()) {
+    await library.getByRole('listitem').filter({ hasText: name }).getByRole('button', { name: 'Add' }).click();
+    await expect(page.locator('.version-chip')).toHaveText(`v${i + 2}`, { timeout: 30_000 });
+  }
+  await page.getByRole('button', { name: 'Close layout' }).click();
+
+  const slider = page.getByRole('slider', { name: 'Site on' });
+  await expect(slider).toHaveAttribute('aria-valuetext', 'Now');
+  await expect(page.getByText('Now: the latest of 3 capture dates')).toBeVisible();
+  await expect.poll(() => shown('May survey'), { timeout: 45_000 }).toBe(true);
+  await expect.poll(() => shown('Site office'), { timeout: 45_000 }).toBe(true);
+  expect(await shown('March survey')).toBe(false);
+
+  await slider.focus();
+  await page.keyboard.press('Home');
+  await expect(page.getByText('As captured on 10 Mar 2026')).toBeVisible();
+  expect([await shown('March survey'), await shown('May survey'), await shown('Site office')]).toEqual([true, false, false]);
+
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByText('As captured on 2 Apr 2026')).toBeVisible();
+  expect([await shown('March survey'), await shown('May survey'), await shown('Site office')]).toEqual([true, false, true]);
+
+  // Hiding uploaded layers hides the surveys whatever the date, not the model.
+  await page.getByLabel('Uploaded layers').uncheck();
+  expect([await shown('March survey'), await shown('Site office')]).toEqual([false, true]);
+});
+
 test('a bad archive is refused with the reason', async ({ page }) => {
   await logIn(page, 'test@example.com');
   await openTwin(page, 'Northshore Cold Chain Hub');
@@ -492,6 +584,51 @@ test('an owner registers an OPC UA server, then maps one of its nodes to a metri
   await page.getByRole('button', { name: 'Layout' }).click();
   await expect(page.getByRole('region', { name: 'OPC UA' }).getByLabel('Node')).toHaveValue('ns=2;s=Store.TempC');
   await expect(page.getByRole('region', { name: 'OPC UA' }).getByLabel('Sampling, ms')).toHaveValue('500');
+});
+
+test('an owner registers a Modbus device, then maps one of its registers to a metric', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  const modbus = page.getByRole('region', { name: 'Modbus devices' });
+  const form = modbus.getByRole('form', { name: 'Add a Modbus device' });
+  await form.getByLabel('Device name').fill('Freezer meter');
+  await form.getByLabel('Host').fill('meter.local:502');
+  await form.getByRole('button', { name: 'Add device' }).click();
+  await expect(form.getByText('The host must be a name or an IP address')).toBeVisible();
+
+  await form.getByLabel('Host').fill('192.168.1.20');
+  await form.getByLabel('Unit id').fill('3');
+  await form.getByRole('button', { name: 'Add device' }).click();
+  const list = modbus.getByRole('list', { name: 'Modbus devices' });
+  await expect(list.getByText('192.168.1.20:502 · unit 3')).toBeVisible();
+
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const mappings = page.getByRole('region', { name: 'Modbus', exact: true });
+  await mappings.getByRole('button', { name: 'Add register' }).click();
+  await expect(mappings.getByLabel('Device')).toHaveValue('Freezer meter');
+  await mappings.getByLabel('Table').selectOption({ label: 'Input register' });
+  await mappings.getByLabel('Address').fill('70000');
+  await mappings.getByLabel('Asset').selectOption({ label: 'Freezer hall' });
+  await mappings.getByLabel('Metric').selectOption({ label: 'Temperature' });
+  await mappings.getByRole('button', { name: 'Save Modbus mappings' }).click();
+  await expect(mappings.getByRole('alert')).toContainText("A Modbus mapping's address must be a whole number from 0 to 65535");
+
+  await mappings.getByLabel('Address').fill('4');
+  await mappings.getByLabel('Type').selectOption({ label: 'Float, 32-bit' });
+  await mappings.getByLabel('Word order').selectOption({ label: 'Low word first' });
+  await mappings.getByLabel('Every (ms)').fill('500');
+  await mappings.getByRole('button', { name: 'Save Modbus mappings' }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const saved = page.getByRole('region', { name: 'Modbus', exact: true });
+  await expect(saved.getByLabel('Address')).toHaveValue('4');
+  await expect(saved.getByLabel('Table')).toHaveValue('input');
+  await expect(saved.getByLabel('Type')).toHaveValue('float32');
+  await expect(saved.getByLabel('Word order')).toHaveValue('little');
+  await expect(saved.getByLabel('Every (ms)')).toHaveValue('500');
 });
 
 test('an owner maps a setpoint for writing, then lets operators write to the PLC', async ({ page }) => {

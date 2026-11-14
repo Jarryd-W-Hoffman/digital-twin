@@ -25,11 +25,14 @@ enum AuditAction: string
     case ProjectDeleted = 'project.deleted';
     case UploadAdded = 'upload.added';
     case UploadDeleted = 'upload.deleted';
+    case UploadDated = 'upload.dated';
     case DeviceAdded = 'device.added';
     case DevicePasswordReset = 'device.password_reset';
     case DeviceDeleted = 'device.deleted';
     case OpcUaServerAdded = 'opcua_server.added';
     case OpcUaServerDeleted = 'opcua_server.deleted';
+    case ModbusDeviceAdded = 'modbus_device.added';
+    case ModbusDeviceDeleted = 'modbus_device.deleted';
     case ChannelAdded = 'channel.added';
     case ChannelDeleted = 'channel.deleted';
     case TypeSaved = 'type.saved';
@@ -100,11 +103,14 @@ enum AuditAction: string
             self::ProjectDeleted => 'Deleted a project',
             self::UploadAdded => 'Uploaded to the library',
             self::UploadDeleted => 'Deleted an upload',
+            self::UploadDated => 'Dated an upload',
             self::DeviceAdded => 'Added a device',
             self::DevicePasswordReset => "Reset a device's password",
             self::DeviceDeleted => 'Deleted a device',
             self::OpcUaServerAdded => 'Added an OPC UA server',
             self::OpcUaServerDeleted => 'Deleted an OPC UA server',
+            self::ModbusDeviceAdded => 'Added a Modbus device',
+            self::ModbusDeviceDeleted => 'Deleted a Modbus device',
             self::ChannelAdded => 'Added a notification channel',
             self::ChannelDeleted => 'Deleted a notification channel',
             self::TypeSaved => 'Saved a type to the library',
@@ -145,8 +151,8 @@ enum AuditAction: string
             self::MemberAdded, self::MemberRoleChanged, self::MemberRemoved, self::ApiTokenCreated, self::ApiTokenRevoked,
             self::SsoSaved, self::SsoRemoved, self::SsoLinked, self::SsoUnlinked,
             self::ScimTokenCreated, self::ScimTokenRevoked, self::ScimOwnerKept => 'access',
-            self::ProjectCreated, self::ProjectDeleted, self::UploadAdded, self::UploadDeleted, self::TypeSaved, self::TypeDeleted => 'projects',
-            self::DeviceAdded, self::DevicePasswordReset, self::DeviceDeleted, self::OpcUaServerAdded, self::OpcUaServerDeleted,
+            self::ProjectCreated, self::ProjectDeleted, self::UploadAdded, self::UploadDeleted, self::UploadDated, self::TypeSaved, self::TypeDeleted => 'projects',
+            self::DeviceAdded, self::DevicePasswordReset, self::DeviceDeleted, self::OpcUaServerAdded, self::OpcUaServerDeleted, self::ModbusDeviceAdded, self::ModbusDeviceDeleted,
             self::GatewayTokenIssued, self::GatewayTokenRevoked, self::OpcUaWritesChanged, self::ChannelAdded, self::ChannelDeleted,
             self::AnomalyMonitorSaved, self::AnomalyMonitorRemoved, self::AnomalyExclusionAdded, self::AnomalyExclusionRemoved => 'connections',
             self::TwinCreated, self::TwinRenamed, self::TwinDeleted, self::VersionSaved, self::OpeningViewChanged,

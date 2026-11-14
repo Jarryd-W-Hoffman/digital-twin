@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\SaveTwinVersion;
+use App\Models\ModbusDevice;
 use App\Models\OpcUaServer;
 use App\Models\Twin;
 
@@ -110,4 +111,39 @@ it('tells the gateway whether it may write setpoints, with a new ETag when that 
         ->assertOk()
         ->assertHeader('ETag', '"v1-w"')
         ->assertJsonPath('opcua.writes', true);
+});
+
+it("sends the project's Modbus devices, and a new ETag when they change", function (): void {
+    [$twin, $token] = gatewayTwin();
+    ModbusDevice::factory()->for($twin->project)->create(['name' => 'B drive', 'host' => '10.0.0.6', 'port' => 1502, 'unit_id' => 3]);
+    ModbusDevice::factory()->for($twin->project)->create(['name' => 'A meter']);
+    ModbusDevice::factory()->create();
+
+    $response = $this->withToken($token)->getJson(route('gateway.definition.show'))
+        ->assertOk()
+        ->assertJsonPath('modbus.devices', [
+            ['name' => 'A meter', 'host' => 'meter.local', 'port' => 502, 'unitId' => 1],
+            ['name' => 'B drive', 'host' => '10.0.0.6', 'port' => 1502, 'unitId' => 3],
+        ]);
+    $etag = (string) $response->headers->get('ETag');
+    expect($etag)->toMatch('/^"v1-[0-9a-f]{16}"$/');
+
+    $this->withToken($token)->withHeader('If-None-Match', $etag)->get(route('gateway.definition.show'))->assertStatus(304);
+
+    $twin->project->modbusDevices()->where('name', 'A meter')->update(['unit_id' => 2]);
+    $this->withToken($token)->withHeader('If-None-Match', $etag)->getJson(route('gateway.definition.show'))
+        ->assertOk()
+        ->assertJsonPath('modbus.devices.0.unitId', 2);
+});
+
+it("records each Modbus device's status", function (): void {
+    [$twin, $token] = gatewayTwin();
+
+    $this->withToken($token)->withHeader('X-Gateway-Modbus', '{"Main meter":"connected","Drive":"failed","Pump":"on fire"}')
+        ->getJson(route('gateway.definition.show'))
+        ->assertOk()
+        ->assertJsonPath('modbus.devices', []);
+
+    expect($twin->refresh()->gateway_modbus)->toBe(['Main meter' => 'connected', 'Drive' => 'failed'])
+        ->and($twin->gateway_opcua)->toBeNull();
 });

@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Actions\ConvertIfc;
 use App\Actions\ConvertImagery;
+use App\Actions\ConvertMesh;
 use App\Actions\ConvertPointCloud;
 use App\Actions\ConvertTerrain;
 use App\Actions\ConvertVector;
@@ -20,9 +21,9 @@ use Illuminate\Queue\Attributes\Tries;
 use Throwable;
 
 /**
- * Converts a library upload (a point cloud, DEM, IFC model, map layer or
- * image) on the "conversions" queue, which only the converter (with PDAL,
- * py3dtiles, GDAL and Meridian's scripts) works. It
+ * Converts a library upload (a point cloud, DEM, IFC model, map layer, image
+ * or mesh) on the "conversions" queue, which only the converter (with PDAL,
+ * py3dtiles, GDAL, Obj2Tiles and Meridian's scripts) works. It
  * is tried once: a failure is shown on the library item, which can be
  * retried from there.
  */
@@ -37,7 +38,7 @@ final class ConvertUpload implements ShouldQueue
         $this->onConnection('conversions')->onQueue('conversions');
     }
 
-    public function handle(ConvertPointCloud $pointCloud, ConvertTerrain $terrain, ConvertIfc $ifc, ConvertVector $vector, ConvertImagery $imagery): void
+    public function handle(ConvertPointCloud $pointCloud, ConvertTerrain $terrain, ConvertIfc $ifc, ConvertVector $vector, ConvertImagery $imagery, ConvertMesh $mesh): void
     {
         try {
             match ($this->asset->kind) {
@@ -45,6 +46,7 @@ final class ConvertUpload implements ShouldQueue
                 ProjectAssetKind::Bim => $ifc->handle($this->asset),
                 ProjectAssetKind::Vector => $vector->handle($this->asset),
                 ProjectAssetKind::Imagery => $imagery->handle($this->asset),
+                ProjectAssetKind::Mesh => $mesh->handle($this->asset),
                 default => $pointCloud->handle($this->asset),
             };
         } catch (ConversionFailed $conversionFailed) {

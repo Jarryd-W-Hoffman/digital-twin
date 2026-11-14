@@ -26,6 +26,9 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 | 🗺️  | [Map layers and imagery](16-map-layers-and-imagery.md)           | Uploading GeoJSON, KML, shapefiles, DXF and GeoPackages as map layers, and GeoTIFF orthophotos as imagery, and drawing them in a twin                 |
 | ⛏️  | [Comparing surveys](17-comparing-surveys.md)                     | Cut and fill between surveys of the ground inside an area, over time, for stockpiles, pits and earthworks                                            |
 | 📥  | [Importing readings](18-importing-readings.md)                   | Readings from CSV files and other systems, without a gateway: survey monitoring, lab results and loggers                                             |
+| 🔢  | [Modbus](19-modbus.md)                                           | Registering Modbus TCP meters, drives and PLCs, and mapping their registers onto metrics                                                             |
+| 🛰️  | [Photogrammetry meshes](20-photogrammetry-meshes.md)             | Uploading textured OBJ meshes and zipped drone survey exports, where they're placed, and Obj2Tiles                                                  |
+| 📅  | [The site over time](21-the-site-over-time.md)                   | Dating uploads by when they were captured, and stepping a twin through its surveys with Site on                                                      |
 
 ## Conventions
 
@@ -41,7 +44,7 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 
 ## About the screenshots
 
-The screenshots are taken by a Playwright walkthrough of a freshly seeded app, using the real MQTT broker, the OPC UA simulator and the converter (for a point cloud, two DEMs, an orthophoto, a site plan, an IFC model and a comparison of surveys), so they can be brought up to date whenever the app changes:
+The screenshots are taken by a Playwright walkthrough of a freshly seeded app, using the real MQTT broker, the OPC UA simulator and the converter (for a point cloud, two DEMs, an orthophoto, a site plan, an IFC model, two dated photogrammetry meshes and a comparison of surveys), so they can be brought up to date whenever the app changes:
 
 ```bash
 npm run build

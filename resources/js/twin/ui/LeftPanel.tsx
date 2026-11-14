@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react';
-import { hasUploadedLayers } from '../core/layers.ts';
+import {
+    captureDates,
+    captureLabel,
+    hasUploadedLayers,
+} from '../core/layers.ts';
 import {
     formatMetric,
     metricDefFor,
@@ -140,6 +144,7 @@ export function LeftPanel() {
                         </label>
                     ))}
                 </div>
+                <SiteOn />
                 <div className="control-group">
                     <h3>Basemap</h3>
                     <select
@@ -244,6 +249,46 @@ function Legend({ mode }: { mode: ColorBy }) {
                 <span>Idle</span>
                 <span>Full load</span>
             </div>
+        </div>
+    );
+}
+
+/**
+ * Steps through the dates the twin's layers were captured, showing the
+ * site as it was on each, or now at the far right.
+ */
+function SiteOn() {
+    const def = useTwin((s) => s.def);
+    const captures = useTwin((s) => s.captures);
+    const siteDate = useTwin((s) => s.siteDate);
+    const setSiteDate = useTwin((s) => s.setSiteDate);
+    const dates = useMemo(() => captureDates(def, captures), [def, captures]);
+    if (dates.length === 0) return null;
+    const index = siteDate === null ? dates.length : dates.indexOf(siteDate);
+
+    return (
+        <div className="control-group">
+            <h3>Site on</h3>
+            <input
+                type="range"
+                aria-label="Site on"
+                aria-valuetext={
+                    siteDate === null ? 'Now' : captureLabel(siteDate)
+                }
+                min={0}
+                max={dates.length}
+                step={1}
+                value={index < 0 ? dates.length : index}
+                onChange={(e) => {
+                    const i = Number(e.target.value);
+                    setSiteDate(i >= dates.length ? null : dates[i]!);
+                }}
+            />
+            <p className="muted hint" aria-live="polite">
+                {siteDate === null
+                    ? `Now: the latest of ${dates.length} capture ${dates.length === 1 ? 'date' : 'dates'}`
+                    : `As captured on ${captureLabel(siteDate)}`}
+            </p>
         </div>
     );
 }

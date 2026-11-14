@@ -13,9 +13,9 @@ use App\Models\Twin;
  */
 final readonly class RecordGatewayCheckIn
 {
-    private const array OPCUA_STATUSES = ['connecting', 'connected', 'reconnecting', 'failed'];
+    private const array STATUSES = ['connecting', 'connected', 'reconnecting', 'failed'];
 
-    public function handle(Twin $twin, ?string $publicUrl, ?string $mqtt = null, ?string $opcua = null): void
+    public function handle(Twin $twin, ?string $publicUrl, ?string $mqtt = null, ?string $opcua = null, ?string $modbus = null): void
     {
         $scheme = is_string($publicUrl) ? parse_url($publicUrl, PHP_URL_SCHEME) : null;
         $valid = in_array($scheme, ['ws', 'wss'], true)
@@ -26,16 +26,18 @@ final readonly class RecordGatewayCheckIn
             'gateway_url' => $valid ? $publicUrl : null,
             'gateway_seen_at' => now(),
             'gateway_mqtt' => in_array($mqtt, ['connected', 'disconnected'], true) ? $mqtt : null,
-            'gateway_opcua' => $this->opcuaStatuses($opcua),
+            'gateway_opcua' => $this->statuses($opcua),
+            'gateway_modbus' => $this->statuses($modbus),
         ]);
     }
 
     /**
-     * Each server's status, from the gateway's JSON; anything else is dropped.
+     * Each OPC UA server's or Modbus device's status, from the gateway's JSON;
+     * anything else is dropped.
      *
      * @return array<string, string>|null
      */
-    private function opcuaStatuses(?string $json): ?array
+    private function statuses(?string $json): ?array
     {
         $decoded = is_string($json) && mb_strlen($json) <= 8192 ? json_decode($json, true) : null;
 
@@ -46,7 +48,7 @@ final readonly class RecordGatewayCheckIn
         $statuses = [];
 
         foreach ($decoded as $name => $status) {
-            if (is_string($name) && mb_strlen($name) <= 100 && in_array($status, self::OPCUA_STATUSES, true)) {
+            if (is_string($name) && mb_strlen($name) <= 100 && in_array($status, self::STATUSES, true)) {
                 $statuses[$name] = $status;
             }
         }

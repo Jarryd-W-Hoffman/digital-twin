@@ -57,6 +57,7 @@ type Props = {
         name: string;
         topicPrefix: string;
         opcuaServers: string[];
+        modbusDevices: string[];
     };
     definition: TwinDefinition;
     version: number;
@@ -156,6 +157,19 @@ export default function ShowTwin({
             runDefinition(definition, { canOperate: can.operate });
         }
     }, [version, definition, can.operate, live, gatewayUrl]);
+
+    // When the library's uploads were captured, for the Site on slider.
+    useEffect(() => {
+        useTwin.setState({
+            captures: Object.fromEntries(
+                assets.flatMap((a) =>
+                    a.capturedOn
+                        ? [[a.id, { on: a.capturedOn, kind: a.kind }]]
+                        : [],
+                ),
+            ),
+        });
+    }, [assets]);
 
     // Recorded readings come from the control plane, whichever source runs.
     useEffect(() => {
@@ -422,6 +436,7 @@ export default function ShowTwin({
                         gateway={gateway}
                         topicPrefix={project.topicPrefix}
                         opcuaServers={project.opcuaServers}
+                        modbusDevices={project.modbusDevices}
                         opcuaWrites={opcuaWrites}
                         readingImports={readingImports}
                         onClose={() => setEditing(null)}

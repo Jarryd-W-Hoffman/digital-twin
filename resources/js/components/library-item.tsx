@@ -8,15 +8,20 @@ import {
     Mountain,
     RotateCcw,
     ScanLine,
+    Shapes,
     Trash2,
     TriangleAlert,
 } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { destroy as destroyAsset } from '@/routes/projects/assets';
+import {
+    destroy as destroyAsset,
+    update as updateAsset,
+} from '@/routes/projects/assets';
 import { store as retryConversion } from '@/routes/projects/assets/conversion';
 import { destroy as abortUpload } from '@/routes/projects/uploads';
+import { captureLabel } from '@/twin/core/layers';
 
 export type LibraryAsset = {
     id: string;
@@ -28,7 +33,8 @@ export type LibraryAsset = {
         | 'terrain'
         | 'bim'
         | 'vector'
-        | 'imagery';
+        | 'imagery'
+        | 'mesh';
     /** A map layer's feature count. */
     features: number | null;
     originalName: string;
@@ -41,6 +47,8 @@ export type LibraryAsset = {
     crs: string | null;
     /** An IFC model's element count. */
     elements: number | null;
+    /** When it was captured (YYYY-MM-DD), if it's dated. */
+    capturedOn: string | null;
     createdAt: string;
 };
 
@@ -64,6 +72,8 @@ const ready: Record<LibraryAsset['kind'], (asset: LibraryAsset) => string> = {
         `Map layer · ${asset.features ?? 0} features · ${asset.crs ?? 'unknown CRS'}`,
     imagery: (asset) =>
         `Imagery · ${asset.files} files · ${asset.crs ?? 'unknown CRS'}`,
+    mesh: (asset) =>
+        `Mesh · ${asset.files} files · ${asset.crs ?? 'local metres'}`,
 };
 
 /** Kinds converted on the queue, which show progress and can be retried. */
@@ -106,6 +116,8 @@ function Icon({ asset }: { asset: LibraryAsset }) {
         <MapIcon className={className} />
     ) : asset.kind === 'imagery' ? (
         <ImageIcon className={className} />
+    ) : asset.kind === 'mesh' ? (
+        <Shapes className={className} />
     ) : (
         <Box className={className} />
     );
@@ -177,6 +189,30 @@ export default function LibraryItem({
                     {describe(asset)} · {size(asset.bytes)} ·{' '}
                     {asset.originalName}
                 </span>
+                {canUpdate ? (
+                    <label className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                        Captured on
+                        <Input
+                            type="date"
+                            aria-label={`Captured on for ${asset.name}`}
+                            className="h-7 w-40 text-xs"
+                            defaultValue={asset.capturedOn ?? ''}
+                            onChange={(e) =>
+                                router.patch(
+                                    updateAsset.url([projectId, asset.id]),
+                                    { captured_on: e.target.value || null },
+                                    { preserveScroll: true },
+                                )
+                            }
+                        />
+                    </label>
+                ) : (
+                    asset.capturedOn && (
+                        <span className="block text-xs text-muted-foreground">
+                            Captured {captureLabel(asset.capturedOn)}
+                        </span>
+                    )
+                )}
                 {asset.error && (
                     <span className="block text-xs whitespace-pre-line text-destructive">
                         {asset.error}

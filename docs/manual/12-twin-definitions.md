@@ -95,6 +95,7 @@ flowchart TD
 | `scenarios`          | Events to try in what-if                                                                               |
 | `models`, `tilesets` | Uploads shown in the twin, and their placement. Written by the Layout panel                            |
 | `telemetry`          | MQTT topics mapped onto metrics. Written by the Layout panel                                           |
+| `opcua`, `modbus`    | OPC UA nodes and Modbus registers mapped onto metrics. Written by the Layout panel                     |
 | `kpis`, `panels`     | The figures in the top bar, and extra panels in the site summary                                       |
 | `shapes`             | Arrows and fans drawn in the scene, which can follow readings                                          |
 | `terrain`            | The ground the site stands on. Written by the Layout panel                                             |
@@ -356,7 +357,7 @@ A weather station reports the wind as `windMs` (metres a second) and `windDeg` (
 draw each image over the basemap, in the order listed (later on top), within its bounds and zooms
 draw each map layer clamped to the ground:
     points as dots, lines in its colour, areas filled faintly with an outline
-the layer toggle Uploaded layers hides and shows both, with models and tilesets
+the layer toggle Uploaded layers hides and shows both, with tilesets
 ```
 
 ## Scenarios

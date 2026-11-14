@@ -7,6 +7,8 @@ import LibraryItem from '@/components/library-item';
 import type { LibraryAsset } from '@/components/library-item';
 import ProjectDevices from '@/components/project-devices';
 import type { ProjectDevice, ProjectMqtt } from '@/components/project-devices';
+import ProjectModbusDevices from '@/components/project-modbus-devices';
+import type { ProjectModbusDevice } from '@/components/project-modbus-devices';
 import ProjectNotificationChannels from '@/components/project-notification-channels';
 import type { ProjectNotificationChannel } from '@/components/project-notification-channels';
 import ProjectOpcUaServers from '@/components/project-opcua-servers';
@@ -40,6 +42,7 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'Projects', href: index() }];
 const pointCloud = /\.(las|laz|e57)$/i;
 const terrain = /\.(tif|tiff|asc)$/i;
 const mapLayer = /\.(geojson|json|kml|kmz|dxf|gpkg)$/i;
+const objMesh = /\.obj$/i;
 /** Files that could be either of two kinds, and the choices. */
 const AMBIGUOUS: { test: RegExp; choices: [string, string][] }[] = [
     {
@@ -54,11 +57,12 @@ const AMBIGUOUS: { test: RegExp; choices: [string, string][] }[] = [
         choices: [
             ['', 'A 3D Tiles tileset'],
             ['vector', 'A map layer (a zipped shapefile)'],
+            ['mesh', 'A photogrammetry mesh (an OBJ export)'],
         ],
     },
 ];
 const EXTENSIONS =
-    /\.(glb|zip|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i;
+    /\.(glb|zip|obj|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i;
 
 export default function ShowProject({
     project,
@@ -66,6 +70,7 @@ export default function ShowProject({
     assets,
     devices,
     opcuaServers,
+    modbusDevices,
     notificationChannels,
     mqtt,
     directUploads,
@@ -76,6 +81,7 @@ export default function ShowProject({
     assets: LibraryAsset[];
     devices: ProjectDevice[];
     opcuaServers: ProjectOpcUaServer[];
+    modbusDevices: ProjectModbusDevice[];
     notificationChannels: ProjectNotificationChannel[];
     mqtt: ProjectMqtt;
     directUploads: boolean;
@@ -87,19 +93,25 @@ export default function ShowProject({
         epsg: string;
         spacing: string;
         as: string;
+        y_up: boolean;
+        captured_on: string;
     }>({
         name: '',
         file: null,
         epsg: '',
         spacing: '',
         as: '',
+        y_up: false,
+        captured_on: '',
     });
     const filename = upload.data.file?.name ?? '';
     const isPointCloud = pointCloud.test(filename);
     const choices = AMBIGUOUS.find((a) => a.test.test(filename))?.choices;
+    const isMesh = objMesh.test(filename) || upload.data.as === 'mesh';
     // Anything converted with GDAL or PDAL may need the EPSG code of its coordinates.
     const needsCrs =
         isPointCloud ||
+        isMesh ||
         terrain.test(filename) ||
         mapLayer.test(filename) ||
         upload.data.as === 'vector';
@@ -144,6 +156,10 @@ export default function ShowProject({
                         spacing: upload.data.spacing || null,
                     }),
                     ...(choices && upload.data.as && { as: upload.data.as }),
+                    ...(isMesh && upload.data.y_up && { y_up: true }),
+                    ...(upload.data.captured_on && {
+                        captured_on: upload.data.captured_on,
+                    }),
                 },
                 signal: cancel.current.signal,
                 onProgress: (fraction) =>
@@ -165,6 +181,7 @@ export default function ShowProject({
                     epsg: errors.epsg,
                     spacing: errors.spacing,
                     as: errors.as,
+                    captured_on: errors.captured_on,
                     file:
                         errors.filename ??
                         errors.bytes ??
@@ -282,9 +299,10 @@ export default function ShowProject({
                         >
                             <div className="grid min-w-48 flex-1 gap-2">
                                 <Label htmlFor="upload-file">
-                                    File (.glb, a zipped 3D Tiles tileset or
-                                    shapefile, a .las, .laz or .e57 point cloud,
-                                    a .tif elevation model or image, an .asc
+                                    File (.glb, a zipped 3D Tiles tileset,
+                                    shapefile or photogrammetry export, an .obj
+                                    mesh, a .las, .laz or .e57 point cloud, a
+                                    .tif elevation model or image, an .asc
                                     elevation model, an .ifc building model, or
                                     a .geojson, .kml, .kmz, .dxf or .gpkg map
                                     layer)
@@ -292,7 +310,7 @@ export default function ShowProject({
                                 <Input
                                     id="upload-file"
                                     type="file"
-                                    accept=".glb,.zip,.las,.laz,.e57,.tif,.tiff,.asc,.ifc,.geojson,.json,.kml,.kmz,.dxf,.gpkg"
+                                    accept=".glb,.zip,.obj,.las,.laz,.e57,.tif,.tiff,.asc,.ifc,.geojson,.json,.kml,.kmz,.dxf,.gpkg"
                                     required
                                     onChange={(e) => {
                                         const file =
@@ -301,6 +319,7 @@ export default function ShowProject({
                                             ...data,
                                             file,
                                             as: '',
+                                            y_up: false,
                                             name:
                                                 data.name ||
                                                 (file?.name.replace(
@@ -324,6 +343,25 @@ export default function ShowProject({
                                     }
                                 />
                                 <InputError message={upload.errors.name} />
+                            </div>
+                            <div className="grid w-40 gap-2">
+                                <Label htmlFor="upload-captured">
+                                    Captured on
+                                </Label>
+                                <Input
+                                    id="upload-captured"
+                                    type="date"
+                                    value={upload.data.captured_on}
+                                    onChange={(e) =>
+                                        upload.setData(
+                                            'captured_on',
+                                            e.target.value,
+                                        )
+                                    }
+                                />
+                                <InputError
+                                    message={upload.errors.captured_on}
+                                />
                             </div>
                             {choices && (
                                 <div className="grid w-64 gap-2">
@@ -391,6 +429,21 @@ export default function ShowProject({
                                     )}
                                 </>
                             )}
+                            {isMesh && (
+                                <label className="flex h-9 items-center gap-2 text-sm">
+                                    <input
+                                        type="checkbox"
+                                        checked={upload.data.y_up}
+                                        onChange={(e) =>
+                                            upload.setData(
+                                                'y_up',
+                                                e.target.checked,
+                                            )
+                                        }
+                                    />
+                                    Y is up (a mesh in local metres)
+                                </label>
+                            )}
                             <Button
                                 type="submit"
                                 disabled={upload.processing || direct !== null}
@@ -441,6 +494,12 @@ export default function ShowProject({
                 <ProjectOpcUaServers
                     projectId={project.id}
                     servers={opcuaServers}
+                    canUpdate={can.update}
+                />
+
+                <ProjectModbusDevices
+                    projectId={project.id}
+                    devices={modbusDevices}
                     canUpdate={can.update}
                 />
 

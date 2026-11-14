@@ -15,6 +15,7 @@ use App\Http\Controllers\ProjectAssetFileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDeviceController;
 use App\Http\Controllers\ProjectDevicePasswordController;
+use App\Http\Controllers\ProjectModbusDeviceController;
 use App\Http\Controllers\ProjectNotificationChannelController;
 use App\Http\Controllers\ProjectNotificationChannelReportController;
 use App\Http\Controllers\ProjectNotificationChannelTestController;
@@ -91,6 +92,7 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     // Projects and their libraries...
     Route::resource('projects', ProjectController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
     Route::post('projects/{project}/assets', [ProjectAssetController::class, 'store'])->name('projects.assets.store');
+    Route::patch('projects/{project}/assets/{asset}', [ProjectAssetController::class, 'update'])->scopeBindings()->name('projects.assets.update');
     Route::delete('projects/{project}/assets/{asset}', [ProjectAssetController::class, 'destroy'])->scopeBindings()->name('projects.assets.destroy');
     Route::post('projects/{project}/assets/{asset}/conversion', [ProjectAssetConversionController::class, 'store'])->scopeBindings()->name('projects.assets.conversion.store');
     Route::post('projects/{project}/devices', [ProjectDeviceController::class, 'store'])->name('projects.devices.store');
@@ -98,6 +100,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     Route::post('projects/{project}/devices/{device}/password', [ProjectDevicePasswordController::class, 'store'])->scopeBindings()->name('projects.devices.password.store');
     Route::post('projects/{project}/opcua-servers', [ProjectOpcUaServerController::class, 'store'])->name('projects.opcua-servers.store');
     Route::delete('projects/{project}/opcua-servers/{opcUaServer}', [ProjectOpcUaServerController::class, 'destroy'])->scopeBindings()->name('projects.opcua-servers.destroy');
+    Route::post('projects/{project}/modbus-devices', [ProjectModbusDeviceController::class, 'store'])->name('projects.modbus-devices.store');
+    Route::delete('projects/{project}/modbus-devices/{modbusDevice}', [ProjectModbusDeviceController::class, 'destroy'])->scopeBindings()->name('projects.modbus-devices.destroy');
     Route::post('projects/{project}/notification-channels', [ProjectNotificationChannelController::class, 'store'])->name('projects.notification-channels.store');
     Route::delete('projects/{project}/notification-channels/{notificationChannel}', [ProjectNotificationChannelController::class, 'destroy'])->scopeBindings()->name('projects.notification-channels.destroy');
     Route::post('projects/{project}/notification-channels/{notificationChannel}/test', [ProjectNotificationChannelTestController::class, 'store'])->scopeBindings()->middleware('throttle:10,1')->name('projects.notification-channels.test');

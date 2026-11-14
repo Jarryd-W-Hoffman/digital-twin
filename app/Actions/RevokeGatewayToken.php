@@ -19,6 +19,7 @@ final readonly class RevokeGatewayToken
             'gateway_seen_at' => null,
             'gateway_mqtt' => null,
             'gateway_opcua' => null,
+            'gateway_modbus' => null,
         ]);
 
         $this->audit->handle(AuditAction::GatewayTokenRevoked, $twin, $twin->name);

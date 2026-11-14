@@ -253,6 +253,30 @@ function fakeIfcConverter(?string $fail = null, bool $writes = true, string $sum
 }
 
 /**
+ * Stands in for meridian-mesh: writes a tileset with a tile, and prints its summary.
+ */
+function fakeMeshConverter(?string $fail = null, bool $writes = true, string $summary = '{"obj": "survey.obj", "vertices": 1581, "triangles": 3000, "size": [101.1, 61.85, 6.0], "crs": "EPSG:2193", "georeference": {"lon": 174.767, "lat": -36.848, "height": 33.0, "source": "metadata.xml"}, "tiles": 49}'): void
+{
+    Process::fake([
+        "'meridian-mesh'*" => function (PendingProcess $process) use ($fail, $writes, $summary): ProcessResult|string {
+            if ($fail !== null) {
+                return Process::result(errorOutput: $fail, exitCode: 1);
+            }
+
+            if ($writes) {
+                /** @var list<string> $command */
+                $command = $process->command;
+                File::ensureDirectoryExists($command[2].'/LOD-0');
+                file_put_contents($command[2].'/tileset.json', '{"asset": {"version": "1.0"}}');
+                file_put_contents($command[2].'/LOD-0/Mesh.b3dm', 'b3dm');
+            }
+
+            return $summary;
+        },
+    ]);
+}
+
+/**
  * A twin with a gateway token, and the token.
  *
  * @return array{0: Twin, 1: string}
