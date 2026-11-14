@@ -225,6 +225,10 @@ final readonly class DefinitionSchema
             $item = $items[(int) $match[1]] ?? null;
             $text = is_array($item) ? ($item[$match[2]] ?? null) : null;
 
+            if (is_int($text) || is_float($text)) {
+                return (string) $text;
+            }
+
             return is_string($text) && $text !== '' ? $text : '?';
         }, $message);
 

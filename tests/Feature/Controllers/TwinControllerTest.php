@@ -9,6 +9,7 @@ use App\Enums\OrganisationRole;
 use App\Models\Alert;
 use App\Models\Issue;
 use App\Models\IssueComment;
+use App\Models\ModbusDevice;
 use App\Models\OpcUaServer;
 use App\Models\OpcUaWrite;
 use App\Models\Project;
@@ -164,12 +165,13 @@ it('shows a twin with its definition, history, project library and abilities', f
     resolve(AddAssetToTwin::class)->handle($twin, $user, $asset);
     ProjectAsset::factory()->for($twin->project)->processing()->create();
     OpcUaServer::factory()->for($twin->project)->create(['name' => 'Plant PLC']);
+    ModbusDevice::factory()->for($twin->project)->create(['name' => 'Main meter']);
 
     $this->actingAs($user)->get(route('twins.show', $twin))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('twins/show')
             ->where('twin.id', $twin->id)
-            ->where('project', ['id' => $twin->project_id, 'name' => $twin->project->name, 'topicPrefix' => 'p/'.$twin->project->mqtt_key.'/', 'opcuaServers' => ['Plant PLC']])
+            ->where('project', ['id' => $twin->project_id, 'name' => $twin->project->name, 'topicPrefix' => 'p/'.$twin->project->mqtt_key.'/', 'opcuaServers' => ['Plant PLC'], 'modbusDevices' => ['Main meter']])
             ->where('definition.id', $twin->id)
             ->where('version', 2)
             ->has('versions', 2)
@@ -197,15 +199,16 @@ it('reports the gateway, and gives viewers a ticket while it is online', functio
     $token = resolve(IssueGatewayToken::class)->handle($twin);
 
     $this->actingAs($user)->get(route('twins.show', $twin))
-        ->assertInertia(fn ($page) => $page->where('gateway', ['online' => false, 'url' => null, 'seenAt' => null, 'mqtt' => null, 'opcua' => null, 'ticket' => null]));
+        ->assertInertia(fn ($page) => $page->where('gateway', ['online' => false, 'url' => null, 'seenAt' => null, 'mqtt' => null, 'opcua' => null, 'modbus' => null, 'ticket' => null]));
 
-    resolve(RecordGatewayCheckIn::class)->handle($twin, 'ws://localhost:8788/ws', 'connected', '{"Plant PLC":"connected"}');
+    resolve(RecordGatewayCheckIn::class)->handle($twin, 'ws://localhost:8788/ws', 'connected', '{"Plant PLC":"connected"}', '{"Main meter":"reconnecting"}');
 
     $this->actingAs($user)->get(route('twins.show', $twin))
         ->assertInertia(fn ($page) => $page
             ->where('gateway.online', true)
             ->where('gateway.mqtt', 'connected')
             ->where('gateway.opcua', ['Plant PLC' => 'connected'])
+            ->where('gateway.modbus', ['Main meter' => 'reconnecting'])
             ->where('gateway.url', 'ws://localhost:8788/ws')
             ->where('gateway.seenAt', now()->toIso8601String())
             ->where('gateway.ticket', fn (string $ticket): bool => ticketClaims($ticket)['operate'] === false && ticketClaims($ticket)['edit'] === false));

@@ -1,6 +1,7 @@
 import { router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { GatewayPanel, type GatewayStatus } from '@/components/gateway-panel';
+import { ModbusPanel } from '@/components/modbus-panel';
 import { OpcUaPanel, type OpcUaWrites } from '@/components/opcua-panel';
 import {
     ReadingImportPanel,
@@ -86,6 +87,7 @@ export function TwinEditor({
     gateway,
     topicPrefix,
     opcuaServers,
+    modbusDevices,
     opcuaWrites,
     readingImports,
     onClose,
@@ -94,6 +96,7 @@ export function TwinEditor({
     gateway: GatewayStatus;
     topicPrefix: string;
     opcuaServers: string[];
+    modbusDevices: string[];
     opcuaWrites: OpcUaWrites;
     readingImports: ReadingImportSummary[];
     definition: TwinDefinition;
@@ -687,6 +690,13 @@ export function TwinEditor({
                         ? { url: gateway.url, ticket: gateway.ticket }
                         : null
                 }
+            />
+
+            <ModbusPanel
+                key={`modbus-${versions[0]?.id}`}
+                twinId={twinId}
+                definition={definition}
+                devices={modbusDevices}
             />
 
             <ReadingImportPanel

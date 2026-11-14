@@ -49,7 +49,7 @@ The **Gateway** section always says how it's doing:
 | **Online at ws://…, but not connected to the broker** | Running, but it can't reach or log in to the MQTT broker  |
 | **Offline, last seen …**                              | It has stopped checking in                                |
 
-While it's online, it also lists each [OPC UA server](11-opc-ua.md#see-the-connections) it's reading from, and whether it's connected.
+While it's online, it also lists each [OPC UA server](11-opc-ua.md#see-the-connections) and [Modbus device](19-modbus.md#see-the-connections) it's reading from, and whether it's connected.
 
 ## Live or simulator
 
@@ -83,7 +83,7 @@ curl -X POST http://gateway-host:8787/ingest \
 - **`ttlS`** (optional) is how long the reading holds before the model takes over again.
 - The gateway answers **202** when it accepts the readings, or **422** with every problem it found, such as an asset that doesn't exist.
 
-For sensors that speak MQTT, use [devices](10-devices-and-mqtt.md) instead, and for PLCs and SCADA systems, [OPC UA](11-opc-ua.md).
+For sensors that speak MQTT, use [devices](10-devices-and-mqtt.md) instead, for PLCs and SCADA systems, [OPC UA](11-opc-ua.md), and for meters and drives, [Modbus](19-modbus.md).
 
 ## Tips
 
@@ -95,4 +95,5 @@ For sensors that speak MQTT, use [devices](10-devices-and-mqtt.md) instead, and 
 
 - [Devices and MQTT](10-devices-and-mqtt.md): sensors publishing over MQTT.
 - [OPC UA](11-opc-ua.md): reading from PLCs and SCADA systems.
+- [Modbus](19-modbus.md): polling meters, drives and PLCs.
 - [Running Meridian](14-running-meridian.md#the-gateway): gateway settings.

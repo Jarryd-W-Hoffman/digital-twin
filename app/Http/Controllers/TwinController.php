@@ -108,7 +108,7 @@ final readonly class TwinController
                 'name' => $twin->name,
                 'description' => $twin->description,
             ],
-            'project' => ['id' => $twin->project->id, 'name' => $twin->project->name, 'topicPrefix' => $twin->project->topicPrefix(), 'opcuaServers' => $twin->project->opcUaServers()->orderBy('name')->pluck('name')->all()],
+            'project' => ['id' => $twin->project->id, 'name' => $twin->project->name, 'topicPrefix' => $twin->project->topicPrefix(), 'opcuaServers' => $twin->project->opcUaServers()->orderBy('name')->pluck('name')->all(), 'modbusDevices' => $twin->project->modbusDevices()->orderBy('name')->pluck('name')->all()],
             'definition' => $latest->definition,
             'version' => $latest->number,
             'versions' => $twin->versions()->with('user:id,name')->latest('number')->limit(25)->get()
@@ -203,6 +203,7 @@ final readonly class TwinController
                 'seenAt' => $twin->gateway_seen_at?->toIso8601String(),
                 'mqtt' => $online ? $twin->gateway_mqtt : null,
                 'opcua' => $online ? $twin->gateway_opcua : null,
+                'modbus' => $online ? $twin->gateway_modbus : null,
                 'ticket' => $online ? $tickets->handle($twin, $user, $canOperate, $user->can('update', $twin)) : null,
             ],
             // The metrics watched for anomalies, how far each has learned, and what's open.

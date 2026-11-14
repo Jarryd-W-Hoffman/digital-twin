@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\OrganisationRole;
 use App\Models\Device;
+use App\Models\ModbusDevice;
 use App\Models\NotificationChannel;
 use App\Models\OpcUaServer;
 use App\Models\Project;
@@ -69,6 +70,8 @@ it('shows a project with its twins, library and abilities', function (Organisati
     Device::factory()->create();
     $plc = OpcUaServer::factory()->for($twin->project)->secured()->create(['name' => 'Plant PLC']);
     OpcUaServer::factory()->create();
+    $meter = ModbusDevice::factory()->for($twin->project)->create();
+    ModbusDevice::factory()->create();
     $channel = NotificationChannel::factory()->for($twin->project)->quiet()->escalation(30)->create(['name' => 'Night shift', 'last_error' => 'Mailbox full']);
 
     $this->actingAs($user)->get(route('projects.show', $twin->project))
@@ -85,6 +88,7 @@ it('shows a project with its twins, library and abilities', function (Organisati
             ->where('assets.0.crs', null)
             ->where('devices', [['id' => $device->id, 'name' => 'Probe', 'username' => $device->mqttUsername(), 'lastSeenAt' => $device->last_seen_at?->toIso8601String()]])
             ->where('opcuaServers', [['id' => $plc->id, 'name' => 'Plant PLC', 'endpoint' => 'opc.tcp://plc.local:4840', 'securityMode' => 'signAndEncrypt', 'securityPolicy' => 'Basic256Sha256', 'username' => 'meridian']])
+            ->where('modbusDevices', [['id' => $meter->id, 'name' => 'Main meter', 'host' => 'meter.local', 'port' => 502, 'unitId' => 1]])
             ->where('notificationChannels', [[
                 'id' => $channel->id,
                 'name' => 'Night shift',

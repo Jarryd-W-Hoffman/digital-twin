@@ -12,6 +12,8 @@ export type GatewayStatus = {
     mqtt: 'connected' | 'disconnected' | null;
     /** Each OPC UA server's connection, as the gateway last reported it. */
     opcua?: Record<string, string> | null;
+    /** Each Modbus device's connection, likewise. */
+    modbus?: Record<string, string> | null;
     ticket: string | null;
 } | null;
 
@@ -56,6 +58,15 @@ export function GatewayPanel({
             {gateway?.online && gateway.opcua && (
                 <ul className="muted" aria-label="OPC UA connections">
                     {Object.entries(gateway.opcua).map(([name, status]) => (
+                        <li key={name}>
+                            {name}: {status}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {gateway?.online && gateway.modbus && (
+                <ul className="muted" aria-label="Modbus connections">
+                    {Object.entries(gateway.modbus).map(([name, status]) => (
                         <li key={name}>
                             {name}: {status}
                         </li>

@@ -311,7 +311,7 @@ test('screenshots', async ({ page, context }) => {
         await expect(may).toContainText('Terrain', { timeout: 300_000 });
     });
 
-    const devices = page.getByRole('region', { name: 'Devices' });
+    const devices = page.getByRole('region', { name: 'Devices', exact: true });
     let device = { username: '', password: '' };
     await test.step('devices', async () => {
         await devices.getByLabel('Device name').fill('Seafood store probe');
@@ -341,6 +341,20 @@ test('screenshots', async ({ page, context }) => {
             timeout: 15_000,
         });
         await shot(opcua, 'opcua-servers');
+
+        const modbus = page.getByRole('region', { name: 'Modbus devices' });
+        await modbus.getByLabel('Device name').fill('Depot meter');
+        await modbus.getByLabel('Host').fill('192.168.10.21');
+        await modbus.getByRole('button', { name: 'Add device' }).click();
+        await expect(
+            modbus
+                .getByRole('list', { name: 'Modbus devices' })
+                .getByText('Depot meter'),
+        ).toBeVisible();
+        await expect(page.getByText('Depot meter added.')).toBeHidden({
+            timeout: 15_000,
+        });
+        await shot(modbus, 'modbus-devices');
         await page.reload();
         await expect(
             page.getByRole('heading', { name: 'Pilot sites' }),
@@ -610,7 +624,9 @@ test('screenshots', async ({ page, context }) => {
             .filter({ hasText: 'Jockey pump' })
             .getByRole('button', { name: 'Add' })
             .click();
-        await expect(types.getByRole('alert')).toBeVisible();
+        await expect(types.getByRole('alert')).toBeVisible({
+            timeout: 15_000,
+        });
         await shot(types, 'twin-types');
 
         await page.getByRole('button', { name: 'Close layout' }).click();
@@ -1514,6 +1530,52 @@ test('screenshots', async ({ page, context }) => {
         ).toBeVisible();
         await page.waitForTimeout(1000);
         await shot(recorded, 'import-history');
+    });
+
+    await test.step('Modbus registers', async () => {
+        // The depot's meter: grid import as a float in holding registers 0
+        // and 1, and the main board's load in tenths of a kW in input 10.
+        await page.getByRole('button', { name: 'Layout', exact: true }).click();
+        const modbus = editor.getByRole('region', {
+            name: 'Modbus',
+            exact: true,
+        });
+        const rows = modbus.getByRole('list', { name: 'Modbus mappings' });
+        await modbus.getByRole('button', { name: 'Add register' }).click();
+        const grid = rows.getByRole('listitem').last();
+        await grid.getByLabel('Address').fill('0');
+        await grid.getByLabel('Type').selectOption({ label: 'Float, 32-bit' });
+        await grid
+            .getByLabel('Asset')
+            .selectOption({ label: 'Grid connection' });
+        await grid.getByLabel('Metric').selectOption({ index: 0 });
+        await modbus.getByRole('button', { name: 'Add register' }).click();
+        const board = rows.getByRole('listitem').last();
+        await board
+            .getByLabel('Table')
+            .selectOption({ label: 'Input register' });
+        await board.getByLabel('Address').fill('10');
+        await board.getByLabel('Asset').selectOption({ label: 'Main board' });
+        await board.getByLabel('Scale').fill('0.1');
+        await board.getByLabel('Every (ms)').fill('5000');
+        const version = Number(
+            (await page.locator('.version-chip').innerText()).slice(1),
+        );
+        await modbus
+            .getByRole('button', { name: 'Save Modbus mappings' })
+            .click();
+        // A new version remounts the panel; wait for it before looking.
+        await expect(page.locator('.version-chip')).toHaveText(
+            `v${version + 1}`,
+            { timeout: 15_000 },
+        );
+        await expect(rows.getByRole('listitem')).toHaveCount(2);
+        await expect(
+            modbus.getByRole('button', { name: 'Save Modbus mappings' }),
+        ).toBeDisabled();
+        await modbus.scrollIntoViewIfNeeded();
+        await shot(modbus, 'modbus-mappings');
+        await page.getByRole('button', { name: 'Close layout' }).click();
     });
 
     await test.step('members and account', async () => {

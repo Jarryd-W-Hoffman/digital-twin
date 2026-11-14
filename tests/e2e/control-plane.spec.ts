@@ -255,9 +255,9 @@ test('an owner renames a twin and describes it, then deletes it', async ({ page 
 
 test('an owner adds a device, is shown its broker login once, and can reset or delete it', async ({ page }) => {
   await logIn(page, 'test@example.com');
-  const devices = page.getByRole('region', { name: 'Devices' });
+  const devices = page.getByRole('region', { name: 'Devices', exact: true });
   const login = devices.getByRole('status', { name: 'Device login' });
-  const list = devices.getByRole('list', { name: 'Devices' });
+  const list = devices.getByRole('list', { name: 'Devices', exact: true });
   await expect(devices.getByText(/below p\/pilot-sites-[a-z0-9]{4}\//)).toBeVisible();
 
   await devices.getByLabel('Device name').fill('Freezer probe 1');
@@ -492,6 +492,51 @@ test('an owner registers an OPC UA server, then maps one of its nodes to a metri
   await page.getByRole('button', { name: 'Layout' }).click();
   await expect(page.getByRole('region', { name: 'OPC UA' }).getByLabel('Node')).toHaveValue('ns=2;s=Store.TempC');
   await expect(page.getByRole('region', { name: 'OPC UA' }).getByLabel('Sampling, ms')).toHaveValue('500');
+});
+
+test('an owner registers a Modbus device, then maps one of its registers to a metric', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  const modbus = page.getByRole('region', { name: 'Modbus devices' });
+  const form = modbus.getByRole('form', { name: 'Add a Modbus device' });
+  await form.getByLabel('Device name').fill('Freezer meter');
+  await form.getByLabel('Host').fill('meter.local:502');
+  await form.getByRole('button', { name: 'Add device' }).click();
+  await expect(form.getByText('The host must be a name or an IP address')).toBeVisible();
+
+  await form.getByLabel('Host').fill('192.168.1.20');
+  await form.getByLabel('Unit id').fill('3');
+  await form.getByRole('button', { name: 'Add device' }).click();
+  const list = modbus.getByRole('list', { name: 'Modbus devices' });
+  await expect(list.getByText('192.168.1.20:502 · unit 3')).toBeVisible();
+
+  await openTwin(page, 'Northshore Cold Chain Hub');
+  const version = Number((await page.locator('.version-chip').innerText()).slice(1));
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const mappings = page.getByRole('region', { name: 'Modbus', exact: true });
+  await mappings.getByRole('button', { name: 'Add register' }).click();
+  await expect(mappings.getByLabel('Device')).toHaveValue('Freezer meter');
+  await mappings.getByLabel('Table').selectOption({ label: 'Input register' });
+  await mappings.getByLabel('Address').fill('70000');
+  await mappings.getByLabel('Asset').selectOption({ label: 'Freezer hall' });
+  await mappings.getByLabel('Metric').selectOption({ label: 'Temperature' });
+  await mappings.getByRole('button', { name: 'Save Modbus mappings' }).click();
+  await expect(mappings.getByRole('alert')).toContainText("A Modbus mapping's address must be a whole number from 0 to 65535");
+
+  await mappings.getByLabel('Address').fill('4');
+  await mappings.getByLabel('Type').selectOption({ label: 'Float, 32-bit' });
+  await mappings.getByLabel('Word order').selectOption({ label: 'Low word first' });
+  await mappings.getByLabel('Every (ms)').fill('500');
+  await mappings.getByRole('button', { name: 'Save Modbus mappings' }).click();
+  await expect(page.locator('.version-chip')).toHaveText(`v${version + 1}`);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Layout' }).click();
+  const saved = page.getByRole('region', { name: 'Modbus', exact: true });
+  await expect(saved.getByLabel('Address')).toHaveValue('4');
+  await expect(saved.getByLabel('Table')).toHaveValue('input');
+  await expect(saved.getByLabel('Type')).toHaveValue('float32');
+  await expect(saved.getByLabel('Word order')).toHaveValue('little');
+  await expect(saved.getByLabel('Every (ms)')).toHaveValue('500');
 });
 
 test('an owner maps a setpoint for writing, then lets operators write to the PLC', async ({ page }) => {

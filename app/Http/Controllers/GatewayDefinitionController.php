@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\RecordGatewayCheckIn;
 use App\Http\Middleware\AuthenticateGateway;
+use App\Models\ModbusDevice;
 use App\Models\OpcUaServer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,14 +28,18 @@ final readonly class GatewayDefinitionController
             $request->header('X-Gateway-Url'),
             $request->header('X-Gateway-Mqtt'),
             $request->header('X-Gateway-Opcua'),
+            $request->header('X-Gateway-Modbus'),
         );
 
         $latest = $twin->latestVersion()->firstOrFail();
         $servers = $twin->project->opcUaServers()->orderBy('name')->get()
             ->map(fn (OpcUaServer $server): array => $server->forGateway())
             ->all();
+        $devices = $twin->project->modbusDevices()->orderBy('name')->get()
+            ->map(fn (ModbusDevice $device): array => $device->forGateway())
+            ->all();
         $tag = 'v'.$latest->number
-            .($servers === [] ? '' : '-'.mb_substr(hash('sha256', (string) json_encode($servers)), 0, 16))
+            .($servers === [] && $devices === [] ? '' : '-'.mb_substr(hash('sha256', (string) json_encode([$servers, $devices])), 0, 16))
             .($twin->opcua_writes ? '-w' : '');
 
         if ($request->header('If-None-Match') === '"'.$tag.'"') {
@@ -47,6 +52,7 @@ final readonly class GatewayDefinitionController
             'definition' => $latest->definition,
             'mqtt' => ['username' => $twin->mqttUsername(), 'topicPrefix' => $twin->project->topicPrefix()],
             'opcua' => ['servers' => $servers, 'writes' => $twin->opcua_writes],
+            'modbus' => ['devices' => $devices],
         ])->setEtag($tag);
     }
 }

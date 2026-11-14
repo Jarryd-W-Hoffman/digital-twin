@@ -57,6 +57,7 @@ type Props = {
         name: string;
         topicPrefix: string;
         opcuaServers: string[];
+        modbusDevices: string[];
     };
     definition: TwinDefinition;
     version: number;
@@ -422,6 +423,7 @@ export default function ShowTwin({
                         gateway={gateway}
                         topicPrefix={project.topicPrefix}
                         opcuaServers={project.opcuaServers}
+                        modbusDevices={project.modbusDevices}
                         opcuaWrites={opcuaWrites}
                         readingImports={readingImports}
                         onClose={() => setEditing(null)}

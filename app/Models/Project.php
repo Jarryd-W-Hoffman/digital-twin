@@ -148,6 +148,14 @@ final class Project extends Model
     }
 
     /**
+     * @return HasMany<ModbusDevice, $this>
+     */
+    public function modbusDevices(): HasMany
+    {
+        return $this->hasMany(ModbusDevice::class);
+    }
+
+    /**
      * Every MQTT topic in this project starts with this. Devices publish
      * below it, gateways subscribe below it, and telemetry mappings are
      * written relative to it.
