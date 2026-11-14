@@ -24,6 +24,11 @@ declare module '@inertiajs/core' {
                 tokenId: string;
                 token: string;
             };
+            /** A new share link, shown once. */
+            shareLink?: {
+                linkId: string;
+                url: string;
+            };
             /** A new provisioning (SCIM) token, shown once. */
             scimToken?: string;
             /** A new webhook channel's signing secret. */

@@ -658,6 +658,33 @@ test('screenshots', async ({ page, context }) => {
         await views.getByRole('button', { name: 'Hide views' }).click();
     });
 
+    await test.step('sharing a twin by link', async () => {
+        await page.getByRole('button', { name: 'Share', exact: true }).click();
+        const share = page.getByRole('complementary', { name: 'Share' });
+        await share
+            .getByLabel("Who it's for")
+            .fill('Harbour board walkthrough');
+        await share.getByLabel('Expires in').selectOption('7');
+        await share.getByRole('button', { name: 'Make link' }).click();
+        const url = await share
+            .getByLabel('Share link', { exact: true })
+            .inputValue();
+        await page.waitForTimeout(1000);
+        await shot(page, 'share-link');
+
+        const guest = await (
+            await page
+                .context()
+                .browser()!
+                .newContext({ viewport: page.viewportSize() ?? undefined })
+        ).newPage();
+        await guest.goto(url);
+        await settle(guest);
+        await shot(guest, 'shared-twin');
+        await guest.context().close();
+        await share.getByRole('button', { name: 'Close share' }).click();
+    });
+
     await test.step('telemetry, the gateway and recorded history', async () => {
         await page.getByRole('button', { name: 'Layout', exact: true }).click();
         const telemetry = editor.getByRole('region', { name: 'Telemetry' });
@@ -1192,9 +1219,7 @@ test('screenshots', async ({ page, context }) => {
         await page.goto('/organisation/sso');
         await page
             .getByLabel('Issuer')
-            .fill(
-                'https://login.microsoftonline.com/4f6c1b2e-northshore/v2.0',
-            );
+            .fill('https://login.microsoftonline.com/4f6c1b2e-northshore/v2.0');
         await page
             .getByLabel('Client ID')
             .fill('8a1d5c3e-0b7f-4e21-9d6a-meridian');

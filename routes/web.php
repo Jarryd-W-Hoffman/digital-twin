@@ -23,6 +23,10 @@ use App\Http\Controllers\ProjectUploadCompletionController;
 use App\Http\Controllers\ProjectUploadController;
 use App\Http\Controllers\ProjectUploadPartController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SharedTwinController;
+use App\Http\Controllers\SharedTwinFileController;
+use App\Http\Controllers\SharedTwinReadingController;
+use App\Http\Controllers\SharedTwinTicketController;
 use App\Http\Controllers\SsoCallbackController;
 use App\Http\Controllers\SsoRequiredController;
 use App\Http\Controllers\SsoSessionController;
@@ -40,6 +44,7 @@ use App\Http\Controllers\TwinLayerController;
 use App\Http\Controllers\TwinOpcUaWritesController;
 use App\Http\Controllers\TwinOpeningViewController;
 use App\Http\Controllers\TwinReadingController;
+use App\Http\Controllers\TwinShareLinkController;
 use App\Http\Controllers\TwinTypeController;
 use App\Http\Controllers\TwinVersionController;
 use App\Http\Controllers\TwinVersionRestorationController;
@@ -55,6 +60,7 @@ use App\Http\Controllers\UserSsoIdentityController;
 use App\Http\Controllers\UserTwoFactorAuthenticationController;
 use App\Http\Middleware\EnsureCurrentOrganisation;
 use App\Http\Middleware\EnsureSsoSignIn;
+use App\Http\Middleware\ResolveShareLink;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -62,6 +68,17 @@ Route::get('/', fn () => Inertia::render('welcome'))->name('home');
 
 // The sample twins run in the browser without an account.
 Route::get('demo', fn () => Inertia::render('demo'))->name('demo');
+
+// A twin shown, read only, through a share link.
+Route::middleware(ResolveShareLink::class)->prefix('share/{token}')->name('share.')->group(function (): void {
+    Route::get('/', [SharedTwinController::class, 'show'])->middleware('throttle:share')->name('show');
+    Route::get('ticket', [SharedTwinTicketController::class, 'show'])->middleware('throttle:share')->name('ticket');
+    Route::get('readings', [SharedTwinReadingController::class, 'index'])->middleware('throttle:share')->name('readings');
+    Route::get('assets/{asset}/files/{path}', [SharedTwinFileController::class, 'show'])
+        ->where('path', '.*')
+        ->middleware('throttle:share-files')
+        ->name('files');
+});
 
 Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureSsoSignIn::class])->group(function (): void {
     Route::get('dashboard', fn () => to_route('projects.index'))->name('dashboard');
@@ -98,6 +115,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     Route::post('twins/{twin}/layers', [TwinLayerController::class, 'store'])->name('twins.layers.store');
     Route::delete('twins/{twin}/layers/{asset}', [TwinLayerController::class, 'destroy'])->name('twins.layers.destroy');
     Route::post('twins/{twin}/types', [TwinTypeController::class, 'store'])->name('twins.types.store');
+    Route::post('twins/{twin}/share-links', [TwinShareLinkController::class, 'store'])->name('twins.share-links.store');
+    Route::delete('twins/{twin}/share-links/{shareLink}', [TwinShareLinkController::class, 'destroy'])->scopeBindings()->name('twins.share-links.destroy');
     Route::put('twins/{twin}/types/{type}/library', [TwinTypeController::class, 'update'])->name('twins.types.library.update');
     Route::post('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'store'])->name('twins.gateway-token.store');
     Route::delete('twins/{twin}/gateway-token', [TwinGatewayTokenController::class, 'destroy'])->name('twins.gateway-token.destroy');

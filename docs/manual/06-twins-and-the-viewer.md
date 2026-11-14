@@ -318,6 +318,38 @@ saved view of the twin
 
 Views keep the time of day out: the simulator starts afresh each time it opens, and a gateway shows what is happening now. Like issues, views belong to the twin, not to a version.
 
+## Share a twin by link
+
+Admins and owners can show a twin to someone who isn't a member, such as a client, a contractor or a board, with a link that needs no account. Nobody can change anything through it.
+
+1. Open the twin and choose **Share** in the top bar.
+2. Under **Make a link**, say **Who it's for**, such as *Harbour board walkthrough*, so you know which link to revoke later.
+3. Choose when it **Expires**: in 1, 7, 30 or 90 days. Every link expires.
+4. Leave **Show live readings and history** on to show what the site is doing, as the twin page does. Turn it off to show only the scene, run by the simulator in their browser.
+5. Choose **Make link**, and copy it straight away: it's shown once.
+
+![The Share panel for Harbour Depot: a link just made for the Harbour board, shown once to copy, the link in the list with when it expires, and the form to make another.](../images/share-link.png)
+
+Someone opening the link sees the twin's latest version from its [opening view](#saved-views-and-links). They can move around, select assets, change the colouring and look at charts, as a viewer can. They see no issues, alerts, saved views, versions or editing, and can't send commands. Whatever they do stays in their browser.
+
+![Harbour Depot opened through a share link: the scene with "Shared · read only" in the top bar, and nothing to edit.](../images/shared-twin.png)
+
+The list under **Links** shows each link's last four characters, whether it's live, when it expires, when it was last opened and who made it. **Revoke** stops it:
+
+- The link stops opening the twin, and its models and tilesets stop loading, at once.
+- A page already open stops following the gateway live within 10 minutes.
+
+Making and revoking links are recorded in the [audit log](02-organisations-and-members.md#the-audit-log).
+
+```
+open /share/<token>   (not expired, not revoked; else "not found")
+    the twin's latest version, its files loaded only through the link
+    and only those it shows; its opening view
+    live: a gateway ticket good for 10 minutes, asked for again on each
+          reconnect; the gateway ends the connection when it runs out
+    never: issues, alerts, views, versions, commands
+```
+
 ## Without signing in
 
 `/demo` runs the two sample twins without an account. Choose a twin from the menu in the top bar, or **Load file** to open a definition from your computer. Nothing is saved.
@@ -325,6 +357,7 @@ Views keep the time of day out: the simulator starts afresh each time it opens, 
 ## Tips
 
 - **Speed up to see a day.** At 600× a whole day passes in under two and a half minutes. Colour by **Power** and watch solar fade at dusk.
+- **Share for a meeting, not for ever.** A link that expires the day after a walkthrough can't turn up in someone's inbox a year later.
 - **Commands are shared.** When a gateway runs the twin, a setpoint you apply is applied for everyone watching, as it would be on site.
 
 ## See also

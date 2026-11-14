@@ -19,6 +19,7 @@ use App\Models\OpcUaWrite;
 use App\Models\ProjectAsset;
 use App\Models\SavedView;
 use App\Models\Twin;
+use App\Models\TwinShareLink;
 use App\Models\TwinVersion;
 use App\Models\User;
 use App\Support\SampleTwins;
@@ -195,8 +196,22 @@ final readonly class TwinController
                 'opcua' => $online ? $twin->gateway_opcua : null,
                 'ticket' => $online ? $tickets->handle($twin, $user, $canOperate, $user->can('update', $twin)) : null,
             ],
+            // The links showing it outside the organisation, for those who make them.
+            'shareLinks' => fn (): array => $user->can('share', $twin) ? $twin->shareLinks()->with('creator:id,name')->latest()->limit(50)->get()
+                ->map(fn (TwinShareLink $link): array => [
+                    'id' => $link->id,
+                    'name' => $link->name,
+                    'hint' => $link->hint,
+                    'live' => $link->live,
+                    'createdBy' => $link->creator?->name,
+                    'createdAt' => $link->created_at->toIso8601String(),
+                    'expiresAt' => $link->expires_at->toIso8601String(),
+                    'expired' => $link->expires_at->isPast(),
+                    'lastViewedAt' => $link->last_viewed_at?->toIso8601String(),
+                ])->all() : [],
             'can' => [
                 'update' => $user->can('update', $twin),
+                'share' => $user->can('share', $twin),
                 'operate' => $canOperate,
                 'manageTypes' => $user->can('manageTypes', $twin->organisation),
             ],

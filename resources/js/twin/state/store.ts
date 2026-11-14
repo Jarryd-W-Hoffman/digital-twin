@@ -605,7 +605,11 @@ export function runDefinition(
  */
 export function runGateway(
     url: string,
-    options: { canOperate: boolean },
+    options: {
+        canOperate: boolean;
+        /** A new URL before each reconnect, for tickets that run out. */
+        refresh?: () => Promise<string | null>;
+    },
 ): void {
     useTwin.setState({
         canOperate: options.canOperate,
@@ -619,7 +623,7 @@ export function runGateway(
         pinning: false,
         placedPin: null,
     });
-    startSource(new GatewaySource(url));
+    startSource(new GatewaySource(url, options.refresh));
 }
 
 /** Stops the running source when the viewer page is left. */

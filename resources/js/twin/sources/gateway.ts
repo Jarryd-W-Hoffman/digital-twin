@@ -9,14 +9,21 @@ const MAX_RETRY_MS = 15_000;
 export class GatewaySource implements TwinSource {
     readonly kind = 'gateway';
     readonly label: string;
-    private readonly url: string;
     private socket?: WebSocket;
     private handlers?: SourceHandlers;
     private retryMs = 500;
     private retryTimer?: ReturnType<typeof setTimeout>;
     private stopped = false;
+    private url: string;
 
-    constructor(url: string) {
+    /**
+     * @param refresh asked for a new URL (with a new ticket) before each
+     *   reconnect; null means the twin can no longer be followed.
+     */
+    constructor(
+        url: string,
+        private readonly refresh?: () => Promise<string | null>,
+    ) {
         this.url = url;
         this.label = `Gateway ${new URL(url).host}`;
     }
@@ -35,9 +42,29 @@ export class GatewaySource implements TwinSource {
         socket.onclose = () => {
             if (this.stopped) return;
             this.handlers?.onStatus('offline', `Reconnecting to ${this.url}`);
-            this.retryTimer = setTimeout(() => this.connect(), this.retryMs);
+            this.retryTimer = setTimeout(
+                () => void this.reconnect(),
+                this.retryMs,
+            );
             this.retryMs = Math.min(MAX_RETRY_MS, this.retryMs * 2);
         };
+    }
+
+    private async reconnect(): Promise<void> {
+        if (this.refresh) {
+            const url = await this.refresh().catch(() => this.url);
+            if (this.stopped) return;
+            if (url === null) {
+                this.stopped = true;
+                this.handlers?.onStatus(
+                    'offline',
+                    'This twin can no longer be followed live',
+                );
+                return;
+            }
+            this.url = url;
+        }
+        this.connect();
     }
 
     private receive(message: ServerMessage): void {

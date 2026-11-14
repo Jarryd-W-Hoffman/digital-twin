@@ -31,6 +31,14 @@ final readonly class TwinPolicy
         return $user->accessIn($twin->organisation)?->canOperate() ?? false;
     }
 
+    /**
+     * Showing it, read only, to people outside the organisation.
+     */
+    public function share(User $user, Twin $twin): bool
+    {
+        return $this->update($user, $twin);
+    }
+
     public function delete(User $user, Twin $twin): bool
     {
         return $this->update($user, $twin);

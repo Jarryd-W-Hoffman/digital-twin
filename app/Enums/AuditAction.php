@@ -37,6 +37,8 @@ enum AuditAction: string
     case TwinCreated = 'twin.created';
     case TwinRenamed = 'twin.renamed';
     case TwinDeleted = 'twin.deleted';
+    case ShareLinkCreated = 'share_link.created';
+    case ShareLinkRevoked = 'share_link.revoked';
     case VersionSaved = 'twin.version_saved';
     case OpeningViewChanged = 'twin.opening_view_changed';
     case GatewayTokenIssued = 'gateway_token.issued';
@@ -102,6 +104,8 @@ enum AuditAction: string
             self::TwinCreated => 'Created a twin',
             self::TwinRenamed => 'Renamed or described a twin',
             self::TwinDeleted => 'Deleted a twin',
+            self::ShareLinkCreated => 'Shared a twin by link',
+            self::ShareLinkRevoked => 'Revoked a share link',
             self::VersionSaved => 'Saved a version',
             self::OpeningViewChanged => 'Changed the opening view',
             self::GatewayTokenIssued => 'Issued a gateway token',
@@ -128,7 +132,8 @@ enum AuditAction: string
             self::ProjectCreated, self::ProjectDeleted, self::UploadAdded, self::UploadDeleted, self::TypeSaved, self::TypeDeleted => 'projects',
             self::DeviceAdded, self::DevicePasswordReset, self::DeviceDeleted, self::OpcUaServerAdded, self::OpcUaServerDeleted,
             self::GatewayTokenIssued, self::GatewayTokenRevoked, self::OpcUaWritesChanged, self::ChannelAdded, self::ChannelDeleted => 'connections',
-            self::TwinCreated, self::TwinRenamed, self::TwinDeleted, self::VersionSaved, self::OpeningViewChanged => 'twins',
+            self::TwinCreated, self::TwinRenamed, self::TwinDeleted, self::VersionSaved, self::OpeningViewChanged,
+            self::ShareLinkCreated, self::ShareLinkRevoked => 'twins',
             self::AlertAcknowledged, self::IssueRaised, self::IssueAssigned, self::IssueClosed, self::IssueReopened, self::IssueDeleted => 'operations',
         };
     }

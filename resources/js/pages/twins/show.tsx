@@ -17,6 +17,7 @@ import {
     type RaiseFrom,
 } from '@/components/twin-issues';
 import { TwinSettings } from '@/components/twin-settings';
+import { TwinShare, type ShareLinkSummary } from '@/components/twin-share';
 import { TwinViews, type SavedViewSummary } from '@/components/twin-views';
 import { show as showProject } from '@/routes/projects';
 import { index as alertLog } from '@/routes/twins/alerts';
@@ -69,7 +70,14 @@ type Props = {
     views: SavedViewSummary[];
     /** The view to open at: the one linked (`?view=`), or the twin's opening view. */
     startView: { id: string; state: unknown } | null;
-    can: { update: boolean; operate: boolean; manageTypes: boolean };
+    /** The links showing it outside the organisation; empty unless they can share. */
+    shareLinks: ShareLinkSummary[];
+    can: {
+        update: boolean;
+        share: boolean;
+        operate: boolean;
+        manageTypes: boolean;
+    };
 };
 
 export default function ShowTwin({
@@ -88,10 +96,17 @@ export default function ShowTwin({
     raise,
     views,
     startView,
+    shareLinks,
     can,
 }: Props) {
     const [editing, setEditing] = useState<
-        'layout' | 'definition' | 'settings' | 'issues' | 'views' | null
+        | 'layout'
+        | 'definition'
+        | 'settings'
+        | 'issues'
+        | 'views'
+        | 'share'
+        | null
     >(issue || raise ? 'issues' : null);
     // Follow the gateway when one is connected, unless the user picks the simulator.
     const [preferSimulator, setPreferSimulator] = useState(false);
@@ -305,6 +320,21 @@ export default function ShowTwin({
                         >
                             Views
                         </button>
+                        {can.share && (
+                            <button
+                                className={
+                                    editing === 'share' ? 'primary' : 'ghost'
+                                }
+                                aria-expanded={editing === 'share'}
+                                onClick={() =>
+                                    setEditing(
+                                        editing === 'share' ? null : 'share',
+                                    )
+                                }
+                            >
+                                Share
+                            </button>
+                        )}
                         {can.update &&
                             (
                                 [
@@ -363,6 +393,13 @@ export default function ShowTwin({
                         twinId={twin.id}
                         views={views}
                         canEdit={can.update}
+                        onClose={() => setEditing(null)}
+                    />
+                )}
+                {editing === 'share' && (
+                    <TwinShare
+                        twinId={twin.id}
+                        links={shareLinks}
                         onClose={() => setEditing(null)}
                     />
                 )}
