@@ -473,9 +473,24 @@ at date d (now: no limit):
 hidden layers are set show = false; Uploaded layers still hides tilesets, map layers and imagery
 ```
 
-Terrain is left alone, since a twin stands on one. Share links now also load a twin's map layers and imagery through the link, which they didn't before.
+A twin may have several `terrains`, and stands on one at a time: the newest dated terrain captured by d, else its last undated one, else (before every survey) the earliest. The scene swaps only the terrain provider, so the site stays at the ground height of the first terrain it loaded. Saved views and `?look=` links carry `siteDate`, so they open on the same survey; views saved before have none, which means now. Share links now also load a twin's map layers and imagery through the link, which they didn't before.
 
 ![The survey pad with Site on at now](docs/images/site-over-time.png)
+
+#### Definition format versions
+
+A definition carries `"format": 2`; none means format 1. `App\Support\DefinitionFormat` and `resources/js/twin/core/format.ts` move a definition up one migration at a time, and both are held to the same cases in `tests/fixtures/definition-migrations.json`:
+
+```text
+migrate(definition):
+    not an object → as it is (the validator refuses it)
+    format ← definition.format, or 1
+    not a whole number from 1 to CURRENT → as it is (the schema refuses a newer one, saying which)
+    1 → 2: terrain becomes terrains: [terrain]
+    format ← CURRENT
+```
+
+Twin versions read and write their definition through the `App\Casts\Definition` cast, which migrates both ways, so old rows are read in the current format without being rewritten; the validator, the viewer's `validateDefinition` and the gateway's `parseDefinition` migrate before checking. A new format means: bump `CURRENT` in both, add a step to both, add cases to the fixture, change the schema, and list it in the manual's [format table](docs/manual/12-twin-definitions.md#format-versions). What's kept stable for 1.0 is in [Upgrading and stability](docs/manual/22-upgrading-and-stability.md).
 
 ### Roles
 
@@ -844,7 +859,7 @@ POST   /api/v1/twins/{twin}/alerts/{alert}/acknowledgement the first acknowledge
 
 ![The API page: a new token shown once with a request to try it, and the organisation's tokens with when each was last used.](docs/images/api-tokens.png)
 
-Answers are Laravel API resources (`App\Http\Resources`), with the content under `data`, and `links` and `meta` on lists. The [manual](docs/manual/15-the-api.md) has examples.
+Answers are Laravel API resources (`App\Http\Resources`), with the content under `data`, and `links` and `meta` on lists. The [manual](docs/manual/15-the-api.md) has examples. [`public/openapi.json`](public/openapi.json), served at `/openapi.json`, describes v1 in OpenAPI 3.1; `tests/Feature/OpenApiTest.php` fails if a v1 route isn't described (or a described one doesn't exist), if its lists of choices differ from the enums, or if a real answer doesn't fit its schema.
 
 ### The audit log
 
@@ -1577,3 +1592,4 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 22. **Data without a gateway** (done): readings from CSV files imported into a twin's history, and added by other systems through the API (part 1, [#51](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/51)); and Modbus TCP read by the gateway beside OPC UA, for PLCs, meters and drives (part 2, [#52](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/52)).
 23. **Photogrammetry meshes** (done): textured meshes from drone surveys (OBJ with its textures, and zipped exports from photogrammetry software) converted to 3D Tiles with Obj2Tiles and placed on the globe ([#53](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/53)).
 24. **The site over time** (done): library items dated by when they were captured, and a date slider that shows the scans, surveys, imagery and models current at the time ([#54](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/54)).
+25. **Towards 1.0** (in progress): a versioned definition format whose older versions are always read and moved up, an OpenAPI description of `/api/v1` kept true by tests, and a stability and upgrade guide; with terrain that changes with the date, and saved views and links that keep it.

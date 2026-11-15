@@ -32,7 +32,8 @@ final readonly class AddAssetToTwin
      * that's near the twin. A point cloud or mesh is a tileset; one without a
      * coordinate system is in local metres, so it starts placed at the origin
      * too. Terrain
-     * becomes the twin's ground, replacing any it had. Map layers and imagery
+     * is added to the twin's terrains, which it stands on one at a time, by
+     * when each was captured. Map layers and imagery
      * are already in longitude and latitude, so they go where they are. Null
      * when the latest version already shows it.
      */
@@ -45,15 +46,17 @@ final readonly class AddAssetToTwin
         $layer = ['name' => $asset->name, 'url' => $asset->url(), 'assetId' => $asset->id];
 
         if ($asset->kind === ProjectAssetKind::Terrain) {
-            $current = $definition['terrain'] ?? null;
+            $terrains = is_array($definition['terrains'] ?? null) ? array_values($definition['terrains']) : [];
 
-            if (is_array($current) && ($current['assetId'] ?? null) === $asset->id) {
+            if (array_any($terrains, fn (mixed $terrain): bool => is_array($terrain) && ($terrain['assetId'] ?? null) === $asset->id)) {
                 return null;
             }
 
-            $definition['terrain'] = $layer;
+            $definition['terrains'] = [...$terrains, $layer];
 
-            return $this->versions->handle($twin, $user, $definition, __('Set the terrain to :name', ['name' => $asset->name]));
+            return $this->versions->handle($twin, $user, $definition, $terrains === []
+                ? __('Set the terrain to :name', ['name' => $asset->name])
+                : __('Added :name as another terrain', ['name' => $asset->name]));
         }
 
         $field = match (true) {

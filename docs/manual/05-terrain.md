@@ -20,7 +20,7 @@ flowchart LR
 - The converter that turns [point clouds](04-point-clouds.md) into tiles also does terrain. Each zoom level is a mesh that keeps the ground's shape to within a fraction of the DEM's cell size, so flat ground costs almost nothing and detail goes where the ground changes.
 - Heights are used as the DEM gives them, usually metres above sea level.
 - The DEM's heights are also kept as they were, beside the tiles, so it can be [compared with other surveys](17-comparing-surveys.md) of the same ground.
-- A twin has **one** terrain. Choosing another replaces it.
+- A twin can have **several** terrains, such as a survey of the same ground each month. It stands on one at a time: the newest captured by the twin's **Site on** date (see [The site over time](21-the-site-over-time.md)).
 - Terrain is **hillshaded**: lit from the north-west, as on a map, so slopes facing north-west are lighter and those facing south-east darker, whatever the time of day. Flat ground keeps its colour.
 
 ## Upload a DEM
@@ -53,10 +53,17 @@ When it's done, the item reads **Terrain · 45 files · EPSG:2193**.
 ## Stand a twin on it
 
 1. Open a twin in the same project and choose **Layout**.
-2. Under **Library**, choose **Use as terrain** beside the DEM (**Use as terrain instead** if the twin already has one). The twin saves a new version, **Set the terrain to…**.
-3. The terrain is listed under **Layers**. **Remove** takes it out again and puts the site back on the plain globe; the DEM stays in the library.
+2. Under **Library**, choose **Use as terrain** beside the DEM (**Add as another terrain** if the twin already has one). The twin saves a new version, **Set the terrain to…** or **Added … as another terrain**.
+3. Each terrain is listed under **Layers**. **Remove** takes one out again; with none left, the site is back on the plain globe. The DEM stays in the library.
 
-Meridian looks up the ground's height at the twin's **origin** and builds the whole site level at that height.
+Meridian looks up the ground's height at the twin's **origin** and builds the whole site level at that height. With several terrains, it's the height of the first the twin loads, and the site stays there when **Site on** moves it onto another survey: only the ground changes.
+
+```text
+which terrain, on a date (or now):
+    of the dated terrains, the newest captured on or before the date
+    else, the last undated one
+    else (the date is before every survey), the earliest survey
+```
 
 ## Tips
 

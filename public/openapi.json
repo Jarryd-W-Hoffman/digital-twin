@@ -1,0 +1,2148 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Meridian API",
+    "version": "1.0.0",
+    "description": "What Meridian knows about an organisation's projects, twins, readings, alerts, issues and audit log, for other systems. See docs/manual/15-the-api.md. Every answer has its content under `data`. Times are ISO 8601 in UTC, except readings, which use Unix milliseconds."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "token": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Token"
+    },
+    {
+      "name": "Projects"
+    },
+    {
+      "name": "Twins"
+    },
+    {
+      "name": "Readings"
+    },
+    {
+      "name": "Alerts"
+    },
+    {
+      "name": "Issues"
+    },
+    {
+      "name": "Audit"
+    }
+  ],
+  "paths": {
+    "/token": {
+      "get": {
+        "summary": "The token, its access and its organisation",
+        "operationId": "showToken",
+        "tags": [
+          "Token"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Token"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "summary": "The organisation's projects, by name",
+        "operationId": "listProjects",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "The page, from 1",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "links",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Project"
+                      }
+                    },
+                    "links": {
+                      "$ref": "#/components/schemas/Links"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      }
+    },
+    "/projects/{project}": {
+      "get": {
+        "summary": "One project",
+        "operationId": "showProject",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "description": "The project's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Project"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      }
+    },
+    "/twins": {
+      "get": {
+        "summary": "The organisation's twins, by name",
+        "operationId": "listTwins",
+        "tags": [
+          "Twins"
+        ],
+        "parameters": [
+          {
+            "name": "project",
+            "in": "query",
+            "required": false,
+            "description": "Only this project's twins",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "The page, from 1",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "links",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Twin"
+                      }
+                    },
+                    "links": {
+                      "$ref": "#/components/schemas/Links"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      }
+    },
+    "/twins/{twin}": {
+      "get": {
+        "summary": "One twin, with its latest version, assets, gateway, and open alerts and issues",
+        "operationId": "showTwin",
+        "tags": [
+          "Twins"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Twin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      }
+    },
+    "/twins/{twin}/readings": {
+      "get": {
+        "summary": "A metric's recorded history, averaged into equal time buckets",
+        "operationId": "listReadings",
+        "tags": [
+          "Readings"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "asset",
+            "in": "query",
+            "required": true,
+            "description": "The asset's id in the twin",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "metric",
+            "in": "query",
+            "required": true,
+            "description": "The metric's key",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][A-Za-z0-9_]{0,63}$"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "description": "From, in Unix milliseconds",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "description": "To, in Unix milliseconds, after from",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "buckets",
+            "in": "query",
+            "required": false,
+            "description": "How many buckets",
+            "schema": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 1000,
+              "default": 300
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/History"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add readings to the twin's history",
+        "operationId": "storeReadings",
+        "tags": [
+          "Readings"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "stored"
+                  ],
+                  "properties": {
+                    "stored": {
+                      "type": "integer",
+                      "description": "How many readings were stored"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/ReadOnly"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "readings"
+                ],
+                "properties": {
+                  "readings": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "items": {
+                      "$ref": "#/components/schemas/Reading"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Needs a token that may read and write."
+      }
+    },
+    "/twins/{twin}/alerts": {
+      "get": {
+        "summary": "The twin's alert log, newest first",
+        "operationId": "listAlerts",
+        "tags": [
+          "Alerts"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "open",
+            "in": "query",
+            "required": false,
+            "description": "Only alerts not yet cleared",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Only alerts raised since",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Where the last page ended, from links.next",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "links",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Alert"
+                      }
+                    },
+                    "links": {
+                      "$ref": "#/components/schemas/Links"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      }
+    },
+    "/twins/{twin}/alerts/{alert}/acknowledgement": {
+      "post": {
+        "summary": "Acknowledge an alert; the first acknowledgement is kept",
+        "operationId": "acknowledgeAlert",
+        "tags": [
+          "Alerts"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "alert",
+            "in": "path",
+            "required": true,
+            "description": "The alert's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Alert"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/ReadOnly"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        },
+        "description": "Needs a token that may read and write."
+      }
+    },
+    "/twins/{twin}/issues": {
+      "get": {
+        "summary": "The twin's issues, newest first",
+        "operationId": "listIssues",
+        "tags": [
+          "Issues"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "Which issues",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "default": "open"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "The page, from 1",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "links",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Issue"
+                      }
+                    },
+                    "links": {
+                      "$ref": "#/components/schemas/Links"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      },
+      "post": {
+        "summary": "Raise an issue",
+        "operationId": "storeIssue",
+        "tags": [
+          "Issues"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Issue"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/ReadOnly"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "at"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "at": {
+                    "$ref": "#/components/schemas/Point"
+                  },
+                  "view": {
+                    "$ref": "#/components/schemas/Camera"
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 5000,
+                    "description": "A first comment"
+                  },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG or WebP, up to 10 MB"
+                  },
+                  "alert": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "The alert the issue follows up, of this twin"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "at"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "at": {
+                    "$ref": "#/components/schemas/Point"
+                  },
+                  "view": {
+                    "$ref": "#/components/schemas/Camera"
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 5000,
+                    "description": "A first comment"
+                  },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG or WebP, up to 10 MB"
+                  },
+                  "alert": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "The alert the issue follows up, of this twin"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Needs a token that may read and write."
+      }
+    },
+    "/twins/{twin}/issues/{issue}": {
+      "get": {
+        "summary": "One issue, with its comments",
+        "operationId": "showIssue",
+        "tags": [
+          "Issues"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "issue",
+            "in": "path",
+            "required": true,
+            "description": "The issue's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Issue"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      }
+    },
+    "/twins/{twin}/issues/{issue}/comments": {
+      "post": {
+        "summary": "Comment on an issue",
+        "operationId": "storeComment",
+        "tags": [
+          "Issues"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "issue",
+            "in": "path",
+            "required": true,
+            "description": "The issue's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Comment"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/ReadOnly"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "maxLength": 5000
+                  },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG or WebP, up to 10 MB"
+                  }
+                },
+                "description": "A body, a photo, or both"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "maxLength": 5000
+                  },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG or WebP, up to 10 MB"
+                  }
+                },
+                "description": "A body, a photo, or both"
+              }
+            }
+          }
+        },
+        "description": "Needs a token that may read and write."
+      }
+    },
+    "/twins/{twin}/issues/{issue}/comments/{comment}/photo": {
+      "get": {
+        "summary": "A comment's photo",
+        "operationId": "showCommentPhoto",
+        "tags": [
+          "Issues"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "issue",
+            "in": "path",
+            "required": true,
+            "description": "The issue's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "comment",
+            "in": "path",
+            "required": true,
+            "description": "The comment's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The photo",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      }
+    },
+    "/twins/{twin}/issues/{issue}/closure": {
+      "post": {
+        "summary": "Close an issue; whoever closed it first is kept",
+        "operationId": "closeIssue",
+        "tags": [
+          "Issues"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "issue",
+            "in": "path",
+            "required": true,
+            "description": "The issue's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Issue"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/ReadOnly"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        },
+        "description": "Needs a token that may read and write."
+      },
+      "delete": {
+        "summary": "Reopen an issue",
+        "operationId": "reopenIssue",
+        "tags": [
+          "Issues"
+        ],
+        "parameters": [
+          {
+            "name": "twin",
+            "in": "path",
+            "required": true,
+            "description": "The twin's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "issue",
+            "in": "path",
+            "required": true,
+            "description": "The issue's id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Issue"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/ReadOnly"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        },
+        "description": "Needs a token that may read and write."
+      }
+    },
+    "/audit": {
+      "get": {
+        "summary": "The organisation's audit log, newest first",
+        "operationId": "listAudit",
+        "tags": [
+          "Audit"
+        ],
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Only entries since",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "area",
+            "in": "query",
+            "required": false,
+            "description": "Only one area",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "access",
+                "projects",
+                "twins",
+                "connections",
+                "operations"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Where the last page ended, from links.next",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "links",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditEvent"
+                      }
+                    },
+                    "links": {
+                      "$ref": "#/components/schemas/Links"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "token": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An API token made under API in Meridian, starting mrd_"
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "No token, or an unknown, revoked or expired one",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Message"
+            }
+          }
+        }
+      },
+      "ReadOnly": {
+        "description": "A write with a token that may only read",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Message"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Nothing with that id in the token's organisation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Message"
+            }
+          }
+        }
+      },
+      "Invalid": {
+        "description": "A parameter is wrong; errors says which",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "message",
+                "errors"
+              ],
+              "properties": {
+                "message": {
+                  "type": "string"
+                },
+                "errors": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "TooMany": {
+        "description": "More than 120 requests in a minute with this token",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Message"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Message": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Links": {
+        "type": "object",
+        "properties": {
+          "first": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prev": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The next page; null on the last"
+          }
+        }
+      },
+      "PageMeta": {
+        "type": "object",
+        "required": [
+          "current_page",
+          "per_page",
+          "total"
+        ],
+        "properties": {
+          "current_page": {
+            "type": "integer"
+          },
+          "last_page": {
+            "type": "integer"
+          },
+          "per_page": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "from": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "to": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "Token": {
+        "type": "object",
+        "required": [
+          "name",
+          "access",
+          "expiresAt",
+          "organisation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "access": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write"
+            ]
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "organisation": {
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "twins": {
+            "type": "integer",
+            "description": "How many twins it has, in lists"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Twin": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "projectId",
+          "gateway",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The latest version's number"
+          },
+          "gateway": {
+            "type": "object",
+            "required": [
+              "connected",
+              "online",
+              "seenAt"
+            ],
+            "properties": {
+              "connected": {
+                "type": "boolean"
+              },
+              "online": {
+                "type": "boolean"
+              },
+              "seenAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          },
+          "openAlerts": {
+            "type": "integer"
+          },
+          "openIssues": {
+            "type": "integer"
+          },
+          "assets": {
+            "type": "array",
+            "description": "On one twin",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "kind"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "zone": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "History": {
+        "type": "object",
+        "required": [
+          "bucketMs",
+          "points"
+        ],
+        "properties": {
+          "bucketMs": {
+            "type": "integer"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "t",
+                "mean",
+                "min",
+                "max",
+                "count"
+              ],
+              "properties": {
+                "t": {
+                  "type": "integer",
+                  "description": "Unix milliseconds"
+                },
+                "mean": {
+                  "type": "number"
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Reading": {
+        "type": "object",
+        "required": [
+          "asset",
+          "metric",
+          "value",
+          "at"
+        ],
+        "properties": {
+          "asset": {
+            "type": "string",
+            "description": "An asset of the twin"
+          },
+          "metric": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9_]{0,63}$"
+          },
+          "value": {
+            "type": "number"
+          },
+          "at": {
+            "type": "integer",
+            "description": "Unix milliseconds, within the time readings are kept, and at most 5 minutes ahead"
+          }
+        }
+      },
+      "Alert": {
+        "type": "object",
+        "required": [
+          "id",
+          "twinId",
+          "rule",
+          "asset",
+          "severity",
+          "message",
+          "value",
+          "raisedAt",
+          "clearedAt",
+          "acknowledgedAt",
+          "acknowledgedBy"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "twinId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "raisedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "clearedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "acknowledgedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "acknowledgedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Point": {
+        "type": "object",
+        "required": [
+          "lon",
+          "lat",
+          "height"
+        ],
+        "properties": {
+          "lon": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "height": {
+            "type": "number",
+            "minimum": -12000,
+            "maximum": 100000
+          }
+        }
+      },
+      "Camera": {
+        "type": "object",
+        "required": [
+          "lon",
+          "lat",
+          "height",
+          "heading",
+          "pitch",
+          "roll"
+        ],
+        "properties": {
+          "lon": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "height": {
+            "type": "number",
+            "minimum": -12000,
+            "maximum": 50000000
+          },
+          "heading": {
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          },
+          "pitch": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "roll": {
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          }
+        }
+      },
+      "Issue": {
+        "type": "object",
+        "required": [
+          "id",
+          "twinId",
+          "number",
+          "title",
+          "at",
+          "author",
+          "assignee",
+          "dueOn",
+          "overdue",
+          "alertId",
+          "createdAt",
+          "updatedAt",
+          "closedAt",
+          "closedBy",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "twinId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Point"
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assignee": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "alertId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "closedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Opens the issue in Meridian"
+          },
+          "comments": {
+            "type": "array",
+            "description": "On one issue",
+            "items": {
+              "$ref": "#/components/schemas/Comment"
+            }
+          }
+        }
+      },
+      "Comment": {
+        "type": "object",
+        "required": [
+          "id",
+          "author",
+          "body",
+          "photo",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "photo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where to get its photo"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "actor",
+          "actorId",
+          "viaApi",
+          "action",
+          "label",
+          "area",
+          "subject",
+          "project",
+          "twin",
+          "details",
+          "ip"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "actorId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "viaApi": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "description": "Such as member.role_changed"
+          },
+          "label": {
+            "type": "string"
+          },
+          "area": {
+            "type": "string",
+            "enum": [
+              "access",
+              "projects",
+              "twins",
+              "connections",
+              "operations"
+            ]
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "twin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "details": {
+            "type": "object"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

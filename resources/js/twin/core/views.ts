@@ -20,8 +20,8 @@ export const LAYER_KEYS = [
 
 /**
  * How the twin looked to someone: the camera, what the scene is coloured by,
- * the basemap and layers, any section cut and the selected asset. Saved as a
- * view, or carried whole in a link.
+ * the basemap and layers, any section cut, the selected asset and the date
+ * the site was shown as on. Saved as a view, or carried whole in a link.
  */
 export type ViewState = {
     camera: CameraView;
@@ -30,6 +30,8 @@ export type ViewState = {
     layers: Record<(typeof LAYER_KEYS)[number], boolean>;
     section: ViewSection | null;
     selected: string | null;
+    /** The Site on date (YYYY-MM-DD); null for now. Views from before it had none. */
+    siteDate: string | null;
 };
 
 /** A section cut, as the scene's `Section`; a plain type so it can be posted. */
@@ -104,6 +106,12 @@ export function parseView(v: unknown): ViewState | null {
         if (typeof on !== 'boolean') return null;
         layers[key] = on;
     }
+    const siteDate = v.siteDate ?? null;
+    if (
+        siteDate !== null &&
+        (typeof siteDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(siteDate))
+    )
+        return null;
     const selected = v.selected ?? null;
     if (
         selected !== null &&
@@ -119,6 +127,7 @@ export function parseView(v: unknown): ViewState | null {
         layers,
         section: cut,
         selected,
+        siteDate,
     };
 }
 

@@ -24,7 +24,7 @@ at a date (or now):
 So stepping the slider through the dates steps through the surveys, while a building modelled in April appears in April and stays.
 
 - **Context that never changes**, such as a city model or a site plan, shouldn't be dated: it always shows.
-- **Terrain** isn't affected: a twin stands on one terrain. Compare the ground between surveys with [Comparing surveys](17-comparing-surveys.md).
+- **Terrain** changes too: a twin with several dated [terrains](05-terrain.md) stands on the newest captured by the date, or on its undated terrain before the first survey. The site stays at the height it was built at. Compare the ground between surveys with [Comparing surveys](17-comparing-surveys.md).
 - **Two areas surveyed on different days** replace each other, because they're the same kind. Date them the same day if both should show together.
 - **Uploaded layers** still hides every scan, mesh, tileset, map layer and image, whatever the date.
 
@@ -42,6 +42,8 @@ Only editors can date uploads, and each change is in the [audit log](02-organisa
 1. Open the twin. **Site on** appears in the left panel once any of its layers is dated, saying how many capture dates there are.
 2. Drag the slider, or click it and use the arrow keys: each step is a capture date, and the panel says **As captured on** that date.
 3. Move it to the far right, or press **End**, for **Now**: the newest of each kind.
+
+A [saved view or look link](06-twins-and-the-viewer.md#saved-views-and-links) keeps the date too, so it opens on the same survey. Views saved before this open at **Now**.
 
 The slider also works on a [share link](06-twins-and-the-viewer.md#share-a-twin-by-link), so someone without an account can step through the surveys too. It changes only what you see: the twin's readings, alerts and history carry on as they were.
 

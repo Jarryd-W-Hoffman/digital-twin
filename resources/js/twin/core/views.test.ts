@@ -21,6 +21,7 @@ const view: ViewState = {
     },
     section: { above: 6, across: null },
     selected: 'chiller',
+    siteDate: '2026-03-10',
 };
 
 describe('parseView', () => {
@@ -28,12 +29,13 @@ describe('parseView', () => {
         expect(parseView(view)).toEqual(view);
     });
 
-    it('treats a missing section and selection as none', () => {
-        const { section: _s, selected: _sel, ...rest } = view;
+    it('treats a missing section, selection and date as none, as in views saved before dates', () => {
+        const { section: _s, selected: _sel, siteDate: _date, ...rest } = view;
 
         expect(parseView(rest)).toMatchObject({
             section: null,
             selected: null,
+            siteDate: null,
         });
     });
 
@@ -58,6 +60,8 @@ describe('parseView', () => {
             { ...view, camera: { ...view.camera, lat: 91 } },
         ],
         ['a camera missing a field', { ...view, camera: { lon: 1, lat: 2 } }],
+        ['a date that is not one', { ...view, siteDate: '10/03/2026' }],
+        ['a date that is not a string', { ...view, siteDate: 20260310 }],
         [
             'a camera that is not a number',
             { ...view, camera: { ...view.camera, height: '60' } },

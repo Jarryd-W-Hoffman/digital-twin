@@ -168,6 +168,8 @@ The default basemap is bundled with Meridian and makes no outside requests. To o
 
 ## Upgrading
 
+Read the [CHANGELOG](../../CHANGELOG.md) from your version on and back up first. [Upgrading and stability](22-upgrading-and-stability.md) says what's kept stable and in which order to upgrade. Then:
+
 ```bash
 git pull
 docker compose exec php composer install

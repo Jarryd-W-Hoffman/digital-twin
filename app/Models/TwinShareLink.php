@@ -108,7 +108,7 @@ final class TwinShareLink extends Model
             ...(is_array($definition['models'] ?? null) ? $definition['models'] : []),
             ...(is_array($definition['vectors'] ?? null) ? $definition['vectors'] : []),
             ...(is_array($definition['imagery'] ?? null) ? $definition['imagery'] : []),
-            $definition['terrain'] ?? null,
+            ...(is_array($definition['terrains'] ?? null) ? $definition['terrains'] : []),
         ];
 
         return array_values(array_unique(array_filter(array_map(

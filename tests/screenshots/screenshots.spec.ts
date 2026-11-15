@@ -1262,7 +1262,8 @@ test('screenshots', async ({ page, context }) => {
         await expect(
             page.getByText('As captured on 10 Mar 2026'),
         ).toBeVisible();
-        await page.waitForTimeout(4000);
+        // Long enough for the March survey's finest tiles to stream in.
+        await page.waitForTimeout(15_000);
         await shot(page, 'site-over-time-march');
         await page.keyboard.press('End');
     });

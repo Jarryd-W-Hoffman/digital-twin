@@ -61,7 +61,12 @@ import {
 } from 'cesium';
 import { hourOfDay } from '../core/engine.ts';
 import { centroid, lonLatToMetres, metresToLonLat } from '../core/geo.ts';
-import { imageryTiles, parseImageryInfo, vectorStyle } from '../core/layers.ts';
+import {
+    imageryTiles,
+    parseImageryInfo,
+    terrainAt,
+    vectorStyle,
+} from '../core/layers.ts';
 import type { Vec3 } from '../core/measure.ts';
 import {
     formatMetric,
@@ -85,6 +90,7 @@ import type {
     Frame,
     Placement,
     Point,
+    TerrainDef,
     TwinDefinition,
 } from '../core/types.ts';
 import { State } from '../core/types.ts';
@@ -272,6 +278,9 @@ export class TwinScene {
      */
     private ground = 0;
     private terrainLoaded = false;
+    /** The terrain asked for last, and the one on the globe. */
+    private terrainWanted: string | undefined;
+    private terrainShown: string | undefined;
     private basemapLayer?: ImageryLayer;
     private basemapName?: Basemap;
     private removePreRender?: () => void;
@@ -459,8 +468,11 @@ export class TwinScene {
         // site once it's built. With terrain, that waits for its height at
         // the origin.
         this.globeView(0);
-        if (def.terrain) void this.loadTerrain().then(() => this.build());
-        else this.build();
+        const terrain = terrainAt(def, {}, null);
+        if (terrain) {
+            this.terrainWanted = terrain.url;
+            void this.loadTerrain(terrain.url).then(() => this.build());
+        } else this.build();
     }
 
     // Construction --------------------------------------------------------------
@@ -526,36 +538,56 @@ export class TwinScene {
     }
 
     /**
-     * Quantized-mesh terrain from the definition's layer.json, and its height
-     * at the origin. Terrain that fails to load leaves the plain ellipsoid, so
-     * the twin still runs.
+     * Stands the site on another of its terrains, as at another date. Only
+     * the ground changes: the site stays at the height it was built at.
      */
-    private async loadTerrain(): Promise<void> {
-        const url = resolveUrl(this.def.terrain!.url).replace(
-            /layer\.json(\?.*)?$/,
-            '',
-        );
+    setTerrain(terrain: TerrainDef | undefined): void {
+        if (!terrain || terrain.url === this.terrainWanted) return;
+        this.terrainWanted = terrain.url;
+        void this.loadTerrain(terrain.url);
+    }
+
+    /**
+     * Quantized-mesh terrain from a layer.json. The first to load gives the
+     * ground height at the origin the site is built at. Terrain that fails to
+     * load leaves the globe as it was, so the twin still runs.
+     */
+    private async loadTerrain(layer: string): Promise<void> {
+        const url = resolveUrl(layer).replace(/layer\.json(\?.*)?$/, '');
         try {
             const provider = await CesiumTerrainProvider.fromUrl(url, {
                 requestVertexNormals: true,
             });
             if (this.viewer.isDestroyed()) return;
+            if (!this.terrainLoaded) {
+                const [origin] = await sampleTerrainMostDetailed(provider, [
+                    Cartographic.fromDegrees(this.origin.lon, this.origin.lat),
+                ]);
+                this.ground = Number.isFinite(origin?.height)
+                    ? origin!.height
+                    : 0;
+                this.terrainLoaded = true;
+            }
+            if (this.viewer.isDestroyed() || this.terrainWanted !== layer)
+                return;
             this.viewer.terrainProvider = provider;
             this.viewer.scene.globe.depthTestAgainstTerrain = true;
             this.viewer.scene.globe.material = hillshade();
-            const [origin] = await sampleTerrainMostDetailed(provider, [
-                Cartographic.fromDegrees(this.origin.lon, this.origin.lat),
-            ]);
-            this.ground = Number.isFinite(origin?.height) ? origin!.height : 0;
-            this.terrainLoaded = true;
+            this.terrainShown = layer;
         } catch (error) {
             console.warn('Could not load the terrain', error);
         }
     }
 
     /** Test hook: whether terrain loaded, the ground height at the origin, and whether it's hillshaded. */
-    terrain(): { loaded: boolean; ground: number; shaded: boolean } {
+    terrain(): {
+        loaded: boolean;
+        ground: number;
+        shaded: boolean;
+        url: string | undefined;
+    } {
         return {
+            url: this.terrainShown,
             loaded: this.terrainLoaded,
             ground: this.ground,
             shaded: this.viewer.scene.globe.material !== undefined,

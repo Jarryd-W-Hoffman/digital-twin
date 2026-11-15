@@ -29,6 +29,7 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 | 🔢  | [Modbus](19-modbus.md)                                           | Registering Modbus TCP meters, drives and PLCs, and mapping their registers onto metrics                                                             |
 | 🛰️  | [Photogrammetry meshes](20-photogrammetry-meshes.md)             | Uploading textured OBJ meshes and zipped drone survey exports, where they're placed, and Obj2Tiles                                                  |
 | 📅  | [The site over time](21-the-site-over-time.md)                   | Dating uploads by when they were captured, and stepping a twin through its surveys with Site on                                                      |
+| 🧭  | [Upgrading and stability](22-upgrading-and-stability.md)         | What's kept stable across versions, definition formats, the API's OpenAPI description, and upgrading safely                                          |
 
 ## Conventions
 

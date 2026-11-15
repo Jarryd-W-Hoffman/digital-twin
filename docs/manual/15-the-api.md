@@ -61,6 +61,8 @@ curl -H "Authorization: Bearer mrd_…" -H "Accept: application/json" \
 | `GET /api/v1/twins/{twin}/issues/{issue}/comments/{comment}/photo` | A comment's photo |
 | `GET /api/v1/audit` | The organisation's [audit log](#the-audit-log), newest first. `?since=` for entries since a time; `?area=` for one area: `access`, `projects`, `twins`, `connections` or `operations` |
 
+[`/openapi.json`](../../public/openapi.json) describes every address, parameter and answer in OpenAPI 3.1, for API clients and code generators. Within `/api/v1`, fields and addresses are only ever added: see [Upgrading and stability](22-upgrading-and-stability.md#the-api).
+
 Every answer has its content under `data`. Times are ISO 8601 in UTC, except readings, which use Unix milliseconds like the [recorded history](10-devices-and-mqtt.md#see-what-was-recorded).
 
 ### Assets and readings
@@ -186,6 +188,7 @@ curl -X POST -H "Authorization: Bearer mrd_…" -H "Accept: application/json" \
 ## See also
 
 - [Organisations and members](02-organisations-and-members.md#roles): who can make tokens.
+- [Upgrading and stability](22-upgrading-and-stability.md#the-api): how the API is kept working across versions.
 - [Provision people automatically](02-organisations-and-members.md#provision-people-automatically): the identity provider's own SCIM API, with its own token, for adding and removing members.
 - [Alerts, time travel and what-if](07-alerts-time-and-what-if.md#the-alert-log): the alert log the API reads, and webhooks, which push alerts, issue updates and [daily or weekly reports](07-alerts-time-and-what-if.md#reports) instead of waiting to be asked.
 - [Twins and the viewer](06-twins-and-the-viewer.md): issues in the scene.

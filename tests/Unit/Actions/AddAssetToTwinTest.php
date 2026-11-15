@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\AddAssetToTwin;
+use App\Actions\SaveTwinVersion;
 use App\Enums\ProjectAssetKind;
 use App\Models\ProjectAsset;
 
@@ -117,20 +118,27 @@ it('adds a georeferenced mesh as a tileset where it belongs, and places one in l
         ->and($layers[1]['placement'])->toBe(['east' => 0, 'north' => 0, 'up' => 0, 'headingDeg' => 0, 'scale' => 1]);
 });
 
-it("makes terrain the twin's ground, replacing any it had", function (): void {
+it("adds terrain to the twin's terrains, once each", function (): void {
     [$user, $organisation] = member();
     $twin = twinIn($organisation);
     $first = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Terrain, 'entry' => 'layer.json', 'name' => 'Lidar DEM']);
     $second = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Terrain, 'entry' => 'layer.json', 'name' => 'Survey DEM']);
     $action = resolve(AddAssetToTwin::class);
+    $definition = $twin->latestVersion()->sole()->definition;
+    unset($definition['terrains']);
+    resolve(SaveTwinVersion::class)->handle($twin, $user, $definition);
 
     $version = $action->handle($twin, $user, $first);
 
     expect($version?->note)->toBe('Set the terrain to Lidar DEM')
-        ->and($version?->definition['terrain'])->toBe(['name' => 'Lidar DEM', 'url' => $first->url(), 'assetId' => $first->id])
+        ->and($version?->definition['terrains'])->toBe([['name' => 'Lidar DEM', 'url' => $first->url(), 'assetId' => $first->id]])
         ->and($version?->definition)->not->toHaveKey('tilesets')
-        ->and($action->handle($twin, $user, $first))->toBeNull()
-        ->and($action->handle($twin, $user, $second)?->definition['terrain']['assetId'])->toBe($second->id);
+        ->and($action->handle($twin, $user, $first))->toBeNull();
+
+    $version = $action->handle($twin, $user, $second);
+
+    expect($version?->note)->toBe('Added Survey DEM as another terrain')
+        ->and(array_column($version?->definition['terrains'] ?? [], 'assetId'))->toBe([$first->id, $second->id]);
 });
 
 it('places an IFC model where its georeference puts it, near the twin', function (): void {

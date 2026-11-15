@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Casts\Definition;
 use Carbon\CarbonInterface;
 use Database\Factories\TwinVersionFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -39,7 +40,7 @@ final class TwinVersion extends Model
             'id' => 'string',
             'twin_id' => 'string',
             'number' => 'integer',
-            'definition' => 'array',
+            'definition' => Definition::class,
             'user_id' => 'string',
             'note' => 'string',
             'created_at' => 'datetime',

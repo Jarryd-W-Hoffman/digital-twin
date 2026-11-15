@@ -309,7 +309,6 @@ export interface ModbusMapping {
     pollMs?: number;
 }
 
-/** A quantized-mesh terrain tileset: the URL of its layer.json. */
 /**
  * A map layer (converted to GeoJSON in longitude and latitude) draped on the
  * ground: points, lines and areas from a survey, a site plan or a GIS.
@@ -336,6 +335,7 @@ export interface ImageryLayerDef {
     opacity?: number;
 }
 
+/** A quantized-mesh terrain tileset: the URL of its layer.json. */
 export interface TerrainDef {
     name?: string;
     url: string;
@@ -363,6 +363,8 @@ export interface PanelDef {
 }
 
 export interface TwinDefinition {
+    /** Which format the definition is in; see core/format.ts. */
+    format?: number;
     id: string;
     name: string;
     description: string;
@@ -385,8 +387,11 @@ export interface TwinDefinition {
     vectors?: VectorLayerDef[];
     /** Georeferenced images laid over the ground, above the basemap. */
     imagery?: ImageryLayerDef[];
-    /** Quantized-mesh terrain the site sits on; the ellipsoid without it. */
-    terrain?: TerrainDef;
+    /**
+     * Quantized-mesh terrain the site stands on, one at a time: the newest
+     * captured by the date the site is shown on. The ellipsoid without any.
+     */
+    terrains?: TerrainDef[];
     types?: AssetTypeDef[];
     telemetry?: TelemetryMapping[];
     opcua?: OpcUaMapping[];

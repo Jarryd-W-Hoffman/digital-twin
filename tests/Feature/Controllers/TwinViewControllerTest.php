@@ -15,6 +15,7 @@ function viewState(array $overrides = []): array
         'layers' => ['labels' => true, 'flows' => false, 'zones' => true, 'context' => true, 'shadows' => true],
         'section' => ['above' => 6, 'across' => null],
         'selected' => 'chiller',
+        'siteDate' => '2026-03-10',
         ...$overrides,
     ];
 }
@@ -39,7 +40,19 @@ it('lets anyone who can see the twin save a view, kept private to them', functio
             'layers' => ['labels' => true, 'flows' => false, 'zones' => true, 'context' => true, 'shadows' => true],
             'section' => ['above' => 6.0, 'across' => null],
             'selected' => 'chiller',
+            'siteDate' => '2026-03-10',
         ]);
+});
+
+it('keeps a view saved without a Site on date as now', function (): void {
+    [$user, $organisation] = member();
+    $twin = twinIn($organisation);
+    $state = viewState();
+    unset($state['siteDate']);
+
+    $this->actingAs($user)->post(route('twins.views.store', $twin), ['name' => 'Now', 'state' => $state])->assertSessionHasNoErrors();
+
+    expect($twin->savedViews()->sole()->state['siteDate'])->toBeNull();
 });
 
 it('keeps a cut across, and treats a section that cuts nothing as none', function (array $section, ?array $kept): void {
@@ -77,6 +90,7 @@ it('refuses a view that is not one', function (array $fields, string $error): vo
     'a cut too high' => [['name' => 'View', 'state' => viewState(['section' => ['above' => 20000, 'across' => null]])], 'state.section.above'],
     'a cut across without a heading' => [['name' => 'View', 'state' => viewState(['section' => ['above' => null, 'across' => ['offset' => 1]]])], 'state.section.across.heading'],
     'a long selection' => [['name' => 'View', 'state' => viewState(['selected' => str_repeat('a', 201)])], 'state.selected'],
+    'a date that is not one' => [['name' => 'View', 'state' => viewState(['siteDate' => '10/03/2026'])], 'state.siteDate'],
 ]);
 
 it('keeps outsiders out', function (): void {
