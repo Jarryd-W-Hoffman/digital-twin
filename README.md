@@ -64,6 +64,16 @@ _What-if: if the refrigeration board trips now, the freezer passes its limit in 
 
 _The same event applied live, coloured by temperature: a red beacon over the tripped board, de-energised chillers, both stores warming, and the alerts stacking up on the timeline._
 
+## Deploying
+
+One Linux server with Docker runs it all, with HTTPS from Let's Encrypt:
+
+```bash
+docker/production/meridian install twins.example.com ops@example.com
+```
+
+`docker/production` holds the production images (php-fpm with the built front end, Caddy, the converter, a gateway), the compose file and the `meridian` script that installs, upgrades, backs up and restores. Seven containers run (`web`, `app`, `worker`, `scheduler`, `converter`, `postgres`, `redis`), with `mosquitto` and a `gateway` if wanted. On AWS, a `t3.large` with 100 GB costs roughly US$85–110 a month. See [Deploying Meridian](docs/manual/23-deploying.md).
+
 ## Quick start
 
 Needs PHP 8.5 (with `zip`), Composer, and Node 22 or later.
@@ -1527,6 +1537,8 @@ _Coloured by power after dark: solar has gone quiet, and the battery and grid ca
 | `MERIDIAN_READINGS_IMPORT_MAX`                 | Most readings in one imported file, default 2,000,000                                                                  |
 | `MERIDIAN_AUDIT_RETENTION_DAYS`                | How long the audit log is kept, default 730                                                                            |
 | `MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS`           | `true` to let single sign-on reach an identity provider on a private network (and over `http://`)                      |
+| `MERIDIAN_SOURCE_URL`                          | Where the code is, linked from the home page as **Get the code**; unset hides the link                                 |
+| `MERIDIAN_HOSTED_URL`                          | Where to ask about hosting, linked as **Talk to us**; unset shows **Coming soon**                                      |
 | `MERIDIAN_MQTT_AUTH_SECRET`                    | Shared with the MQTT broker, which uses it to ask who may log in and use which topics. Unset, those routes answer 404. |
 | `MERIDIAN_MQTT_BROKER_URL`                     | Where devices connect, shown on the project page, default `mqtt://localhost:1883`                                      |
 | `MERIDIAN_TILESET_MAX_FILES`                   | Most files in a tileset zip, default 20,000                                                                            |
@@ -1593,3 +1605,8 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 23. **Photogrammetry meshes** (done): textured meshes from drone surveys (OBJ with its textures, and zipped exports from photogrammetry software) converted to 3D Tiles with Obj2Tiles and placed on the globe ([#53](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/53)).
 24. **The site over time** (done): library items dated by when they were captured, and a date slider that shows the scans, surveys, imagery and models current at the time ([#54](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/54)).
 25. **Towards 1.0** (in progress): a versioned definition format whose older versions are always read and moved up, an OpenAPI description of `/api/v1` kept true by tests, and a stability and upgrade guide; with terrain that changes with the date, and saved views and links that keep it.
+26. **Packaging** (in progress): production images, one-command install with HTTPS, upgrades, backups and restores, a deployment guide, and the MIT licence.
+
+## Licence
+
+Meridian is free and open source under the [MIT licence](LICENSE). The production images also contain other projects' software under their own licences, listed in [Deploying Meridian](docs/manual/23-deploying.md#licences); among them Obj2Tiles (AGPL-3.0), run unmodified as a separate program.

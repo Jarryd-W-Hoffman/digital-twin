@@ -1239,6 +1239,127 @@
     line-height: 1.55;
 }
 
+/* Free or hosted */
+.l-offer {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+}
+
+@media (max-width: 860px) {
+    .l-offer {
+        grid-template-columns: 1fr;
+    }
+}
+
+.l-plan {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding: 28px;
+    border-radius: 18px;
+    border: 1px solid var(--l-line-2);
+    background: linear-gradient(180deg, var(--l-panel), var(--l-bg-2));
+}
+
+.l-plan-hosted {
+    border-color: rgb(255 201 74 / 0.35);
+    background:
+        radial-gradient(
+            80% 60% at 100% 0%,
+            rgb(255 201 74 / 0.12),
+            transparent 70%
+        ),
+        linear-gradient(180deg, var(--l-panel), var(--l-bg-2));
+}
+
+.l-plan-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--l-amber-soft);
+    color: var(--l-amber);
+    font-family: var(--l-mono);
+    font-size: 12px;
+}
+
+.l-plan h3 {
+    margin: 14px 0 8px;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.l-plan header p {
+    margin: 0;
+    color: var(--l-muted);
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.l-plan ul {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.l-plan li {
+    position: relative;
+    padding-left: 26px;
+    font-size: 14.5px;
+    line-height: 1.5;
+}
+
+.l-plan li::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 5px;
+    width: 12px;
+    height: 7px;
+    border-left: 2px solid var(--l-teal);
+    border-bottom: 2px solid var(--l-teal);
+    transform: rotate(-45deg);
+}
+
+.l-plan-code {
+    margin: 0;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--l-line);
+    background: #0c1218;
+    color: #c4ccd5;
+    font-family: var(--l-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+.l-plan-code .c {
+    color: var(--l-faint);
+}
+
+.l-plan-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.l-plan-actions [aria-disabled='true'] {
+    color: var(--l-muted);
+    cursor: default;
+}
+
+.l-plan-actions [aria-disabled='true']:hover {
+    background: none;
+    border-color: var(--l-line-2);
+}
+
 /* Final call */
 .l-final {
     position: relative;

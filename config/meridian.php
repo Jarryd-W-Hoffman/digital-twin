@@ -156,4 +156,12 @@ return [
         'allow_private_issuers' => (bool) env('MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS', false),
     ],
 
+    /*
+    | The home page's links: where the code is (shown once it's public), and
+    | where to ask about hosting (shown as coming soon until set).
+    */
+    'landing' => [
+        'source_url' => env('MERIDIAN_SOURCE_URL'),
+        'hosted_url' => env('MERIDIAN_HOSTED_URL'),
+    ],
 ];

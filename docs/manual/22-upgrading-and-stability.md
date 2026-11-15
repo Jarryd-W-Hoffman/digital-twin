@@ -81,7 +81,7 @@ check: sign in, open a twin, and GET /api/v1/token with a token
 then upgrade the gateways
 ```
 
-The commands are in [Running Meridian](14-running-meridian.md#upgrading). Going back a version means restoring the backup: migrations aren't written to be undone, and a newer definition format can't be read by an older Meridian.
+The commands are in [Deploying Meridian](23-deploying.md#upgrading) (`docker/production/meridian upgrade` backs up first), or for the development stack in [Running Meridian](14-running-meridian.md#upgrading). Going back a version means restoring the backup: migrations aren't written to be undone, and a newer definition format can't be read by an older Meridian.
 
 ## See also
 

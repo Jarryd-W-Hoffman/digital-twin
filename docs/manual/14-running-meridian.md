@@ -166,6 +166,10 @@ The [audit log](02-organisations-and-members.md#the-audit-log) is kept for `MERI
 
 The default basemap is bundled with Meridian and makes no outside requests. To offer your own tiles in the **Basemap** menu, set `VITE_BASEMAP_URL` (a `{z}/{x}/{y}` address) and `VITE_BASEMAP_ATTRIBUTION`, then rebuild with `npm run build`.
 
+## Deploying
+
+To run Meridian for real, on a server with HTTPS, see [Deploying Meridian](23-deploying.md). This chapter is the development stack.
+
 ## Upgrading
 
 Read the [CHANGELOG](../../CHANGELOG.md) from your version on and back up first. [Upgrading and stability](22-upgrading-and-stability.md) says what's kept stable and in which order to upgrade. Then:

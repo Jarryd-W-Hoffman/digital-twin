@@ -32,3 +32,4 @@ _ide_helper.php
 /public/vendor/cesium
 /test-results
 /playwright-report
+/backups
