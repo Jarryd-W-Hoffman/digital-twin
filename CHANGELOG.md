@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **A landing page** ([#56]): the home page now shows what Meridian does, with the real walkthrough screenshots: a tour of a twin (live, what-if, volumes, map layers, sections and issues) that moves on by itself until you choose, a March-to-June comparison of a dated survey, a twin definition whose parts light up as you point at them, and what's there for teams. It leads to the sample twins and offers signed-in people their dashboard, follows the visitor's wish for less motion, and works on phones.
 - **Towards 1.0** ([#55]): twin definitions now say which **format** they're in (`"format": 2`; none is format 1). Older formats are moved up as they're read, by the control plane, the viewer and the gateway alike, so twins saved by earlier versions keep working; versions are saved in the newest, and a definition from a newer Meridian is refused, saying which format it is. **`/openapi.json`** describes every `/api/v1` address in OpenAPI 3.1, checked against the routes and real answers by tests. A new user manual chapter, **Upgrading and stability**, says what's kept stable from 1.0, how versions are numbered and how to upgrade. Roadmap item 25 starts here.
 - **Terrain over time** ([#55]): a twin can have several terrains (**Add as another terrain** in the Layout panel), and **Site on** stands it on the newest captured by the date, keeping the site at the height it was built at. Saved views and look links keep the **Site on** date too.
 
@@ -259,6 +260,7 @@ Dates are when the change was merged into `main` (UTC).
 [#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#43]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/43
 [#45]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/45
+[#56]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/56
 [#55]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/55
 [#54]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/54
 [#53]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/53
