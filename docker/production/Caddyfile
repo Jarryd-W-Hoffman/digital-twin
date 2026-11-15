@@ -1,0 +1,51 @@
+# Meridian behind Caddy: HTTPS certificates from Let's Encrypt (or Caddy's
+# own authority for localhost), the public files, and PHP over FastCGI.
+# PHP sees HTTPS and the visitor's address directly, so Laravel needs no
+# trusted proxies.
+{
+	email {$ACME_EMAIL}
+	servers {
+		timeouts {
+			read_body 30m
+		}
+	}
+}
+
+(meridian) {
+	root * /var/www/html/public
+
+	@built path /build/* /vendor/cesium/*
+	header @built Cache-Control "public, max-age=31536000, immutable"
+
+	php_fastcgi app:9000 {
+		read_timeout 300s
+		write_timeout 300s
+	}
+	file_server
+}
+
+{$MERIDIAN_DOMAIN} {
+	encode zstd gzip
+
+	# A gateway running beside the control plane (the gateway profile),
+	# at wss://<domain>/gateway/ws.
+	handle_path /gateway/* {
+		reverse_proxy gateway:8787
+	}
+
+	handle {
+		header {
+			Strict-Transport-Security "max-age=31536000"
+			X-Content-Type-Options nosniff
+			Referrer-Policy strict-origin-when-cross-origin
+			-Server
+		}
+		import meridian
+	}
+}
+
+# Plain HTTP on the stack's own network only (the port isn't published), for
+# the broker asking the app who may log in, and a gateway loading its twin.
+http://:8080 {
+	import meridian
+}

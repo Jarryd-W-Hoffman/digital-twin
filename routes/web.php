@@ -70,7 +70,10 @@ use App\Http\Middleware\ResolveShareLink;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', fn () => Inertia::render('welcome'))->name('home');
+Route::get('/', fn () => Inertia::render('welcome', [
+    'sourceUrl' => config('meridian.landing.source_url'),
+    'hostedUrl' => config('meridian.landing.hosted_url'),
+]))->name('home');
 
 // The sample twins run in the browser without an account.
 Route::get('demo', fn () => Inertia::render('demo'))->name('demo');

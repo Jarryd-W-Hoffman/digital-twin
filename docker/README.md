@@ -1,6 +1,6 @@
 # Meridian in Docker
 
-A local stack for Meridian, based on the [containers](https://github.com/Jarryd-W-Hoffman/containers/tree/main/laravel) Laravel template. The app code stays on the host and is bind-mounted in.
+A local stack for Meridian, based on the [containers](https://github.com/Jarryd-W-Hoffman/containers/tree/main/laravel) Laravel template. The app code stays on the host and is bind-mounted in. For a server, see [`production`](production) and [Deploying Meridian](../docs/manual/23-deploying.md).
 
 | Service      | Image                                   | Host port      |                                                                                   |
 | ------------ | --------------------------------------- | -------------- | --------------------------------------------------------------------------------- |

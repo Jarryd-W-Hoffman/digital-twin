@@ -889,10 +889,97 @@ function Features() {
     );
 }
 
+function Offer({
+    sourceUrl,
+    hostedUrl,
+}: {
+    sourceUrl: string | null;
+    hostedUrl: string | null;
+}) {
+    return (
+        <div className="l-offer">
+            <article className="l-plan l-reveal">
+                <header>
+                    <span className="l-plan-tag">Free · MIT licence</span>
+                    <h3>Run it yourself</h3>
+                    <p>
+                        Everything on this page, with no limits, on your own
+                        servers. Your data never leaves them.
+                    </p>
+                </header>
+                <ul>
+                    <li>One command on any Linux server with Docker</li>
+                    <li>HTTPS from Let&apos;s Encrypt, set up for you</li>
+                    <li>Upgrades and backups with one command each</li>
+                    <li>Use it, change it and build on it, commercially too</li>
+                </ul>
+                <pre className="l-plan-code" aria-label="Installing Meridian">
+                    <code>
+                        <span className="c"># on your server, in the code</span>
+                        {'\n'}docker/production/meridian install \{'\n'}
+                        {'  '}twins.example.com you@example.com
+                    </code>
+                </pre>
+                {sourceUrl && (
+                    <div className="l-plan-actions">
+                        <a className="l-btn" href={sourceUrl}>
+                            Get the code
+                            <ArrowRight className="l-arrow" />
+                        </a>
+                        <a
+                            className="l-btn l-btn-ghost"
+                            href={`${sourceUrl.replace(/\/$/, '')}/blob/main/docs/manual/23-deploying.md`}
+                        >
+                            Deployment guide
+                        </a>
+                    </div>
+                )}
+            </article>
+            <article
+                className="l-plan l-plan-hosted l-reveal"
+                style={{ '--d': '0.08s' } as CSSProperties}
+            >
+                <header>
+                    <span className="l-plan-tag">
+                        Paid · managed{hostedUrl ? '' : ' · coming soon'}
+                    </span>
+                    <h3>Let us host it</h3>
+                    <p>
+                        The same Meridian, without running servers. For teams
+                        who&apos;d rather fly the drone than patch the database.
+                    </p>
+                </header>
+                <ul>
+                    <li>We run it, upgrade it and back it up</li>
+                    <li>Conversions on our machines, however large the scan</li>
+                    <li>Help connecting gateways, PLCs and sensors</li>
+                    <li>Support from the people who build it</li>
+                </ul>
+                <div className="l-plan-actions">
+                    {hostedUrl ? (
+                        <a className="l-btn l-btn-primary" href={hostedUrl}>
+                            Talk to us
+                            <ArrowRight className="l-arrow" />
+                        </a>
+                    ) : (
+                        <span className="l-btn" aria-disabled="true">
+                            Coming soon
+                        </span>
+                    )}
+                </div>
+            </article>
+        </div>
+    );
+}
+
 export default function Welcome({
     canRegister = true,
+    sourceUrl = null,
+    hostedUrl = null,
 }: {
     canRegister?: boolean;
+    sourceUrl?: string | null;
+    hostedUrl?: string | null;
 }) {
     const { auth } = usePage().props;
     const still = useReducedMotion();
@@ -941,6 +1028,7 @@ export default function Welcome({
                                 <a href="#over-time">Over time</a>
                                 <a href="#data">Definitions</a>
                                 <a href="#teams">For teams</a>
+                                <a href="#run-it">Pricing</a>
                             </div>
                             {auth.user ? (
                                 <Link
@@ -1072,6 +1160,26 @@ export default function Welcome({
                                 </p>
                             </div>
                             <Features />
+                        </div>
+                    </section>
+
+                    <section className="l-section" id="run-it">
+                        <div className="l-wrap">
+                            <div className="l-section-head l-reveal">
+                                <span className="l-kicker">
+                                    // run it your way
+                                </span>
+                                <h2>Free to run. Or let us run it.</h2>
+                                <p>
+                                    The whole of Meridian is free under the MIT
+                                    licence. Pay only if you&apos;d like someone
+                                    else to look after it.
+                                </p>
+                            </div>
+                            <Offer
+                                sourceUrl={sourceUrl}
+                                hostedUrl={hostedUrl}
+                            />
                         </div>
                     </section>
 

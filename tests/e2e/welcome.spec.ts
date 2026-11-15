@@ -44,6 +44,13 @@ test('the landing page shows what a twin does, and leads into the samples', asyn
     await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBe(1600);
   }
 
+  // Free to run, or hosted: no code link or hosting link until they're configured.
+  const runIt = page.locator('#run-it');
+  await expect(runIt.getByRole('heading', { name: 'Run it yourself' })).toBeVisible();
+  await expect(runIt.getByText('docker/production/meridian install')).toBeVisible();
+  await expect(runIt.getByRole('link', { name: 'Get the code' })).toHaveCount(0);
+  await expect(runIt.getByText('Coming soon', { exact: true })).toBeVisible();
+
   await page.getByRole('link', { name: 'Explore the sample twins' }).first().click();
   await expect(page).toHaveURL(/\/demo$/);
 });

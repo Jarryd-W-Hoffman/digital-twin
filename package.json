@@ -1,6 +1,7 @@
 {
     "private": true,
     "type": "module",
+    "license": "MIT",
     "scripts": {
         "build": "vp build",
         "build:ssr": "vp build && vp build --ssr",
