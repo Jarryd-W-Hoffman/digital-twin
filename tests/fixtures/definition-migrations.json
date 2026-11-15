@@ -1,0 +1,42 @@
+{
+    "$comment": "Definitions in older formats, and what each becomes in the current one. Checked by tests/Unit/Support/DefinitionFormatTest.php and resources/js/twin/core/format.test.ts.",
+    "cases": [
+        {
+            "name": "format 1 has no format, and one terrain",
+            "from": { "id": "t", "terrain": { "name": "Ground", "url": "/a/layer.json", "assetId": "a" } },
+            "to": { "format": 2, "id": "t", "terrains": [{ "name": "Ground", "url": "/a/layer.json", "assetId": "a" }] }
+        },
+        {
+            "name": "format 1 said, without terrain",
+            "from": { "format": 1, "id": "t", "assets": [] },
+            "to": { "format": 2, "id": "t", "assets": [] }
+        },
+        {
+            "name": "the current format is left as it is",
+            "from": { "format": 2, "id": "t", "terrains": [] },
+            "to": { "format": 2, "id": "t", "terrains": [] }
+        },
+        {
+            "name": "an empty object",
+            "from": {},
+            "to": { "format": 2 }
+        },
+        {
+            "name": "a newer format is left for the validator",
+            "from": { "format": 3, "terrain": { "url": "x" } },
+            "to": { "format": 3, "terrain": { "url": "x" } }
+        },
+        {
+            "name": "a format that isn't a whole number is left for the validator",
+            "from": { "format": "2", "terrain": { "url": "x" } },
+            "to": { "format": "2", "terrain": { "url": "x" } }
+        },
+        {
+            "name": "format 0 is left for the validator",
+            "from": { "format": 0 },
+            "to": { "format": 0 }
+        },
+        { "name": "a list is not a definition", "from": [1, 2], "to": [1, 2] },
+        { "name": "nor is null", "from": null, "to": null }
+    ]
+}

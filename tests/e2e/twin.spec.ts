@@ -152,10 +152,15 @@ test('a different definition runs the whole platform', async ({ page }) => {
   await expect(page.locator('.kpi', { hasText: 'Margin to limit' })).toContainText('°C');
   // The depot sits on its terrain's 12 m pad, not the bare ellipsoid.
   // Its relief is hillshaded, since Cesium leaves the ground unlit up close.
-  const terrain = () => page.evaluate(() => (window as unknown as { __scene: { terrain(): { loaded: boolean; ground: number; shaded: boolean } } }).__scene.terrain());
-  await expect.poll(async () => (await terrain()).loaded, { timeout: 30_000 }).toBe(true);
+  type TerrainScene = { __scene: { terrain(): { loaded: boolean; ground: number; shaded: boolean; url?: string }; setTerrain(t: { url: string }): void } };
+  const terrain = () => page.evaluate(() => (window as unknown as TerrainScene).__scene.terrain());
+  await expect.poll(async () => (await terrain()).url, { timeout: 30_000 }).toBe('/samples/terrain/harbour-depot/layer.json');
   expect((await terrain()).ground).toBeCloseTo(12, 0);
   expect((await terrain()).shaded).toBe(true);
+  // Another of its terrains, as at another date: the ground changes, the site keeps its height.
+  await page.evaluate(() => (window as unknown as TerrainScene).__scene.setTerrain({ url: '/samples/terrain/harbour-depot/layer.json?survey=may' }));
+  await expect.poll(async () => (await terrain()).url, { timeout: 30_000 }).toBe('/samples/terrain/harbour-depot/layer.json?survey=may');
+  expect((await terrain()).ground).toBeCloseTo(12, 0);
   await page.getByRole('tab', { name: 'What-if' }).click();
   await page.getByRole('button', { name: 'Run forecast' }).click();
   await expect(page.getByTestId('forecast-results')).toContainText('Seafood store');

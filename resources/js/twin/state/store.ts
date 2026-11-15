@@ -711,12 +711,13 @@ export function currentView(): ViewState | null {
         layers: { ...s.layers },
         section: s.section,
         selected: s.selectedId,
+        siteDate: s.siteDate,
     };
 }
 
 /**
  * Makes the twin look as it did in a view: flies the camera there and sets
- * the colouring, basemap, layers, section and selection. A custom basemap
+ * the colouring, basemap, layers, section, selection and Site on date. A custom basemap
  * this build has no tiles for is left as it is.
  */
 export function applyView(view: ViewState): void {
@@ -730,6 +731,7 @@ export function applyView(view: ViewState): void {
         basemap,
         layers: { ...view.layers },
         section: view.section,
+        siteDate: view.siteDate,
     });
     s.select(view.selected);
     s.flyTo(view.camera);

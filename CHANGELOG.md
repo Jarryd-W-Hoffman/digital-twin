@@ -14,6 +14,9 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Towards 1.0** ([#55]): twin definitions now say which **format** they're in (`"format": 2`; none is format 1). Older formats are moved up as they're read, by the control plane, the viewer and the gateway alike, so twins saved by earlier versions keep working; versions are saved in the newest, and a definition from a newer Meridian is refused, saying which format it is. **`/openapi.json`** describes every `/api/v1` address in OpenAPI 3.1, checked against the routes and real answers by tests. A new user manual chapter, **Upgrading and stability**, says what's kept stable from 1.0, how versions are numbered and how to upgrade. Roadmap item 25 starts here.
+- **Terrain over time** ([#55]): a twin can have several terrains (**Add as another terrain** in the Layout panel), and **Site on** stands it on the newest captured by the date, keeping the site at the height it was built at. Saved views and look links keep the **Site on** date too.
+
 - **The site over time** ([#54]): uploads can be dated by when they were captured, with **Captured on** when uploading or under the upload's name in the library (audited as **Dated an upload**). A twin with dated layers gets **Site on** in its left panel, a slider over its capture dates with **now** at the end: each kind of scan, mesh, tileset and image shows until the next capture of its kind, and models and map layers show from their date on. It works on share links too.
 
 - **Photogrammetry meshes** ([#53]): the library takes textured meshes from drone and photo surveys: an `.obj`, or a `.zip` of the export folder chosen as **A photogrammetry mesh (an OBJ export)**. They're converted to 3D Tiles on the conversions queue, with levels of detail, by [Obj2Tiles](https://github.com/OpenDroneMap/Obj2Tiles) 1.9.0 (AGPL-3.0, shipped unmodified in the converter image as a separate program). Where a mesh is comes from ContextCapture's or DJI Terra's `metadata.xml`, Pix4D's `_offset.xyz` and `.prj`, or an **EPSG code** given at upload; it's reprojected so grid north turns to true north, and added to a twin where it was surveyed. One with no georeference is in local metres, **Y is up** if the uploader ticks it, and starts at the twin's origin to be placed. An OBJ uploaded without its materials is tiled untextured, and the log says so. New settings: `MERIDIAN_MESH_CONVERTER`, `MERIDIAN_MESH_MAX_EXTRACTED_MB` and `MERIDIAN_MESH_TIMEOUT_MINUTES`.
@@ -71,6 +74,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Changed
 
+- **Definition format 2** ([#55]): `terrain` (one) becomes `terrains` (a list). Format 1 definitions are moved up when read, so nothing needs changing by hand.
 - The converter image includes IfcOpenShell and `meridian-ifc` ([#20]).
 - Validation messages come in a new order: problems with the definition's shape first, sorted by where they are, then references and expressions ([#16]).
 
@@ -255,6 +259,7 @@ Dates are when the change was merged into `main` (UTC).
 [#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#43]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/43
 [#45]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/45
+[#55]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/55
 [#54]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/54
 [#53]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/53
 [#52]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/52

@@ -1,4 +1,5 @@
 import { expressionError, namesIn, parseExpression } from './expr.ts';
+import { migrateDefinition } from './format.ts';
 import { schemaErrors, show } from './schema.ts';
 import type { TwinDefinition } from './types.ts';
 
@@ -98,7 +99,8 @@ function checkReadout(
  * first what definition.schema.json finds about its shape, then what needs the
  * whole definition (references, duplicates, cycles, expressions).
  */
-export function validateDefinition(input: unknown): string[] {
+export function validateDefinition(given: unknown): string[] {
+    const input = migrateDefinition(given);
     const errors = schemaErrors(input);
     if (!isObj(input)) return errors;
     const def = input;
@@ -385,5 +387,5 @@ export function parseDefinition(input: unknown): TwinDefinition {
     const errors = validateDefinition(input);
     if (errors.length)
         throw new Error(`Invalid twin definition:\n- ${errors.join('\n- ')}`);
-    return input as TwinDefinition;
+    return migrateDefinition(input) as TwinDefinition;
 }

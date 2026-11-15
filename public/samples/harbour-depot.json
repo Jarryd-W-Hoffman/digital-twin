@@ -1,9 +1,10 @@
 {
+  "format": 2,
   "id": "harbour-depot",
   "name": "Harbour Depot",
   "description": "A fictional grid-only seafood depot: one store, one chiller, no storage. Shows that the platform is driven by the definition.",
   "origin": { "lon": 174.7855, "lat": -36.8395 },
-  "terrain": { "name": "Harbour Depot ground (synthetic)", "url": "/samples/terrain/harbour-depot/layer.json" },
+  "terrains": [{ "name": "Harbour Depot ground (synthetic)", "url": "/samples/terrain/harbour-depot/layer.json" }],
   "utcOffsetHours": 12,
   "climate": { "meanC": 17, "swingC": 4 },
   "camera": { "headingDeg": 340, "pitchDeg": -35, "rangeM": 220 },

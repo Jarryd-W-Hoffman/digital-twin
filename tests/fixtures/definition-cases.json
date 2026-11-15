@@ -136,9 +136,13 @@
             ],
             "errors": ["At most 8 KPIs fit in the top bar", "Panel Broken: items must be an array", "A panel needs a title", "KPI Load: value: unexpected end", "KPI Load: unit must be text", "KPI Free: value uses unknown name tempC", "KPI Free: decimals must be 0 to 6", "KPI Ghost: decimals must be 0 to 6", "KPI: every figure needs a label", "Panel Broken: Trend: value: empty expression", "Panel Bad chart: Nope: value: must be text", "Panel Bad chart: every figure needs a label", "KPI Ghost: value refers to unknown asset ghost"]
         },
-        { "name": "terrain with a url", "ops": [{ "set": "terrain", "value": { "name": "Ground", "url": "/assets/x/files/layer.json" } }], "errors": [] },
-        { "name": "terrain without a url", "ops": [{ "set": "terrain", "value": { "name": "Ground" } }, { "set": "telemetry", "value": [{}] }], "errors": ["A telemetry mapping has no topic", "Terrain needs a url"] },
-        { "name": "terrain not an object", "ops": [{ "set": "terrain", "value": "hills" }], "errors": ["Terrain needs a url"] },
+        { "name": "terrains with a url", "ops": [{ "set": "terrains", "value": [{ "name": "Ground", "url": "/assets/x/files/layer.json" }] }], "errors": [] },
+        { "name": "a terrain without a url", "ops": [{ "set": "terrains", "value": [{ "name": "Ground" }, "hills"] }, { "set": "telemetry", "value": [{}] }], "errors": ["A telemetry mapping has no topic", "Each terrain needs a url"] },
+        { "name": "terrains not a list", "ops": [{ "set": "terrains", "value": { "url": "x" } }], "errors": ["terrains must be a list"] },
+        { "name": "format 1, its terrain migrated", "ops": [{ "set": "format", "value": 1 }, { "unset": "terrains" }, { "set": "terrain", "value": { "name": "Ground" } }], "errors": ["Each terrain needs a url"] },
+        { "name": "no format is format 1", "ops": [{ "unset": "format" }, { "unset": "terrains" }, { "set": "terrain", "value": { "url": "/a/layer.json" } }], "errors": [] },
+        { "name": "a newer format", "ops": [{ "set": "format", "value": 3 }], "errors": ["This definition is in format 3, which this Meridian can't read (it reads formats 1 and 2)"] },
+        { "name": "a format that isn't a number", "ops": [{ "set": "format", "value": "2" }], "errors": ["This definition is in format 2, which this Meridian can't read (it reads formats 1 and 2)"] },
         {
             "name": "an asset bound to a tileset feature",
             "ops": [{ "set": "tilesets", "value": [{ "id": "context", "name": "Neighbours", "url": "/tilesets/context/tileset.json" }] }, { "set": "assets.4.feature", "value": { "layer": "context", "id": "plant-01" } }, { "set": "tilesets.0.featureProperty", "value": "GlobalId" }],

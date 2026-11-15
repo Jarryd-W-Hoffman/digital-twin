@@ -1,4 +1,4 @@
-import type { Placement, TwinDefinition } from './types.ts';
+import type { Placement, TerrainDef, TwinDefinition } from './types.ts';
 
 export const ORIGIN: Placement = {
     east: 0,
@@ -122,7 +122,12 @@ export function captureDates(
     def: TwinDefinition | undefined,
     captures: Captures,
 ): string[] {
-    const dates = datedLayers(def, captures).map((l) => l.on);
+    const dates = [
+        ...datedLayers(def, captures).map((l) => l.on),
+        ...(def?.terrains ?? []).flatMap((t) =>
+            t.assetId && captures[t.assetId] ? [captures[t.assetId]!.on] : [],
+        ),
+    ];
     return [...new Set(dates)].sort();
 }
 
@@ -171,5 +176,29 @@ function datedLayers(
             const capture = l.assetId ? captures[l.assetId] : undefined;
             return capture ? [{ id: l.id, ...capture, replaced }] : [];
         }),
+    );
+}
+
+/**
+ * The terrain the site stands on at a date (null: now): the newest dated
+ * one captured by then, or else the last undated one, or else the earliest,
+ * so the twin keeps its ground before its first survey.
+ */
+export function terrainAt(
+    def: TwinDefinition | undefined,
+    captures: Captures,
+    date: string | null,
+): TerrainDef | undefined {
+    const terrains = def?.terrains ?? [];
+    const on = (t: TerrainDef) =>
+        t.assetId ? captures[t.assetId]?.on : undefined;
+    const dated = terrains
+        .filter((t) => on(t) !== undefined)
+        .sort((a, b) => on(a)!.localeCompare(on(b)!));
+    const current = dated.filter((t) => date === null || on(t)! <= date);
+    return (
+        current.at(-1) ??
+        terrains.filter((t) => on(t) === undefined).at(-1) ??
+        dated[0]
     );
 }

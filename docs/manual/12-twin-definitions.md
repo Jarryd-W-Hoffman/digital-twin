@@ -76,7 +76,7 @@ flowchart TD
     D --> M["telemetry<br/>MQTT topics onto metrics"]
     D --> K["kpis, panels<br/>figures for the top bar and site summary"]
     D --> V["shapes<br/>arrows and fans in the scene"]
-    D --> G["terrain<br/>the ground"]
+    D --> G["terrains<br/>the ground"]
     A -->|fedBy| A
     A -->|cools| A
 ```
@@ -98,11 +98,12 @@ flowchart TD
 | `opcua`, `modbus`    | OPC UA nodes and Modbus registers mapped onto metrics. Written by the Layout panel                     |
 | `kpis`, `panels`     | The figures in the top bar, and extra panels in the site summary                                       |
 | `shapes`             | Arrows and fans drawn in the scene, which can follow readings                                          |
-| `terrain`            | The ground the site stands on. Written by the Layout panel                                             |
+| `terrains`           | The ground the site stands on, one at a time by date. Written by the Layout panel                      |
+| `format`             | Which version of this format the definition is in. Written by Meridian; see below                      |
 
 The built-in kinds of asset are `site`, `weather`, `grid`, `solar`, `battery`, `genset`, `bus`, `chiller`, `coldstore`, `building`, `charger`, `vehicle` and `custom`. Power is optional. A twin that models it has one main `bus` (the main board) with no `fedBy`, and power flows from it through each asset's `fedBy`; a twin with no buses and nothing fed, such as a factory line or a survey, doesn't model electricity at all.
 
-```
+````
 needs a main bus = some asset is a bus, or some asset has fedBy
 if needs a main bus:
     exactly one bus has no fedBy, or the definition is refused
@@ -127,7 +128,7 @@ The model has physics for power and cooling equipment. Anything else, like a fir
   { "id": "fire-tank", "name": "Fire water tank", "kind": "custom", "type": "water-tank",
     "zone": "plant", "position": [134, 70] }
 ]
-```
+````
 
 - **`id`**: lowercase letters, digits, `-` and `_`.
 - **`primary`**: the metric shown beside the asset in the list.
@@ -328,10 +329,31 @@ A weather station reports the wind as `windMs` (metres a second) and `windDeg` (
 ## Terrain
 
 ```jsonc
-"terrain": { "name": "Depot ground survey", "url": "/assets/…/files/layer.json", "assetId": "…" }
+"terrains": [
+  { "name": "Depot ground survey", "url": "/assets/…/files/layer.json", "assetId": "…" },
+  { "name": "Depot ground, May", "url": "/assets/…/files/layer.json", "assetId": "…" }
+]
 ```
 
-**Use as terrain** in the Layout panel writes this for you. See [Terrain](05-terrain.md).
+**Use as terrain** and **Add as another terrain** in the Layout panel write this for you. Which one the twin stands on depends on when each upload was captured. See [Terrain](05-terrain.md) and [The site over time](21-the-site-over-time.md).
+
+## Format versions
+
+A definition says which version of the format it's in, as `"format": 2`. A definition without `format` is in format 1, as written before versions were numbered. Meridian reads every format up to its own, and moves older ones up as it reads them, so twins saved by an older Meridian keep working. A version is saved in the newest format.
+
+```text
+reading a definition:
+    no format: it's format 1
+    a format newer than this Meridian's: refuse it, saying so
+    from its format up to the newest, apply each step in turn
+```
+
+| Format | Changed                                                             |
+| ------ | ------------------------------------------------------------------- |
+| 1      | The first: one `terrain`                                            |
+| 2      | `terrain` becomes `terrains`, a list, so terrain can change by date |
+
+The viewer and the control plane move definitions up the same way, and both are checked against the same examples. See [Upgrading](22-upgrading-and-stability.md).
 
 ## Map layers and imagery
 
@@ -348,10 +370,10 @@ A weather station reports the wind as `windMs` (metres a second) and `windDeg` (
 
 **Add** in the Layout panel writes these for you; see [Map layers and imagery](16-map-layers-and-imagery.md). A map layer's `url` is GeoJSON in longitude and latitude, and an image's is a small description of its tiles (`format`, `minZoom`, `maxZoom` and `bounds` in degrees), with the tiles beside it at `{z}/{x}/{y}.png`. Both are optional:
 
-| Field     | Map layers                                     | Imagery                          |
-| --------- | ---------------------------------------------- | -------------------------------- |
-| `color`   | Lines and points in `#rrggbb`, default amber   | none                             |
-| `opacity` | 0 to 1, default 1; areas are filled at a quarter of it | 0 to 1, default 1        |
+| Field     | Map layers                                             | Imagery           |
+| --------- | ------------------------------------------------------ | ----------------- |
+| `color`   | Lines and points in `#rrggbb`, default amber           | none              |
+| `opacity` | 0 to 1, default 1; areas are filled at a quarter of it | 0 to 1, default 1 |
 
 ```text
 draw each image over the basemap, in the order listed (later on top), within its bounds and zooms
@@ -391,6 +413,7 @@ Meridian lists every problem at once, so you can fix them in one go. Common ones
 - a setpoint without a `min` below its `max`, or a transition to a state that doesn't exist
 - more than eight KPIs, or a figure with no `label`
 - a model or tileset with no `url` or a bad placement
+- a `format` newer than this Meridian reads, from a definition written by a newer one
 
 ## See also
 

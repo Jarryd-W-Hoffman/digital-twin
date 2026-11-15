@@ -1,6 +1,6 @@
 # Layout and versions
 
-The **Layout** panel is where editors change a twin: add uploads from the project library, place them on the site, choose its terrain, take custom types from the type library, map sensor topics, and look back through every version. Every change is saved as a new **version**, so nothing is ever lost: you can download any version, or restore an old one.
+The **Layout** panel is where editors change a twin: add uploads from the project library, place them on the site, choose its terrains, take custom types from the type library, map sensor topics, and look back through every version. Every change is saved as a new **version**, so nothing is ever lost: you can download any version, or restore an old one.
 
 ![The Layout panel on Harbour Depot: the pump skid placed beside the depot with its East, North, Up, Heading and Scale, and the project library below.](../images/layout-editor.png)
 
@@ -34,7 +34,7 @@ From the project's library:
 
 A BIM model that knows where it is lands there, turned to match the file; one that doesn't starts at the twin's origin. See [BIM models](03-projects-and-the-library.md#bim-models).
 
-A converted DEM shows **Use as terrain** instead: the twin stands on it, replacing any terrain it had. See [Terrain](05-terrain.md). Map layers and imagery are added with **Add** and need no placing; see [Map layers and imagery](16-map-layers-and-imagery.md). A georeferenced [photogrammetry mesh](20-photogrammetry-meshes.md) appears where it was surveyed; one in local metres starts at the origin, to be placed.
+A converted DEM shows **Use as terrain** instead, or **Add as another terrain** if the twin has one: the twin stands on one terrain at a time, the newest captured by its [Site on](21-the-site-over-time.md) date. See [Terrain](05-terrain.md). Map layers and imagery are added with **Add** and need no placing; see [Map layers and imagery](16-map-layers-and-imagery.md). A georeferenced [photogrammetry mesh](20-photogrammetry-meshes.md) appears where it was surveyed; one in local metres starts at the origin, to be placed.
 
 Or upload something new straight into this twin:
 

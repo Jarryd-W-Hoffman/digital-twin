@@ -61,14 +61,10 @@ final readonly class SharedTwinController
             ? [...$layer, 'url' => str_replace('/assets/'.$layer['assetId'].'/files/', '/share/'.$token.'/assets/'.$layer['assetId'].'/files/', $layer['url'])]
             : $layer;
 
-        foreach (['tilesets', 'models', 'vectors', 'imagery'] as $field) {
+        foreach (['tilesets', 'models', 'vectors', 'imagery', 'terrains'] as $field) {
             if (is_array($definition[$field] ?? null)) {
                 $definition[$field] = array_map($through, $definition[$field]);
             }
-        }
-
-        if (isset($definition['terrain'])) {
-            $definition['terrain'] = $through($definition['terrain']);
         }
 
         return $definition;

@@ -149,7 +149,8 @@ it('loads terrain through the link too', function (): void {
 
     $this->get('/share/'.SHARE_TOKEN)->assertInertia(fn ($page) => $page
         ->where('startView', null)
-        ->where('definition.terrain.url', '/share/'.SHARE_TOKEN.'/assets/'.$terrain->id.'/files/layer.json'));
+        ->where('definition.terrains.0.url', '/samples/terrain/harbour-depot/layer.json')
+        ->where('definition.terrains.1.url', '/share/'.SHARE_TOKEN.'/assets/'.$terrain->id.'/files/layer.json'));
     $this->get('/share/'.SHARE_TOKEN.'/assets/'.$terrain->id.'/files/layer.json')->assertOk();
 });
 

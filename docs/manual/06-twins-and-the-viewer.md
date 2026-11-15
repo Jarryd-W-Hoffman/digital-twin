@@ -283,12 +283,12 @@ Issues belong to the twin, not to a version: saving a new version or restoring a
 
 ## Saved views and links
 
-A view is how the twin looks to you: where the camera is, what the scene is coloured by, the basemap, which layers are on, any [section cut](#cut-the-site-open) and the selected asset. Save one to come back to it, or send a link that opens the twin looking just like that: "the chiller at night, coloured by temperature, with the roof cut away".
+A view is how the twin looks to you: where the camera is, what the scene is coloured by, the basemap, which layers are on, any [section cut](#cut-the-site-open), the selected asset and the [Site on](21-the-site-over-time.md) date. Save one to come back to it, or send a link that opens the twin looking just like that: "the chiller at night, coloured by temperature, with the roof cut away".
 
 ![The Views panel: saving the current view, a link to it, a shared view that opens the twin and one of your own.](../images/views.png)
 
 - **Save a view**: choose **Views** in the top bar, give it a **Name** and choose **Save view**. It's yours alone, under **Yours**, until an editor shares it.
-- **Open a view** by choosing its name. The camera flies there and the colouring, layers, basemap, section and selection change to match.
+- **Open a view** by choosing its name. The camera flies there and the colouring, layers, basemap, section, selection and Site on date change to match.
 - **Copy link to what you see** puts a link to the twin as it looks now on your clipboard, and shows it in case your browser won't copy. Nothing is saved: the view travels in the link (`?look=…`).
 - **Copy link** on a saved view copies a shorter link (`?view=…`). It works for anyone in the organisation who has it, even while the view is still yours alone.
 - **Rename**, or **Update** to save what's on screen over the view.

@@ -150,12 +150,11 @@ export function TwinEditor({
         })),
     ];
     const dirty = Object.keys(drafts).length > 0;
-    const terrain = definition.terrain;
-    const terrainAsset = assets.find((a) => a.id === terrain?.assetId);
+    const terrains = definition.terrains ?? [];
     // Library uploads this twin doesn't show yet.
     const unused = assets.filter(
         (a) =>
-            a.id !== terrain?.assetId &&
+            !terrains.some((t) => t.assetId === a.id) &&
             !layers.some((layer) => layer.assetId === a.id),
     );
 
@@ -301,45 +300,52 @@ export function TwinEditor({
 
             <section>
                 <h3>Layers</h3>
-                {layers.length === 0 && !terrain && (
+                {layers.length === 0 && terrains.length === 0 && (
                     <p className="muted hint">Nothing uploaded yet.</p>
                 )}
                 <ul className="editor-layers">
-                    {terrain && (
-                        <li>
-                            <div className="editor-layer-head">
-                                <span>
-                                    <strong>{terrain.name ?? 'Terrain'}</strong>
-                                    <span className="muted">
-                                        {' '}
-                                        · Terrain
-                                        {terrainAsset
-                                            ? ` · ${size(terrainAsset.bytes)}`
-                                            : ''}
+                    {terrains.map((terrain, i) => {
+                        const terrainAsset = assets.find(
+                            (a) => a.id === terrain.assetId,
+                        );
+                        return (
+                            <li key={terrain.assetId ?? i}>
+                                <div className="editor-layer-head">
+                                    <span>
+                                        <strong>
+                                            {terrain.name ?? 'Terrain'}
+                                        </strong>
+                                        <span className="muted">
+                                            {' '}
+                                            · Terrain
+                                            {terrainAsset
+                                                ? ` · ${size(terrainAsset.bytes)}`
+                                                : ''}
+                                        </span>
                                     </span>
-                                </span>
-                                {terrainAsset && (
-                                    <button
-                                        className="link"
-                                        onClick={() =>
-                                            confirm(
-                                                `Remove ${terrainAsset.name} from this twin? The site goes back to the plain globe, and the terrain stays in the project library.`,
-                                            ) &&
-                                            router.delete(
-                                                removeLayer.url([
-                                                    twinId,
-                                                    terrainAsset.id,
-                                                ]),
-                                                { preserveScroll: true },
-                                            )
-                                        }
-                                    >
-                                        Remove
-                                    </button>
-                                )}
-                            </div>
-                        </li>
-                    )}
+                                    {terrainAsset && (
+                                        <button
+                                            className="link"
+                                            onClick={() =>
+                                                confirm(
+                                                    `Remove ${terrainAsset.name} from this twin? ${terrains.length > 1 ? 'The site stands on its other terrain' : 'The site goes back to the plain globe'}, and the terrain stays in the project library.`,
+                                                ) &&
+                                                router.delete(
+                                                    removeLayer.url([
+                                                        twinId,
+                                                        terrainAsset.id,
+                                                    ]),
+                                                    { preserveScroll: true },
+                                                )
+                                            }
+                                        >
+                                            Remove
+                                        </button>
+                                    )}
+                                </div>
+                            </li>
+                        );
+                    })}
                     {layers.map((layer) => {
                         const asset = assets.find(
                             (a) => a.id === layer.assetId,
@@ -552,8 +558,8 @@ export function TwinEditor({
                                         }
                                     >
                                         {asset.kind === 'terrain'
-                                            ? terrain
-                                                ? 'Use as terrain instead'
+                                            ? terrains.length > 0
+                                                ? 'Add as another terrain'
                                                 : 'Use as terrain'
                                             : 'Add'}
                                     </button>

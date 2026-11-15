@@ -52,14 +52,16 @@ it('takes away the terrain it came from, leaving other ground alone', function (
     $twin = twinIn($organisation);
     $terrain = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Terrain, 'entry' => 'layer.json', 'name' => 'DEM']);
     $other = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Terrain, 'entry' => 'layer.json']);
+    $unused = ProjectAsset::factory()->for($twin->project)->create(['kind' => ProjectAssetKind::Terrain, 'entry' => 'layer.json']);
     resolve(AddAssetToTwin::class)->handle($twin, $user, $terrain);
+    resolve(AddAssetToTwin::class)->handle($twin, $user, $other);
 
-    expect(resolve(RemoveAssetFromTwin::class)->handle($twin, $user, $other))->toBeNull();
+    expect(resolve(RemoveAssetFromTwin::class)->handle($twin, $user, $unused))->toBeNull();
 
     $version = resolve(RemoveAssetFromTwin::class)->handle($twin, $user, $terrain);
 
     expect($version?->note)->toBe('Removed DEM')
-        ->and($version?->definition)->not->toHaveKey('terrain');
+        ->and(array_column($version?->definition['terrains'] ?? [], 'assetId'))->toBe([$other->id]);
 });
 
 it('unbinds assets from the features of the layer it takes out, and only those', function (): void {

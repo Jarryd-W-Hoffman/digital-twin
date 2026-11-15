@@ -428,13 +428,13 @@ test('a zipped photogrammetry export is taken as a mesh, and a bare OBJ can say 
 test('uploads dated by when they were captured show the site as it was on each date', async ({ page }) => {
   type Dated = {
     __twin: { getState(): { def?: { tilesets?: { id: string; name: string }[]; models?: { id: string; name: string }[] } } };
-    __scene: { layerShown(id: string): boolean | null };
+    __scene?: { layerShown(id: string): boolean | null };
   };
   const shown = (name: string) => page.evaluate((layer) => {
     const w = window as unknown as Dated;
     const def = w.__twin.getState().def;
     const id = [...(def?.tilesets ?? []), ...(def?.models ?? [])].find((l) => l.name === layer)?.id;
-    return id ? w.__scene.layerShown(id) : null;
+    return id && w.__scene ? w.__scene.layerShown(id) : null;
   }, name);
 
   await logIn(page, 'test@example.com');
@@ -487,6 +487,16 @@ test('uploads dated by when they were captured show the site as it was on each d
   await page.keyboard.press('ArrowRight');
   await expect(page.getByText('As captured on 2 Apr 2026')).toBeVisible();
   expect([await shown('March survey'), await shown('May survey'), await shown('Site office')]).toEqual([true, false, true]);
+
+  // A link to what you see opens on the same date.
+  await page.getByRole('button', { name: 'Views' }).click();
+  const views = page.getByRole('complementary', { name: 'Views' });
+  await views.getByRole('button', { name: 'Copy link to what you see' }).click();
+  const look = await views.getByLabel('Link, copied').inputValue();
+  await page.goto(look);
+  await expect(page.getByText('As captured on 2 Apr 2026')).toBeVisible({ timeout: 45_000 });
+  await expect.poll(() => shown('Site office'), { timeout: 45_000 }).toBe(true);
+  expect(await shown('May survey')).toBe(false);
 
   // Hiding uploaded layers hides the surveys whatever the date, not the model.
   await page.getByLabel('Uploaded layers').uncheck();

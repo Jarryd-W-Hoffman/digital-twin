@@ -3,6 +3,7 @@ import {
     captureDates,
     hasUploadedLayers,
     hiddenAt,
+    terrainAt,
     imageryTiles,
     parseImageryInfo,
     vectorStyle,
@@ -156,5 +157,48 @@ describe('the site on a date', () => {
             'shed',
         ]);
         expect(hiddenAt(undefined, captures, null).size).toBe(0);
+    });
+});
+
+describe('the ground on a date', () => {
+    const ground = (assetId?: string) => ({
+        name: assetId ?? 'context',
+        url: `/${assetId ?? 'context'}/layer.json`,
+        ...(assetId && { assetId }),
+    });
+    const def = (terrains: ReturnType<typeof ground>[]) =>
+        ({ terrains }) as unknown as TwinDefinition;
+    const captures = {
+        march: { on: '2026-03-10', kind: 'terrain' },
+        may: { on: '2026-05-12', kind: 'terrain' },
+    };
+    const at = (terrains: ReturnType<typeof ground>[], date: string | null) =>
+        terrainAt(def(terrains), captures, date)?.name;
+
+    it('stands on the newest survey captured by the date', () => {
+        const terrains = [ground('may'), ground('march'), ground()];
+        expect(at(terrains, null)).toBe('may');
+        expect(at(terrains, '2026-04-01')).toBe('march');
+        expect(at(terrains, '2026-05-12')).toBe('may');
+    });
+
+    it('stands on undated ground before the first survey, or else the first survey', () => {
+        expect(at([ground('march'), ground()], '2026-01-01')).toBe('context');
+        expect(at([ground('may'), ground('march')], '2026-01-01')).toBe(
+            'march',
+        );
+    });
+
+    it('stands on the last undated terrain when none is dated, and on nothing without terrain', () => {
+        expect(at([ground(), { ...ground(), name: 'later' }], null)).toBe(
+            'later',
+        );
+        expect(terrainAt(undefined, captures, null)).toBeUndefined();
+    });
+
+    it('counts terrain dates among the capture dates', () => {
+        expect(
+            captureDates(def([ground('march'), ground('may')]), captures),
+        ).toEqual(['2026-03-10', '2026-05-12']);
     });
 });

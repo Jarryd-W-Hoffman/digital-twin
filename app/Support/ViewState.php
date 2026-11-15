@@ -10,7 +10,8 @@ use Illuminate\Validation\Rule;
 /**
  * How a twin looked to someone, as the viewer sends it under `state`: the
  * camera, what the scene is coloured by, the basemap and layers, any section
- * cut and the selected asset. The viewer checks the same limits.
+ * cut, the selected asset and the Site on date. The viewer checks the same
+ * limits.
  */
 final class ViewState
 {
@@ -26,7 +27,7 @@ final class ViewState
     public static function rules(bool $required = true): array
     {
         return [
-            'state' => [$required ? 'required' : 'sometimes', 'array:camera,colorBy,basemap,layers,section,selected'],
+            'state' => [$required ? 'required' : 'sometimes', 'array:camera,colorBy,basemap,layers,section,selected,siteDate'],
             'state.camera' => ['required_with:state', 'array:lon,lat,height,heading,pitch,roll'],
             'state.camera.lon' => ['required_with:state', 'numeric', 'between:-180,180'],
             'state.camera.lat' => ['required_with:state', 'numeric', 'between:-90,90'],
@@ -44,13 +45,14 @@ final class ViewState
             'state.section.across.offset' => ['required_with:state.section.across', 'numeric', 'between:-100000,100000'],
             'state.section.across.heading' => ['required_with:state.section.across', 'numeric', 'between:-360,360'],
             'state.selected' => ['nullable', 'string', 'max:200'],
+            'state.siteDate' => ['nullable', 'date_format:Y-m-d'],
         ];
     }
 
     /**
      * The view, typed, with a section that cuts nothing as none.
      *
-     * @return array{camera: array{lon: float, lat: float, height: float, heading: float, pitch: float, roll: float}, colorBy: string, basemap: string, layers: array<string, bool>, section: array{above: float|null, across: array{offset: float, heading: float}|null}|null, selected: string|null}
+     * @return array{camera: array{lon: float, lat: float, height: float, heading: float, pitch: float, roll: float}, colorBy: string, basemap: string, layers: array<string, bool>, section: array{above: float|null, across: array{offset: float, heading: float}|null}|null, selected: string|null, siteDate: string|null}
      */
     public static function from(Request $request): array
     {
@@ -74,6 +76,7 @@ final class ViewState
             'layers' => collect(self::LAYERS)->mapWithKeys(fn (string $layer): array => [$layer => $request->boolean("state.layers.$layer")])->all(),
             'section' => $above === null && $across === null ? null : ['above' => $above, 'across' => $across],
             'selected' => $request->filled('state.selected') ? $request->string('state.selected')->value() : null,
+            'siteDate' => $request->filled('state.siteDate') ? $request->string('state.siteDate')->value() : null,
         ];
     }
 }

@@ -29,6 +29,7 @@ final readonly class TwinDefinitionValidator
      */
     public function errors(mixed $definition): array
     {
+        $definition = DefinitionFormat::migrate($definition);
         $errors = $this->schema->errors($definition);
 
         if (! $this->isObject($definition)) {
