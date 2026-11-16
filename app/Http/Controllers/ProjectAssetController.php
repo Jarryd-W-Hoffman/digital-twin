@@ -36,6 +36,7 @@ final readonly class ProjectAssetController
 
         Inertia::flash('toast', ['type' => 'success', 'message' => match (true) {
             $asset->isReady() => __(':name uploaded.', ['name' => $asset->name]),
+            $asset->options['opendronemap'] ?? false => __(':name uploaded. Splitting the OpenDroneMap export into library items…', ['name' => $asset->name]),
             $asset->kind === ProjectAssetKind::Terrain => __(':name uploaded. Converting it to terrain…', ['name' => $asset->name]),
             $asset->kind === ProjectAssetKind::Bim => __(':name uploaded. Converting it to a model…', ['name' => $asset->name]),
             $asset->kind === ProjectAssetKind::Vector => __(':name uploaded. Converting it to a map layer…', ['name' => $asset->name]),

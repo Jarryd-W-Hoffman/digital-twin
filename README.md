@@ -27,7 +27,7 @@ The sample twin, **Northshore Cold Chain Hub**, is a fictional refrigerated logi
 | **The site over time**             | Uploads are dated by when they were captured, and a twin's **Site on** slider steps through those dates: each kind of scan, mesh, tileset and image shows until the next capture of its kind, while models and map layers stay from their date on, so a site's monthly surveys can be stepped through like a timeline. |
 | **Importing readings**             | Readings from CSV files go into a twin's history without a gateway, for survey monitoring, lab results and loggers: a column per series or a row per reading, the layout guessed in the browser and each series mapped to a metric, imported on the queue in place of what the twin had over the file's span, and removable. Write tokens add readings through `POST /api/v1/twins/{twin}/readings`. |
 | **BIM models**                     | IFC files are converted to one GLB by the same queue (IfcOpenShell), each element a node named by its GlobalId with its name, class and storey. A georeferenced model (IfcMapConversion, or the site's latitude and longitude) is added to a twin where it belongs. An asset can be bound to one element of a model or tileset, which then takes its colour and selects it when clicked.                                                                                                                                   |
-| **Photogrammetry meshes**          | Textured OBJ meshes and zipped exports from drone and photo surveys (ContextCapture, DJI Terra, Pix4D, Metashape) are converted to 3D Tiles by the same queue (Obj2Tiles, AGPL-3.0, run as a separate program). Where it is comes from the export's `metadata.xml`, Pix4D's offset files or an EPSG code; every vertex is reprojected to metres east, north and up so grid north turns to true north, and a mesh with no georeference is placed like a model.                                                               |
+| **Photogrammetry meshes**          | Textured OBJ meshes and zipped exports from drone and photo surveys (ContextCapture, DJI Terra, Pix4D, Metashape, OpenDroneMap) are converted to 3D Tiles by the same queue (Obj2Tiles, AGPL-3.0, run as a separate program). Where it is comes from the export's `metadata.xml`, OpenDroneMap's `coords.txt`, Pix4D's offset files or an EPSG code; a whole OpenDroneMap export (WebODM's `all.zip`) becomes its mesh, orthophoto, DEMs and point cloud in one upload; every vertex is reprojected to metres east, north and up so grid north turns to true north, and a mesh with no georeference is placed like a model.                                                               |
 | **Placement**                      | Models and local-coordinate tilesets are placed in metres east, north and up from the twin's origin, with heading and scale. Edits preview live in the scene, **Place on map** moves a layer to wherever you click on the ground, and **Move in scene** gives it handles to drag east, north and up, slide and turn.                                                                                                                                                                                                       |
 | **Custom asset types**             | Equipment the simulator has no physics for, described as data: metrics with units and defaults, a colour and a shape, plus behaviour written as safe expressions: derived metrics, states and transitions, setpoints operators can change, and power drawn from the feed tree. Each organisation keeps a library of types its twins copy from.                                                                                                                                                                             |
 | **Live physics**                   | A microgrid power balance (solar, battery dispatch with peak shaving, grid, generator start delay, load shedding by priority) feeding a refrigeration plant (chiller capacity and COP that derate with ambient air, store thermal mass, door losses, stock spoilage). Vehicles drive their routes and queue for chargers. It's a reference domain: a twin with no buses doesn't model power at all. |
@@ -441,9 +441,14 @@ An `.obj`, or a `.zip` the uploader says is a photogrammetry export, goes to `me
 ```text
 unzip into a working folder: no paths outside it, no links, at most 50,000 files
     and MERIDIAN_MESH_MAX_EXTRACTED_MB unpacked
-take the largest .obj (not in a dot-folder or __MACOSX)
+take OpenDroneMap's odm_texturing/odm_textured_model_geo.obj (its 3D model, not the 2.5D
+    one in odm_texturing_25d), otherwise the largest .obj (not in a dot-folder or __MACOSX)
 where is it?
     metadata.xml (ContextCapture, DJI Terra): SRS (EPSG:n, WKT or ENU:lat,lon) and SRSOrigin
+    odm_georeferencing/coords.txt beside it or in the folder above (OpenDroneMap): its second
+        line the offset; the CRS from its first line's UTM zone ("WGS84 UTM 17N" → EPSG:32617),
+        or else proj.txt beside it (a PROJ string, named by the EPSG system GDAL finds the same);
+        neither is refused, to be retried with its EPSG code
     <name>_offset.xyz and <name>.prj beside it or in the folder above (Pix4D)
     an EPSG code given at upload, overriding the CRS
     a CRS in longitude and latitude is refused
@@ -460,11 +465,29 @@ Obj2Tiles --lods 3 --divisions 2, with --lat --lon --alt of the centre (an ENU�
 print the triangles, size, tiles, CRS and centre
 ```
 
+An upload the uploader says is **an OpenDroneMap export** (`as=opendronemap`) is a mesh with `opendronemap: true` among its options. Its conversion splits it first (`SplitOpenDroneMapExport`, on the converter):
+
+```text
+for each file in the zip, its path from the project folder
+    (WebODM's all.zip has the outputs at the top; a zipped project folder, one level down)
+refuse more than MERIDIAN_MESH_MAX_EXTRACTED_MB unpacked, or none of OpenDroneMap's folders
+each of these found becomes a library item of its own, named "<upload>: <what>",
+dated as the upload is, streamed from the zip to its own upload, and queued:
+    odm_orthophoto/odm_orthophoto.tif               imagery      orthophoto
+    odm_dem/dsm.tif                                  terrain      surface model (DSM)
+    odm_dem/dtm.tif                                  terrain      bare ground (DTM)
+    odm_georeferencing/odm_georeferenced_model.laz   point cloud  (else the .las)
+the upload's zip ← only odm_texturing/, coords.txt and proj.txt, here and in storage
+drop opendronemap from its options: a retry converts the mesh and adds nothing twice
+no odm_texturing/*.obj: fail, saying the other outputs were added
+then convert it as any mesh
+```
+
 Obj2Tiles is AGPL-3.0. The Dockerfile downloads the 1.9.0 Linux release, checks its SHA-256, and keeps it unmodified in `/opt/obj2tiles` with its licence, third-party notices and a pointer to its source; Meridian runs it as a separate program and links none of it. Heights are the file's, taken as above the ellipsoid. A georeferenced mesh is added to a twin with its own transform and needs no placement; one in local metres is placed at the origin, as a point cloud in local metres is.
 
 ![A drone survey in the library, converted to 3D Tiles](docs/images/library-mesh.png)
 
-The real-tool tests build a 100 m by 60 m textured mound with `scripts/generate-mesh.py`, its north edge red, offset in NZTM: with a `metadata.xml` and with Pix4D's files it lands at its latitude and longitude, 33 m up, its bounding box turned by the convergence; in local metres, z up and y up, it's a 100 × 60 × 6 m box at the origin; and zips with no OBJ or a path outside the folder are refused.
+The real-tool tests build a 100 m by 60 m textured mound with `scripts/generate-mesh.py`, its north edge red, offset in NZTM: with a `metadata.xml` and with Pix4D's files it lands at its latitude and longitude, 33 m up, its bounding box turned by the convergence; in OpenDroneMap's layout (UTM 60S, with a larger 2.5D model 500 m away to be passed over) it lands at the same place, turned by UTM's convergence instead; with no UTM zone it takes `proj.txt`'s PROJ string as EPSG:32760; a `coords.txt` naming a system Meridian can't read is refused, then converts with the EPSG code; in local metres, z up and y up, it's a 100 × 60 × 6 m box at the origin; and zips with no OBJ or a path outside the folder are refused.
 
 ![The survey in a twin from the south, its red north edge at the back](docs/images/mesh-in-twin.png)
 
@@ -1613,7 +1636,7 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 24. **The site over time** (done): library items dated by when they were captured, and a date slider that shows the scans, surveys, imagery and models current at the time ([#54](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/54)).
 25. **Towards 1.0** (in progress): a versioned definition format whose older versions are always read and moved up, an OpenAPI description of `/api/v1` kept true by tests, and a stability and upgrade guide; with terrain that changes with the date, and saved views and links that keep it.
 26. **Packaging** (in progress): production images, one-command install with HTTPS, upgrades, backups and restores, a deployment guide, and the MIT licence.
-27. **Surveys that look right** (in progress): terrain with no cliffs at its edges or holes under trees, and photogrammetry meshes that don't flicker against the ground beneath them (part 1); then OpenDroneMap's outputs imported as they come, and drone photos processed into a twin's survey.
+27. **Surveys that look right** (in progress): terrain with no cliffs at its edges or holes under trees, and photogrammetry meshes that don't flicker against the ground beneath them (part 1); OpenDroneMap's outputs imported as they come, a whole export in one upload (part 2); then drone photos processed into a twin's survey.
 
 ## Licence
 

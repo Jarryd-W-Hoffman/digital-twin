@@ -58,6 +58,7 @@ const AMBIGUOUS: { test: RegExp; choices: [string, string][] }[] = [
             ['', 'A 3D Tiles tileset'],
             ['vector', 'A map layer (a zipped shapefile)'],
             ['mesh', 'A photogrammetry mesh (an OBJ export)'],
+            ['opendronemap', 'An OpenDroneMap export (all.zip)'],
         ],
     },
 ];

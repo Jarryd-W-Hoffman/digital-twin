@@ -584,7 +584,7 @@ function rootBox(string $tilesetJson): array
     )];
 }
 
-it('tiles a zipped photogrammetry export where its metadata.xml says, turned to true north', function (string $georeference, string $source): void {
+it('tiles a zipped photogrammetry export where its georeference says, turned to true north', function (string $georeference, string $source, string $crs, float $convergence): void {
     $asset = ProjectAsset::factory()->mesh()->processing()->create(['details' => null, 'crs' => null, 'options' => []]);
     Storage::disk('local')->put($asset->sourceKey(), File::get(surveyMesh($this->work, ['--georeference', $georeference])));
 
@@ -594,12 +594,12 @@ it('tiles a zipped photogrammetry export where its metadata.xml says, turned to 
     [$lat, $lon] = rootLatLon($tileset);
     [$centre, $half] = rootBox($tileset);
     $placed = $asset->refresh()->details['origin'] ?? [];
-    // NZTM's grid north is about 1.06° off true north here, so the mesh's box
-    // is wider and deeper than 100 m by 60 m once turned.
-    $turn = deg2rad(1.06);
+    // Grid north is off true north here (NZTM by about 1.06°, UTM 60S by
+    // 1.34°), so the mesh's box is wider and deeper than 100 m by 60 m once turned.
+    $turn = deg2rad($convergence);
 
     expect($asset->status)->toBe(ProjectAssetStatus::Ready)
-        ->and($asset->crs)->toBe('EPSG:2193')
+        ->and($asset->crs)->toBe($crs)
         ->and($asset->details['triangles'] ?? null)->toBe(3000)
         ->and($asset->files)->toBeGreaterThan(10)
         ->and($placed['source'] ?? null)->toBe($source)
@@ -615,9 +615,59 @@ it('tiles a zipped photogrammetry export where its metadata.xml says, turned to 
         ->and($half[2])->toEqualWithDelta(3, 0.05)
         ->and($asset->log)->toContain('in ')->toContain('tiles');
 })->with([
-    'ContextCapture and DJI Terra' => ['metadata', 'metadata.xml'],
-    'Pix4D' => ['pix4d', 'survey_offset.xyz'],
+    'ContextCapture and DJI Terra' => ['metadata', 'metadata.xml', 'EPSG:2193', 1.06],
+    'Pix4D' => ['pix4d', 'survey_offset.xyz', 'EPSG:2193', 1.06],
+    // Its 3D model, not the larger 2.5D one 500 m east.
+    'OpenDroneMap' => ['odm', 'coords.txt', 'EPSG:32760', 1.34],
 ])->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-mesh and Obj2Tiles (the converter image).');
+
+it("takes the coordinate system from OpenDroneMap's proj.txt when coords.txt names no UTM zone", function (): void {
+    surveyMesh($this->work, ['--georeference', 'odm'], zipped: false);
+    File::put($this->work.'/mesh/odm_georeferencing/coords.txt', "WGS84 custom\n300868.563 5919628.148\n");
+    File::put($this->work.'/mesh/odm_georeferencing/proj.txt', '+proj=utm +zone=60 +south +datum=WGS84 +units=m +no_defs +type=crs');
+    $zip = new ZipArchive;
+    $zip->open($this->work.'/odm.zip', ZipArchive::CREATE);
+    foreach (File::allFiles($this->work.'/mesh') as $file) {
+        $zip->addFile($file->getPathname(), $file->getRelativePathname());
+    }
+
+    $zip->close();
+    $asset = ProjectAsset::factory()->mesh()->processing()->create(['details' => null, 'crs' => null, 'options' => []]);
+    Storage::disk('local')->put($asset->sourceKey(), File::get($this->work.'/odm.zip'));
+
+    resolve(ConvertMesh::class)->handle($asset);
+    [$lat, $lon] = rootLatLon((string) Storage::disk('local')->get($asset->directory.'/tileset.json'));
+
+    expect($asset->refresh()->crs)->toBe('EPSG:32760')
+        ->and($lat)->toEqualWithDelta(-36.848, 0.001)
+        ->and($lon)->toEqualWithDelta(174.767, 0.001);
+})->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-mesh and Obj2Tiles (the converter image).');
+
+it("asks for an EPSG code when OpenDroneMap names a coordinate system it can't read, then uses it", function (): void {
+    surveyMesh($this->work, ['--georeference', 'odm'], zipped: false);
+    File::put($this->work.'/mesh/odm_georeferencing/coords.txt', "WGS84 SPCS 3402\n300868.563 5919628.148\n");
+    $zip = new ZipArchive;
+    $zip->open($this->work.'/odm.zip', ZipArchive::CREATE);
+    foreach (File::allFiles($this->work.'/mesh') as $file) {
+        $zip->addFile($file->getPathname(), 'project/'.$file->getRelativePathname());
+    }
+
+    $zip->close();
+    $asset = ProjectAsset::factory()->mesh()->processing()->create(['details' => null, 'crs' => null, 'options' => []]);
+    Storage::disk('local')->put($asset->sourceKey(), File::get($this->work.'/odm.zip'));
+
+    expect(fn () => resolve(ConvertMesh::class)->handle($asset))
+        ->toThrow(ConversionFailed::class, "OpenDroneMap's coords.txt names a coordinate system Meridian can't read. Retry with its EPSG code.");
+
+    $asset->update(['options' => ['epsg' => 32760]]);
+    resolve(ConvertMesh::class)->handle($asset);
+    [$lat, $lon] = rootLatLon((string) Storage::disk('local')->get($asset->directory.'/tileset.json'));
+
+    expect($asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($asset->crs)->toBe('EPSG:32760')
+        ->and($lat)->toEqualWithDelta(-36.848, 0.001)
+        ->and($lon)->toEqualWithDelta(174.767, 0.001);
+})->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-mesh and Obj2Tiles (the converter image).');
 
 it('tiles a mesh that says nothing of where it is in local metres, z up or y up', function (array $options, array $asset): void {
     $mesh = ProjectAsset::factory()->mesh()->processing()->create(['details' => null, 'crs' => null, 'original_name' => 'survey.obj', ...$asset]);

@@ -156,6 +156,19 @@ it('takes map layers and imagery, and says they are converting', function (strin
     'an OBJ mesh' => ['survey.obj', null, ProjectAssetKind::Mesh, 'Site uploaded. Converting it to 3D Tiles…'],
 ]);
 
+it('takes an OpenDroneMap export as a mesh to split, and says so', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Aukerman Park', 'file' => UploadedFile::fake()->createWithContent('all.zip', 'PK'), 'as' => 'opendronemap',
+    ])->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Aukerman Park uploaded. Splitting the OpenDroneMap export into library items…']);
+
+    expect($project->assets()->sole()->kind)->toBe(ProjectAssetKind::Mesh)
+        ->and($project->assets()->sole()->options)->toBe(['opendronemap' => true]);
+});
+
 it('keeps whether a mesh in local metres has y up', function (): void {
     Queue::fake();
     [$user, $organisation] = member();

@@ -8,6 +8,7 @@ use App\Exceptions\ConversionFailed;
 use App\Models\ProjectAsset;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
@@ -67,6 +68,22 @@ it('says when a mesh has no georeference', function (): void {
         ->and($asset->details)->toBe(['triangles' => 3000, 'origin' => null])
         ->and($asset->log)->toContain("Not georeferenced: it starts at a twin's origin, to be placed");
 });
+
+it('splits an OpenDroneMap export first, then tiles its 3D model', function (?array $files, string $note): void {
+    Queue::fake();
+    fakeMeshConverter();
+    $this->asset->update(['options' => ['opendronemap' => true]]);
+    Storage::disk('local')->put($this->asset->sourceKey(), openDroneMapExport($files));
+
+    $asset = resolve(ConvertMesh::class)->handle($this->asset);
+
+    expect($asset->status)->toBe(ProjectAssetStatus::Ready)
+        ->and($asset->options)->toBe([])
+        ->and($asset->log)->toStartWith("Downloaded survey.zip\n".$note."\n");
+})->with([
+    "WebODM's all.zip" => [null, 'An OpenDroneMap export: added Drone survey: orthophoto, Drone survey: surface model (DSM), Drone survey: bare ground (DTM) and Drone survey: point cloud to the library'],
+    'only the model' => [['odm_texturing/odm_textured_model_geo.obj' => 'v 0 0 0'], 'An OpenDroneMap export: its 3D model only'],
+]);
 
 it('refuses a zip that is not one', function (): void {
     fakeMeshConverter();

@@ -22,6 +22,15 @@ it('queues a failed conversion again with new options', function (): void {
     Queue::assertPushed(ConvertUpload::class);
 });
 
+it('still splits an OpenDroneMap export that failed before it was split', function (): void {
+    Queue::fake();
+    $asset = ProjectAsset::factory()->mesh()->create(['status' => ProjectAssetStatus::Failed, 'options' => ['opendronemap' => true]]);
+
+    resolve(RetryConversion::class)->handle($asset, ['epsg' => 32617, 'as' => 'mesh']);
+
+    expect($asset->refresh()->options)->toBe(['epsg' => 32617, 'opendronemap' => true]);
+});
+
 it('only retries failed conversions', function (ProjectAsset $asset): void {
     resolve(RetryConversion::class)->handle($asset, []);
 })->with([

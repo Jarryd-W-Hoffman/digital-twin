@@ -17,10 +17,14 @@ use Throwable;
  * MTL and textures) into a 3D Tiles tileset:
  *
  *     meridian-mesh → find the OBJ and where it is (the EPSG code given,
- *                     metadata.xml, or an offset file and .prj), reproject
+ *                     metadata.xml, OpenDroneMap's coords.txt, or an
+ *                     offset file and .prj), reproject
  *                     every vertex to metres east, north and up of its centre,
  *                     and tile it with Obj2Tiles in levels of detail
  *     copy the tiles into the asset's directory, then drop the original
+ *
+ * An OpenDroneMap export is split first: its other outputs become library
+ * items of their own, and it becomes its textured 3D model.
  *
  * A mesh that says nothing of where it is comes out in local metres, to be
  * placed in a twin. On failure the original is kept, so the conversion can
@@ -28,7 +32,7 @@ use Throwable;
  */
 final readonly class ConvertMesh
 {
-    public function __construct(private Converter $converter) {}
+    public function __construct(private Converter $converter, private SplitOpenDroneMapExport $split) {}
 
     public function handle(ProjectAsset $asset): ProjectAsset
     {
@@ -49,6 +53,13 @@ final readonly class ConvertMesh
                 __('That is not a zip file.'),
             );
             $this->converter->note($asset, 5, __('Downloaded :name', ['name' => $asset->original_name]));
+
+            if ($asset->options['opendronemap'] ?? false) {
+                $added = $this->split->handle($asset, $source, $work);
+                $this->converter->note($asset, 10, $added === []
+                    ? __('An OpenDroneMap export: its 3D model only')
+                    : __('An OpenDroneMap export: added :names to the library', ['names' => collect($added)->map(fn (ProjectAsset $part): string => $part->name)->join(', ', ' and ')]));
+            }
 
             $out = $work.'/tiles';
             $summary = $this->convert($asset, $source, $out);
