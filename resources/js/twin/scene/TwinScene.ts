@@ -111,6 +111,7 @@ import {
 import { Gizmo } from './Gizmo.ts';
 import { hillshade } from './hillshade.ts';
 import { Measure } from './Measure.ts';
+import { nearerThanTheGround } from './nearer.ts';
 import { surfaceAt } from './pick.ts';
 import { Pins } from './Pins.ts';
 import { Shapes } from './Shapes.ts';
@@ -1186,7 +1187,9 @@ export class TwinScene {
 
     /**
      * Tilesets keep their own georeference unless placed; models are always
-     * placed. A layer that fails to load is skipped so the twin still runs.
+     * placed. Tilesets are drawn a hair nearer the camera, so a mesh's ground
+     * wins over terrain at the same height. A layer that fails to load is
+     * skipped so the twin still runs.
      */
     private async loadLayers(): Promise<void> {
         for (const t of this.def.tilesets ?? []) {
@@ -1201,6 +1204,7 @@ export class TwinScene {
                     this.contextShown && !this.hiddenLayers.has(t.id);
                 if (this.bound.has(t.id))
                     tileset.style = this.featureStyle(t.id, t.featureProperty);
+                tileset.customShader = nearerThanTheGround();
                 this.viewer.scene.primitives.add(tileset);
                 this.layerPrimitives.set(t.id, tileset);
                 this.clip(tileset);

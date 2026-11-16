@@ -59,12 +59,14 @@ In the twin's **Layout** panel, choose **Add** beside the mesh in the library.
 
 The mesh is a tileset like any other: **Uploaded layers** hides it, and measurements and sight lines land on it.
 
+A mesh has its own ground, at the same height as the twin's terrain. So that its ground always shows over the terrain's, instead of the two flickering through each other, it's drawn a hair nearer the camera than it is. Points measured on the mesh are nearer by 0.3% of how far away you're looking from: about 15 cm at 50 m, so zoom in to measure. For the terrain under a survey mesh, a bare-ground model (DTM) suits better than a surface model (DSM): the mesh shows the trees and buildings, and the terrain carries the ground beyond them.
+
 ## Limits
 
-| Setting                          | Default  | What it limits                                    |
-| -------------------------------- | -------- | ------------------------------------------------- |
-| `MERIDIAN_MESH_MAX_EXTRACTED_MB` | 20480    | The unzipped export, in MB                         |
-| `MERIDIAN_MESH_TIMEOUT_MINUTES`  | 240      | How long one conversion may run                    |
+| Setting                          | Default         | What it limits                               |
+| -------------------------------- | --------------- | -------------------------------------------- |
+| `MERIDIAN_MESH_MAX_EXTRACTED_MB` | 20480           | The unzipped export, in MB                   |
+| `MERIDIAN_MESH_TIMEOUT_MINUTES`  | 240             | How long one conversion may run              |
 | `MERIDIAN_MESH_CONVERTER`        | `meridian-mesh` | The converter script, on the worker's `PATH` |
 
 Large surveys take a while: a mesh of tens of millions of triangles can take an hour or more. Big exports can go straight to object storage in parts (see [Large uploads](03-projects-and-the-library.md#large-uploads)).

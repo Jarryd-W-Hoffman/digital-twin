@@ -64,6 +64,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Fixed
 
+- **Survey display** ([#58]): terrain no longer drops to sea level beyond a DEM or in its gaps. A site high above sea level stood on a cliff, and a bare-ground model's gaps under trees showed as spikes; the ground beyond now stays at the DEM's edge height and gaps are filled from the ground around them, for display only (volumes still use the DEM as given). Photogrammetry meshes no longer flicker against the terrain under them: tilesets are drawn 0.3% of their distance nearer the camera. The whole-hemisphere terrain tiles get a horizon culling point that can't hide the globe.
 - **Share links** ([#54]) now load a twin's map layers and imagery, which they refused before. The manual no longer says **Uploaded layers** hides models; it never did.
 - **Sidebar on organisation pages** ([#41]): **Members**, **Types** and **API** showed no organisation switcher, because each page's own organisation details hid the shared ones.
 - **Issues after leaving an organisation** ([#37]): someone removed from an organisation can no longer close or delete the issues and comments they left there.
@@ -261,6 +262,7 @@ Dates are when the change was merged into `main` (UTC).
 [#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#43]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/43
 [#45]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/45
+[#58]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/58
 [#57]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/57
 [#56]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/56
 [#55]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/55
