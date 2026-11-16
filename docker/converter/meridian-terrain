@@ -3,22 +3,28 @@
 Tiles a digital elevation model (GeoTIFF, ASCII grid, anything GDAL reads)
 as Cesium quantized-mesh terrain:
 
-    reproject to WGS84 longitude and latitude, with overviews
+    reproject to WGS84 longitude and latitude
+    fill its gaps (under trees, around buildings) from the ground around
+    them, and note the height of its edges, then build overviews
     pick the deepest zoom from the DEM's resolution
     for each zoom, for each tile in the geographic TMS that covers the DEM
     (and both whole-hemisphere tiles at zoom 0, so the globe is complete):
-        sample a 257 x 257 grid of heights over the tile; no data is 0 (the ellipsoid)
+        sample a 257 x 257 grid of heights over the tile; beyond the DEM, the
+        ground stays at the height of its edges, not the ellipsoid's
         triangulate it to an error budget for that zoom (Delatin)
         write {z}/{x}/{y}.terrain with oct-encoded vertex normals
     write layer.json listing what's available
 
-Heights are written as the DEM gives them. Prints a one-line JSON summary.
+Heights are written as the DEM gives them, where it gives them: the filled
+gaps and the level ground beyond are only for showing the site, and --surface
+keeps the DEM as it is for measuring. Prints a one-line JSON summary.
 """
 
 import argparse
 import json
 import math
 import os
+import struct
 import sys
 from concurrent.futures import ProcessPoolExecutor
 
@@ -31,10 +37,15 @@ gdal.UseExceptions()
 
 GRID = 256  # Intervals per tile side, so GRID + 1 samples.
 NODATA = -32768.0
+FILL_GRID = 1024  # Cells across the coarse copy that gaps are filled on.
+WHOLE_ZOOM = 1  # Tiles this coarse span 90° or more, too big for the encoder's horizon culling point.
+OCCLUSION_OFFSET = 64  # The horizon occlusion point in a quantized-mesh header: after the centre, heights and bounding sphere.
+FAR = 1.0e6  # Earth radii out, for those tiles' culling point.
 MAX_ZOOM = 20
 METRES_PER_DEGREE = 111_320.0
 
 _source = None
+_edge = 0.0
 
 
 def fail(message: str) -> None:
@@ -73,7 +84,7 @@ def crs_label(wkt: str) -> str:
     return f"{authority}:{code}" if authority and code else (reference.GetName() or "Custom")
 
 
-def prepare(source: str, work: str, srs: str | None) -> tuple[str, tuple[float, float, float, float], float, str, tuple[float, float]]:
+def prepare(source: str, work: str, srs: str | None) -> tuple[str, tuple[float, float, float, float], float, str, tuple[float, float], float]:
     dataset = gdal.Open(source)
     if dataset.RasterCount < 1:
         fail("The file has no elevation band.")
@@ -99,6 +110,17 @@ def prepare(source: str, work: str, srs: str | None) -> tuple[str, tuple[float, 
 
     warped = gdal.Open(geographic, gdal.GA_Update)
     width, height = warped.RasterXSize, warped.RasterYSize
+    band = warped.GetRasterBand(1)
+    values = band.ReadAsArray()
+    valid = (values != NODATA) & np.isfinite(values)
+    if not valid.any():
+        fail("The DEM has no heights, only no-data.")
+    low, high = float(values[valid].min()), float(values[valid].max())
+    edge = edge_height(values, valid)
+    if not valid.all():
+        fill_gaps(warped, values, valid)
+    del values, valid
+    band = None
     levels, factor = [], 2
     while max(width, height) // factor >= GRID:
         levels.append(factor)
@@ -106,15 +128,47 @@ def prepare(source: str, work: str, srs: str | None) -> tuple[str, tuple[float, 
     if levels:
         warped.BuildOverviews("AVERAGE", levels)
 
-    try:
-        low, high = warped.GetRasterBand(1).ComputeRasterMinMax(False)
-    except RuntimeError:
-        fail("The DEM has no heights, only no-data.")
     west, res_x, _, north, _, res_y = warped.GetGeoTransform()
     bounds = (west, north + res_y * height, west + res_x * width, north)
     resolution = min(abs(res_x), abs(res_y))
     warped = None
-    return geographic, bounds, resolution, crs, (low, high)
+    return geographic, bounds, resolution, crs, (low, high), edge
+
+
+def fill_gaps(dataset: gdal.Dataset, values: np.ndarray, valid: np.ndarray) -> None:
+    """Fills every gap, out to the corners the reprojection left empty, from
+    the ground around it. Filling a coarse copy and spreading it back keeps
+    this quick on a fine DEM; only the cells without data change."""
+    width, height = dataset.RasterXSize, dataset.RasterYSize
+    scale = max(1, math.ceil(max(width, height) / FILL_GRID))
+    coarse = gdal.Warp(
+        "", dataset, format="MEM", width=math.ceil(width / scale), height=math.ceil(height / scale),
+        srcNodata=NODATA, dstNodata=NODATA, resampleAlg="average", outputType=gdal.GDT_Float32,
+    )
+    gdal.FillNodata(coarse.GetRasterBand(1), None, maxSearchDist=max(coarse.RasterXSize, coarse.RasterYSize), smoothingIterations=0)
+    west, res_x, _, north, _, res_y = dataset.GetGeoTransform()
+    spread = gdal.Warp(
+        "", coarse, format="MEM", width=width, height=height,
+        outputBounds=(west, north + res_y * height, west + res_x * width, north),
+        resampleAlg="bilinear", outputType=gdal.GDT_Float32,
+    )
+    filled = spread.GetRasterBand(1).ReadAsArray()
+    values[~valid] = filled[~valid]
+    dataset.GetRasterBand(1).WriteArray(values)
+
+
+def edge_height(values: np.ndarray, valid: np.ndarray) -> float:
+    """The median height along the edges of the DEM's data: where the ground
+    beyond it is drawn, so the site doesn't stand on a cliff down to the
+    ellipsoid."""
+    inner = valid.copy()
+    inner[1:, :] &= valid[:-1, :]
+    inner[:-1, :] &= valid[1:, :]
+    inner[:, 1:] &= valid[:, :-1]
+    inner[:, :-1] &= valid[:, 1:]
+    inner[0, :] = inner[-1, :] = False
+    inner[:, 0] = inner[:, -1] = False
+    return float(np.median(values[valid & ~inner]))
 
 
 def deepest_zoom(resolution: float, cap: int) -> int:
@@ -122,9 +176,10 @@ def deepest_zoom(resolution: float, cap: int) -> int:
     return max(0, min(cap, math.ceil(math.log2(180.0 / (GRID * resolution)))))
 
 
-def open_source(path: str) -> None:
-    global _source
+def open_source(path: str, edge: float) -> None:
+    global _source, _edge
     _source = gdal.Open(path)
+    _edge = edge
 
 
 def heights(z: int, x: int, y: int) -> np.ndarray:
@@ -142,7 +197,7 @@ def heights(z: int, x: int, y: int) -> np.ndarray:
         outputType=gdal.GDT_Float32,
     )
     values = grid.GetRasterBand(1).ReadAsArray().astype(np.float32)
-    values[(values == NODATA) | ~np.isfinite(values)] = 0.0
+    values[(values == NODATA) | ~np.isfinite(values)] = _edge
     return values
 
 
@@ -165,7 +220,8 @@ def write_tile(job: tuple[str, int, int, int]) -> None:
 
     folder = os.path.join(out, str(z), str(x))
     os.makedirs(folder, exist_ok=True)
-    with open(os.path.join(folder, f"{y}.terrain"), "wb") as f:
+    path = os.path.join(folder, f"{y}.terrain")
+    with open(path, "wb") as f:
         encode(
             f,
             positions,
@@ -173,6 +229,24 @@ def write_tile(job: tuple[str, int, int, int]) -> None:
             bounds=(west, south, east, north),
             extensions=(VertexNormalsExtension(positions=positions, indices=indices),),
         )
+    if z <= WHOLE_ZOOM:
+        with open(path, "r+b") as f:
+            f.seek(OCCLUSION_OFFSET)
+            f.write(struct.pack("<3d", *occlusion_point(west, south, east, north)))
+
+
+def occlusion_point(west: float, south: float, east: float, north: float) -> tuple[float, float, float]:
+    """Where Cesium's horizon culling looks for a tile a quarter or half of
+    the globe across, in its scaled space. No finite point bounds a tile that
+    big, and the encoder's lands anywhere (behind the Earth, it culls the whole
+    hemisphere): one far out over the tile's middle is seen from the tile's side
+    of the globe and hidden only from the far side, where the tile is too."""
+    lon, lat = math.radians((west + east) / 2), math.radians((south + north) / 2)
+    return (
+        FAR * math.cos(lat) * math.cos(lon),
+        FAR * math.cos(lat) * math.sin(lon),
+        FAR * math.sin(lat),
+    )
 
 
 def main() -> None:
@@ -190,7 +264,7 @@ def main() -> None:
     os.makedirs(work, exist_ok=True)
 
     try:
-        geographic, bounds, resolution, crs, (low, high) = prepare(args.source, work, args.srs)
+        geographic, bounds, resolution, crs, (low, high), edge = prepare(args.source, work, args.srs)
     except RuntimeError as error:
         fail(f"GDAL could not read the DEM: {error}")
 
@@ -201,7 +275,7 @@ def main() -> None:
         available.append([{"startX": x0, "startY": y0, "endX": x1, "endY": y1}])
         jobs += [(args.out, z, x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)]
 
-    with ProcessPoolExecutor(max_workers=max(1, args.jobs), initializer=open_source, initargs=(geographic,)) as pool:
+    with ProcessPoolExecutor(max_workers=max(1, args.jobs), initializer=open_source, initargs=(geographic, edge)) as pool:
         for _ in pool.map(write_tile, jobs, chunksize=16):
             pass
 

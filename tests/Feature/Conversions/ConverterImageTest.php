@@ -124,7 +124,7 @@ it('tiles an E57 scan without a CRS in local metres', function (): void {
  * centre on 20 m ground, with a corner of no-data, written by GDAL as a GeoTIFF (with or without
  * its coordinate system).
  */
-function demOfAuckland(string $work, bool $georeferenced = true): string
+function demOfAuckland(string $work, bool $georeferenced = true, float $base = 20, bool $gap = false): string
 {
     $path = $work.'/dem.tif';
     $script = <<<'PY'
@@ -133,8 +133,10 @@ function demOfAuckland(string $work, bool $georeferenced = true): string
         from osgeo import gdal, osr
         gdal.UseExceptions()
         yy, xx = np.mgrid[0:1000, 0:1000]
-        z = 20 + 80 * np.exp(-(((xx - 500) ** 2 + (yy - 300) ** 2) / (2 * 180 ** 2)))
+        z = float(sys.argv[3]) + 80 * np.exp(-(((xx - 500) ** 2 + (yy - 300) ** 2) / (2 * 180 ** 2)))
         z[:100, :100] = -9999
+        if sys.argv[4] == "1":
+            z[600:700, 450:550] = -9999
         d = gdal.GetDriverByName("GTiff").Create(sys.argv[1], 1000, 1000, 1, gdal.GDT_Float32)
         d.SetGeoTransform((1756000, 2, 0, 5921000, 0, -2))
         if sys.argv[2] == "1":
@@ -147,7 +149,7 @@ function demOfAuckland(string $work, bool $georeferenced = true): string
         d = None
         PY;
     File::put($work.'/dem.py', $script);
-    Process::run(['python3', $work.'/dem.py', $path, $georeferenced ? '1' : '0'])->throw();
+    Process::run(['python3', $work.'/dem.py', $path, $georeferenced ? '1' : '0', (string) $base, $gap ? '1' : '0'])->throw();
 
     return $path;
 }
@@ -236,6 +238,41 @@ it('tiles a GeoTIFF DEM as quantized-mesh terrain', function (): void {
     expect($peak[2])->toEqualWithDelta(100, 0.5)
         ->and($peak[1])->toEqualWithDelta(-36.8493, 0.0005)
         ->and($peak[0])->toEqualWithDelta(174.7611, 0.0005);
+})->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-terrain (the converter image).');
+
+it('keeps the ground at its edges beyond a DEM and across its gaps, and measures only what it gives', function (): void {
+    // 260 m up, with a 200 m gap south of the summit and its no-data corner.
+    $asset = ProjectAsset::factory()->processing()->create(['kind' => ProjectAssetKind::Terrain, 'original_name' => 'ground.tif', 'options' => []]);
+    Storage::disk('local')->put($asset->sourceKey(), File::get(demOfAuckland($this->work, base: 260, gap: true)));
+
+    resolve(ConvertTerrain::class)->handle($asset);
+
+    /** @var array{maxzoom: int} $layer */
+    $layer = json_decode((string) Storage::disk('local')->get($asset->directory.'/layer.json'), true);
+    $lowest = collect(Storage::disk('local')->allFiles($asset->directory.'/'.$layer['maxzoom']))
+        ->map(fn (string $tile): float => tileHeights((string) Storage::disk('local')->get($tile))[0])
+        ->min();
+    $east = (string) Storage::disk('local')->get($asset->directory.'/0/1/0.terrain');
+    /** @var array{1: float, 2: float, 3: float} $culling */
+    $culling = unpack('e3', mb_substr($east, 64, 24, '8bit'));
+
+    // Beyond the DEM, the hemisphere is at its edges' height, not the ellipsoid's.
+    expect($asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
+        ->and(tileHeights($east)[0])->toEqualWithDelta(260, 1)
+        ->and(tileHeights((string) Storage::disk('local')->get($asset->directory.'/0/0/0.terrain'))[0])->toEqualWithDelta(260, 1)
+        // Nothing at the deepest zoom drops into the gap or the corner.
+        ->and($lowest)->toBeGreaterThan(259)
+        // Seen from the eastern hemisphere, not culled from behind the Earth.
+        ->and($culling[1])->toEqualWithDelta(0, 1)
+        ->and($culling[2])->toBeGreaterThan(1e5)
+        ->and($culling[3])->toEqualWithDelta(0, 1);
+
+    // The heights kept for measuring volumes still have the gap.
+    $surface = $this->work.'/surface.tif';
+    File::put($surface, (string) Storage::disk('local')->get($asset->directory.'/surface.tif'));
+    $gap = Process::run(['python3', '-c', 'import sys; from osgeo import gdal; gdal.UseExceptions(); d = gdal.Open(sys.argv[1]); b = d.GetRasterBand(1); print(b.ReadAsArray(500, 650, 1, 1)[0][0] == b.GetNoDataValue())', $surface])->throw();
+
+    expect(mb_trim($gap->output()))->toBe('True');
 })->group('converter')->skip(! getenv('MERIDIAN_CONVERTER_TESTS'), 'Needs meridian-terrain (the converter image).');
 
 it('asks for an EPSG code when a DEM has no coordinate system, then uses it', function (): void {

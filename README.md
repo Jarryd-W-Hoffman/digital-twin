@@ -334,19 +334,24 @@ flowchart TD
 `meridian-terrain` is a short script in the converter image:
 
 ```text
-reproject the DEM to WGS84 longitude and latitude (GDAL), with overviews
+reproject the DEM to WGS84 longitude and latitude (GDAL)
+fill its gaps from the ground around them: on a copy about 1024 cells across
+    (GDAL FillNodata), spread back over only the cells without data
+edge height ← the median height along the edges of its data
+build overviews
 deepest zoom ← where one tile's 256 cells are about as fine as the DEM's pixels
 for each zoom, each tile of Cesium's geographic grid over the DEM
 (and both whole-hemisphere tiles at zoom 0, so the globe is complete):
-    sample 257 × 257 heights over the tile; no data is 0, the ellipsoid
+    sample 257 × 257 heights over the tile; beyond the DEM, the edge height
     triangulate to half a cell of error at that zoom (Delatin)
     write {z}/{x}/{y}.terrain with oct-encoded vertex normals
+    at zooms 0 and 1, write the horizon culling point far out over the tile's middle
 write layer.json: the zooms and tile ranges available
 with --surface: keep the DEM's heights as given (float32 GeoTIFF), for comparing surveys
 print the CRS, tile count, deepest zoom and height range
 ```
 
-Heights are used as the DEM gives them, so a DEM in metres above sea level puts the ground a few tens of metres off the ellipsoid; the twin only cares about the height at its origin. The real-tool tests tile a DEM of Auckland with a hill 400 m north of its centre and check the summit lands north, at 100 m: pydelatin counts rows from the south, and getting that wrong flips every tile.
+Heights are used as the DEM gives them, so a DEM in metres above sea level puts the ground a few tens of metres off the ellipsoid; the twin only cares about the height at its origin. Beyond the DEM, and in its gaps, the ground was once 0 (the ellipsoid), which stood a site 240 m up on a 240 m cliff and drew spikes into a bare-ground model's gaps under trees; filling on a coarse copy keeps that about as quick as before (15 s for a 7559 × 5835 DSM, against 17 s unfilled). The encoder's horizon culling point is meaningless for a tile a quarter or half of the globe across: once the whole hemisphere was at the DEM's height, it landed behind the Earth and Cesium culled the hemisphere, site and all, so those tiles get a point far out over their middle, seen from their side of the globe. `--surface` keeps the DEM unfilled, for measuring. The real-tool tests tile a DEM of Auckland with a hill 400 m north of its centre and check the summit lands north, at 100 m: pydelatin counts rows from the south, and getting that wrong flips every tile.
 
 #### Map layers and imagery
 
@@ -585,6 +590,8 @@ flowchart LR
 ![A dome viewshed from a 6 m mast in Northshore's yard](docs/images/sight.png)
 
 _A dome viewshed from a 6 m mast in the yard: open ground green; the ground behind the dispatch hall, and the roofs above the mast's eye, red._
+
+Tilesets are drawn nearer the camera by 0.3% of their distance from it, along each vertex's own line of sight (a custom shader, `scene/nearer.ts`): the same pixels, but in front of terrain at the same height. Without it a photogrammetry mesh's ground and the terrain beneath it flicker through each other, since Cesium lets terrain stray from the ground by about two pixels' worth (0.2% of the distance at a usual field of view). A point picked on a tileset is that much nearer: about 15 cm at 50 m.
 
 **Measure** picks a surface point with `scene.pickPosition` (terrain, blocks, models and scans), falling back to the globe and then the ellipsoid. A **Level** or **Vertical** lock instead finds the point along a line through the first one that's closest to the pointer's ray.
 
@@ -1606,6 +1613,7 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 24. **The site over time** (done): library items dated by when they were captured, and a date slider that shows the scans, surveys, imagery and models current at the time ([#54](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/54)).
 25. **Towards 1.0** (in progress): a versioned definition format whose older versions are always read and moved up, an OpenAPI description of `/api/v1` kept true by tests, and a stability and upgrade guide; with terrain that changes with the date, and saved views and links that keep it.
 26. **Packaging** (in progress): production images, one-command install with HTTPS, upgrades, backups and restores, a deployment guide, and the MIT licence.
+27. **Surveys that look right** (in progress): terrain with no cliffs at its edges or holes under trees, and photogrammetry meshes that don't flicker against the ground beneath them (part 1); then OpenDroneMap's outputs imported as they come, and drone photos processed into a twin's survey.
 
 ## Licence
 

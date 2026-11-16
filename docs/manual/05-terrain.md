@@ -11,7 +11,8 @@ flowchart LR
     U["Your DEM<br/>.tif .tiff .asc"] --> Q["Waits for the converter"]
     Q --> R["Read it<br/>(heights, coordinate system)"]
     R --> W["Reproject onto the globe"]
-    W --> T["Cut into tiles<br/>(finer near the ground)"]
+    W --> G["Fill its gaps<br/>(under trees, buildings)"]
+    G --> T["Cut into tiles<br/>(finer near the ground)"]
     T --> L["Ready in the library"]
     R -->|can't| F["Failed, with the reason"]
     F -->|Retry| Q
@@ -19,6 +20,9 @@ flowchart LR
 
 - The converter that turns [point clouds](04-point-clouds.md) into tiles also does terrain. Each zoom level is a mesh that keeps the ground's shape to within a fraction of the DEM's cell size, so flat ground costs almost nothing and detail goes where the ground changes.
 - Heights are used as the DEM gives them, usually metres above sea level.
+- **Gaps** in the DEM, such as under trees in a bare-ground model, or around buildings and water, are filled from the ground around them, so the terrain has no holes or spikes.
+- **Beyond the DEM**, the ground stays level at the height of the DEM's edges, so a site high above sea level stands on level ground instead of a cliff down to sea level.
+- The filled gaps and the level ground beyond are only for showing the site. Measurements and volumes use the DEM's own heights, gaps and all.
 - The DEM's heights are also kept as they were, beside the tiles, so it can be [compared with other surveys](17-comparing-surveys.md) of the same ground.
 - A twin can have **several** terrains, such as a survey of the same ground each month. It stands on one at a time: the newest captured by the twin's **Site on** date (see [The site over time](21-the-site-over-time.md)).
 - Terrain is **hillshaded**: lit from the north-west, as on a map, so slopes facing north-west are lighter and those facing south-east darker, whatever the time of day. Flat ground keeps its colour.
