@@ -3,10 +3,13 @@
 Converts a textured mesh, as photogrammetry software exports it (OBJ with
 its MTL and textures), to 3D Tiles with Obj2Tiles:
 
-    find the OBJ (the largest, if an export has several)
+    find the OBJ (OpenDroneMap's 3D model in its project layout, otherwise the
+        largest, if an export has several)
     find where it is: an EPSG code given, ContextCapture's and DJI Terra's
-        metadata.xml (SRS and SRSOrigin), or Pix4D's <name>_offset.xyz and
-        <name>.prj; the OBJ's coordinates are offsets from that origin
+        metadata.xml (SRS and SRSOrigin), OpenDroneMap's
+        odm_georeferencing/coords.txt (a UTM zone, then the offset; or, for
+        another system, proj.txt beside it), or Pix4D's <name>_offset.xyz and <name>.prj; the OBJ's
+        coordinates are offsets from that origin
     georeferenced: reproject every vertex exactly (GDAL, through ECEF) to
         metres east, north and up of the mesh's centre, so the grid's
         convergence and scale don't turn or stretch it
@@ -74,7 +77,42 @@ def find_obj(source: str) -> str:
         found += [os.path.join(root, f) for f in files if f.lower().endswith(".obj") and f != PREPARED]
     if not found:
         fail("The upload has no OBJ file.")
-    return max(found, key=os.path.getsize)
+    # OpenDroneMap's export has a 2.5D model beside the 3D one: take the 3D.
+    odm = [f for f in found if os.path.basename(os.path.dirname(f)) == "odm_texturing" and os.path.basename(f) == "odm_textured_model_geo.obj"]
+    return odm[0] if odm else max(found, key=os.path.getsize)
+
+
+def odm_georeference(coords: str) -> tuple[osr.SpatialReference | None, tuple[float, float, float]]:
+    """OpenDroneMap's coords.txt: its first line names the UTM zone ("WGS84 UTM
+    17N"), its second the offset in that zone's metres. For any other system,
+    a proj.txt beside it names it (a PROJ string)."""
+    with open(coords) as f:
+        lines = [line.strip() for line in f if line.strip()]
+    if len(lines) < 2:
+        fail("OpenDroneMap's coords.txt can't be read.")
+    try:
+        values = [float(v) for v in lines[1].split()[:3]]
+    except ValueError:
+        fail("OpenDroneMap's coords.txt can't be read.")
+    offset = tuple((values + [0.0, 0.0, 0.0])[:3])
+    zone = re.fullmatch(r"WGS84 UTM (\d{1,2})\s*([NS])", lines[0], re.IGNORECASE)
+    if zone:
+        return srs_from(f"EPSG:{(32600 if zone[2].upper() == 'N' else 32700) + int(zone[1])}"), offset
+    proj = os.path.join(os.path.dirname(coords), "proj.txt")
+    if not os.path.isfile(proj):
+        return None, offset
+    with open(proj) as f:
+        try:
+            srs = srs_from(f.read().strip())
+        except RuntimeError:
+            fail("OpenDroneMap's proj.txt can't be read.")
+    # A bare PROJ string has no EPSG code: take the EPSG system it's the same
+    # as, if GDAL knows one (70 is "the same but for its name").
+    matches = [match for match, confidence in srs.FindMatches() if confidence >= 70 and match.GetAuthorityName(None) == "EPSG"]
+    if matches:
+        matches[0].SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        return matches[0], offset
+    return srs, offset
 
 
 def srs_from(text: str) -> osr.SpatialReference:
@@ -115,6 +153,14 @@ def georeference(obj: str, epsg: int | None):
 
     if source is None:
         for place in search:
+            coords = os.path.join(place, "odm_georeferencing", "coords.txt")
+            if os.path.isfile(coords):
+                srs, offset = odm_georeference(coords)
+                source = "coords.txt"
+                break
+
+    if source is None:
+        for place in search:
             names = os.listdir(place)
             offsets = [n for n in names if n.lower().endswith("_offset.xyz") or n.lower() == "offset.xyz"]
             prjs = [n for n in names if n.lower().endswith(".prj")]
@@ -141,6 +187,8 @@ def georeference(obj: str, epsg: int | None):
             fail(f"EPSG:{epsg} isn't a coordinate system GDAL knows.")
         source = f"EPSG:{epsg}" if source is None else f"EPSG:{epsg} and {source}"
 
+    if srs is None and source == "coords.txt":
+        fail("OpenDroneMap's coords.txt names a coordinate system Meridian can't read. Retry with its EPSG code.")
     if srs is not None and srs.IsGeographic():
         fail("The mesh is in longitude and latitude. Export it in a projected coordinate system, in metres.")
     return srs, offset, source

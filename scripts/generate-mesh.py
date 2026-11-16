@@ -10,6 +10,9 @@ software exports projected coordinates), relative to an offset in NZTM2000
 
     --georeference metadata   metadata.xml, as ContextCapture and DJI Terra write
     --georeference pix4d      <name>_offset.xyz and <name>.prj, as Pix4D writes
+    --georeference odm        OpenDroneMap's layout: odm_texturing/odm_textured_model_geo.obj,
+                              offsets from odm_georeferencing/coords.txt in UTM 60S, and a
+                              larger 2.5D model 500 m away in odm_texturing_25d to be passed over
     --georeference none       neither: a mesh in local metres
     --y-up                    vertices as (east, up, south), as some tools write
     --mound METRES            the mound's height, 6 m unless given
@@ -25,6 +28,8 @@ import zipfile
 import zlib
 
 OFFSET = (1757500.0, 5920500.0, 30.0)
+# The same place in WGS84 / UTM zone 60S (EPSG:32760), as OpenDroneMap writes it.
+UTM_OFFSET = (300868.563, 5919628.148)
 NZTM_WKT = (
     'PROJCS["NZGD2000 / New Zealand Transverse Mercator 2000",GEOGCS["NZGD2000",'
     'DATUM["New_Zealand_Geodetic_Datum_2000",SPHEROID["GRS 1980",6378137,298.257222101]],'
@@ -65,23 +70,16 @@ def png(path: str, size: int = 256) -> None:
         out.write(chunk(b"IEND", b""))
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("out")
-    parser.add_argument("--georeference", choices=["metadata", "pix4d", "none"], default="metadata")
-    parser.add_argument("--zip")
-    parser.add_argument("--y-up", action="store_true", help="write the OBJ y-up, as some tools do")
-    parser.add_argument("--mound", type=float, default=6.0, help="the mound's height in metres, say for a later survey")
-    args = parser.parse_args()
-    os.makedirs(args.out, exist_ok=True)
-    name = "survey"
-
+def mesh_lines(args, name: str = "survey", lift: float = 0.0, shift: float = 0.0) -> list[str]:
+    """The OBJ's lines: vertices (lifted and shifted east, in metres), texture
+    coordinates and faces."""
     columns, rows = WIDTH // STEP + 1, DEPTH // STEP + 1
     lines = [f"mtllib {name}.mtl", "o survey"]
     for j in range(rows):
         for i in range(columns):
             x, y = i * STEP, j * STEP
-            z = height(x, y, args.mound)
+            z = height(x, y, args.mound) + lift
+            x += shift
             lines.append(f"v {x:.3f} {z:.3f} {-y:.3f}" if args.y_up else f"v {x:.3f} {y:.3f} {z:.3f}")
     for j in range(rows):
         for i in range(columns):
@@ -93,11 +91,53 @@ def main() -> None:
             b, c, d = a + 1, a + columns, a + columns + 1
             lines.append(f"f {a}/{a} {b}/{b} {d}/{d}")
             lines.append(f"f {a}/{a} {d}/{d} {c}/{c}")
-    with open(os.path.join(args.out, f"{name}.obj"), "w") as out:
+    return lines
+
+
+def write_mesh(folder: str, name: str, lines: list[str]) -> None:
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, f"{name}.obj"), "w") as out:
         out.write("\n".join(lines) + "\n")
-    with open(os.path.join(args.out, f"{name}.mtl"), "w") as out:
+    with open(os.path.join(folder, f"{name}.mtl"), "w") as out:
         out.write("newmtl ground\nKa 1 1 1\nKd 1 1 1\nmap_Kd texture.png\n")
-    png(os.path.join(args.out, "texture.png"))
+    png(os.path.join(folder, "texture.png"))
+
+
+def write_odm(args) -> None:
+    """OpenDroneMap's project layout. Its OBJ's eastings and northings are
+    offsets from coords.txt, and its heights are whole."""
+    name = "odm_textured_model_geo"
+    write_mesh(os.path.join(args.out, "odm_texturing"), name, mesh_lines(args, name, lift=OFFSET[2]))
+    # The 2.5D model: larger, and 500 m east, so taking it would show.
+    decoy = mesh_lines(args, name, lift=OFFSET[2], shift=500.0) + ["# " + "padding " * 4000]
+    write_mesh(os.path.join(args.out, "odm_texturing_25d"), name, decoy)
+    georeferencing = os.path.join(args.out, "odm_georeferencing")
+    os.makedirs(georeferencing, exist_ok=True)
+    with open(os.path.join(georeferencing, "coords.txt"), "w") as out:
+        out.write(f"WGS84 UTM 60S\n{UTM_OFFSET[0]} {UTM_OFFSET[1]}\n")
+    if args.zip:
+        with zipfile.ZipFile(args.zip, "w", zipfile.ZIP_DEFLATED) as archive:
+            for root, _, files in os.walk(args.out):
+                for file in sorted(files):
+                    path = os.path.join(root, file)
+                    archive.write(path, os.path.join("export", os.path.relpath(path, args.out)))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("out")
+    parser.add_argument("--georeference", choices=["metadata", "pix4d", "odm", "none"], default="metadata")
+    parser.add_argument("--zip")
+    parser.add_argument("--y-up", action="store_true", help="write the OBJ y-up, as some tools do")
+    parser.add_argument("--mound", type=float, default=6.0, help="the mound's height in metres, say for a later survey")
+    args = parser.parse_args()
+    os.makedirs(args.out, exist_ok=True)
+    name = "survey"
+    if args.georeference == "odm":
+        write_odm(args)
+        return
+
+    write_mesh(args.out, name, mesh_lines(args))
 
     if args.georeference == "metadata":
         with open(os.path.join(args.out, "metadata.xml"), "w") as out:

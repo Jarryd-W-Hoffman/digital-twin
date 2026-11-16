@@ -277,6 +277,48 @@ function fakeMeshConverter(?string $fail = null, bool $writes = true, string $su
 }
 
 /**
+ * A zipped OpenDroneMap project's bytes: WebODM's all.zip unless the files
+ * are given, each under the prefix (say, a zipped project folder's name).
+ *
+ * @param  array<string, string>|null  $files  Each file's path in the project, and its contents.
+ */
+function openDroneMapExport(?array $files = null, string $prefix = ''): string
+{
+    $files ??= [
+        'odm_orthophoto/odm_orthophoto.tif' => 'ortho',
+        'odm_dem/dsm.tif' => 'surface',
+        'odm_dem/dtm.tif' => 'ground',
+        'odm_georeferencing/odm_georeferenced_model.laz' => 'points',
+        'odm_georeferencing/odm_georeferenced_model.las' => 'uncompressed points',
+        'odm_georeferencing/coords.txt' => "WGS84 UTM 17N\n437036 4572789\n",
+        'odm_texturing/' => '',
+        'odm_texturing/odm_textured_model_geo.obj' => 'v 0 0 0',
+        'odm_texturing/odm_textured_model_geo.mtl' => 'newmtl ground',
+        'odm_texturing/odm_textured_model_geo_material0000_map_Kd.png' => 'png',
+        'odm_texturing_25d/odm_textured_model_geo.obj' => 'v 500 0 0',
+        'odm_report/report.pdf' => 'pdf',
+        'cameras.json' => '{}',
+    ];
+    $path = (string) tempnam(sys_get_temp_dir(), 'odm');
+    $zip = new ZipArchive;
+    $zip->open($path, ZipArchive::OVERWRITE);
+
+    foreach ($files as $name => $contents) {
+        if (str_ends_with($name, '/')) {
+            $zip->addEmptyDir($prefix.$name);
+        } else {
+            $zip->addFromString($prefix.$name, $contents);
+        }
+    }
+
+    $zip->close();
+    $bytes = (string) file_get_contents($path);
+    File::delete($path);
+
+    return $bytes;
+}
+
+/**
  * A twin with a gateway token, and the token.
  *
  * @return array{0: Twin, 1: string}

@@ -10,8 +10,8 @@ use App\Enums\ProjectAssetStatus;
 use App\Jobs\ConvertUpload;
 use App\Models\Project;
 use App\Models\ProjectAsset;
+use App\Support\PointCloudOptions;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -45,7 +45,7 @@ final readonly class StoreProjectAsset
                 'bytes' => (int) $file->getSize(),
                 'files' => 0,
                 'status' => ProjectAssetStatus::Processing,
-                'options' => $kind->isConverted() ? Arr::except($options, ['as', 'captured_on']) : null,
+                'options' => $kind->isConverted() ? PointCloudOptions::forConversion($options) : null,
                 'captured_on' => $options['captured_on'] ?? null,
             ]);
             $this->audit->handle(AuditAction::UploadAdded, $project, $name, ['kind' => $kind->value, 'file' => $asset->original_name]);

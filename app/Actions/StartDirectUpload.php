@@ -10,7 +10,7 @@ use App\Enums\ProjectAssetStatus;
 use App\Models\Project;
 use App\Models\ProjectAsset;
 use App\Support\DirectUploads;
-use Illuminate\Support\Arr;
+use App\Support\PointCloudOptions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -40,7 +40,7 @@ final readonly class StartDirectUpload
                 'bytes' => $bytes,
                 'files' => 0,
                 'status' => ProjectAssetStatus::Uploading,
-                'options' => $kind->isConverted() ? Arr::except($options, ['as', 'captured_on']) : null,
+                'options' => $kind->isConverted() ? PointCloudOptions::forConversion($options) : null,
                 'captured_on' => $options['captured_on'] ?? null,
             ]);
 
