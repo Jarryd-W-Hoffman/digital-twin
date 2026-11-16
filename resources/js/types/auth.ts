@@ -34,6 +34,12 @@ export type TwoFactorSecretKey = {
 export type OrganisationRole = 'owner' | 'admin' | 'operator' | 'viewer';
 
 export type SharedOrganisation = {
-    current: { id: string; name: string; role: OrganisationRole } | null;
+    current: {
+        id: string;
+        name: string;
+        role: OrganisationRole;
+        /** The optional features on for it, such as `photo-processing`. */
+        features: string[];
+    } | null;
     all: { id: string; name: string }[];
 };

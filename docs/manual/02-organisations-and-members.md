@@ -21,6 +21,7 @@ Everything in Meridian belongs to an **organisation**: its projects, twins, uplo
 | Add members and change roles                                                    |   ✓   |   ✓   |          |        |
 | Make and revoke [API tokens](15-the-api.md)                                     |   ✓   |   ✓   |          |        |
 | Read the [audit log](#the-audit-log)                                            |   ✓   |   ✓   |          |        |
+| Turn [features](#features) on and off                                           |   ✓   |   ✓   |          |        |
 | Set up [single sign-on](#single-sign-on)                                        |   ✓   |       |          |        |
 
 - **Viewers** see everything but change nothing: the inspector's controls are disabled for them, and the twin ignores their commands.
@@ -181,6 +182,18 @@ the identity provider, with the token:            Meridian:
     PATCH  /Users/{id}  active: true           → membership back
     DELETE /Users/{id}                         → membership removed, link forgotten
 ```
+
+## Features
+
+Some parts of Meridian are optional, and each organisation decides whether to use them. Owners and admins choose **Features** in the sidebar and switch each one on or off for everyone in the organisation. Each change is kept in the [audit log](#the-audit-log).
+
+![The Features page: photo processing, which this server doesn't offer yet.](../images/organisation-features.png)
+
+| Feature              | What it does                                                                                                                                   | The server needs                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **Photo processing** | Turns drone photos into a survey (a textured mesh, an orthophoto, surface and bare-ground models and a point cloud), added to the library. | NodeODM, with `MERIDIAN_NODEODM_URL` |
+
+Some features need something the server runs. Where the server doesn't offer one, the page says what's missing, and the feature can't be switched on. If the server stops offering a feature that was on, it stays off until the server offers it again, then comes back on by itself.
 
 ## The audit log
 

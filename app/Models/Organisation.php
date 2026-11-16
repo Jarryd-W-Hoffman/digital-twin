@@ -4,19 +4,23 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Feature;
 use App\Enums\OrganisationRole;
 use Carbon\CarbonInterface;
 use Database\Factories\OrganisationFactory;
+use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Collection;
 
 /**
  * @property-read string $id
  * @property-read string $name
  * @property-read string $slug
+ * @property-read Collection<int, Feature>|null $features
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
@@ -36,9 +40,18 @@ final class Organisation extends Model
             'id' => 'string',
             'name' => 'string',
             'slug' => 'string',
+            'features' => AsEnumCollection::of(Feature::class),
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether a feature is on for it: turned on, and offered by the server.
+     */
+    public function hasFeature(Feature $feature): bool
+    {
+        return ($this->features?->contains($feature) ?? false) && $feature->unavailable() === null;
     }
 
     /**

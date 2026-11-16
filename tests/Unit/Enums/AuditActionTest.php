@@ -24,5 +24,7 @@ it('lists the actions in an area', function (): void {
         AuditAction::ScimTokenCreated,
         AuditAction::ScimTokenRevoked,
         AuditAction::ScimOwnerKept,
+        AuditAction::FeatureTurnedOn,
+        AuditAction::FeatureTurnedOff,
     ])->and(AuditAction::in('nowhere'))->toBe([]);
 });

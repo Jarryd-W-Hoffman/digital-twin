@@ -7,6 +7,7 @@ import {
     KeyRound,
     ScrollText,
     ShieldCheck,
+    ToggleRight,
     Users,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
@@ -26,6 +27,7 @@ import {
 import { dashboard, demo } from '@/routes';
 import { index as apiTokens } from '@/routes/organisation/api-tokens';
 import { index as audit } from '@/routes/organisation/audit';
+import { index as features } from '@/routes/organisation/features';
 import { index as members } from '@/routes/organisation/members';
 import { show as sso } from '@/routes/organisation/sso';
 import { index as types } from '@/routes/organisation/types';
@@ -68,6 +70,13 @@ const auditNavItem: NavItem = {
     icon: ScrollText,
 };
 
+/** Only admins and owners turn features on and off. */
+const featuresNavItem: NavItem = {
+    title: 'Features',
+    href: features(),
+    icon: ToggleRight,
+};
+
 /** Only owners set up single sign-on. */
 const ssoNavItem: NavItem = {
     title: 'Single sign-on',
@@ -87,7 +96,9 @@ export function AppSidebar() {
     const role = usePage().props.organisation?.current?.role;
     const items = [
         ...mainNavItems,
-        ...(role === 'owner' || role === 'admin' ? [auditNavItem] : []),
+        ...(role === 'owner' || role === 'admin'
+            ? [auditNavItem, featuresNavItem]
+            : []),
         ...(role === 'owner' ? [ssoNavItem] : []),
     ];
 

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\Feature;
 use App\Enums\OrganisationRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
@@ -109,13 +110,26 @@ it('shares the current organisation, the role and every membership', function ()
     $shared = new HandleInertiaRequests()->share($request);
 
     expect($shared['organisation']())->toBe([
-        'current' => ['id' => $organisation->id, 'name' => $organisation->name, 'role' => 'operator'],
+        'current' => ['id' => $organisation->id, 'name' => $organisation->name, 'role' => 'operator', 'features' => []],
         'all' => [
             ['id' => $organisation->id, 'name' => $organisation->name],
             ['id' => $other->id, 'name' => $other->name],
         ],
     ]);
 });
+
+it('shares the features on for the current organisation, and only those the server offers', function (?string $nodeOdm, array $shared): void {
+    config(['meridian.photos.nodeodm_url' => $nodeOdm]);
+    [$user, $organisation] = member();
+    $organisation->update(['features' => [Feature::PhotoProcessing]]);
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    expect(new HandleInertiaRequests()->share($request)['organisation']()['current']['features'] ?? null)->toBe($shared);
+})->with([
+    'offered' => ['http://nodeodm:3000', ['photo-processing']],
+    'not offered' => [null, []],
+]);
 
 it('shares no current organisation when the user has none', function (): void {
     $user = User::factory()->create();

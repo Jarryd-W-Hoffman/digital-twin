@@ -34,6 +34,8 @@ export default defineConfig({
         MERIDIAN_ALLOW_PRIVATE_WEBHOOKS: 'true',
         // Single sign-on reaches the mock identity provider in sso.spec.ts.
         MERIDIAN_SSO_ALLOW_PRIVATE_ISSUERS: 'true',
+        // Offers photo processing, so the Features page can turn it on.
+        MERIDIAN_NODEODM_URL: 'http://127.0.0.1:3999',
       },
       url: 'http://127.0.0.1:8199/up',
       reuseExistingServer: false,

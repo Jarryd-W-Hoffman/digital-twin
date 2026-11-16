@@ -348,11 +348,34 @@ test('an owner makes an API token, is shown it once, reads twins and raises an i
   await expect(log.getByText(/Raised an issue: #\d+ Work order 4471/)).toBeVisible();
 });
 
+test('an owner turns photo processing on and off for the organisation, and the audit log keeps it', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  await page.getByRole('link', { name: 'Features' }).click();
+  const feature = page.getByRole('listitem', { name: 'Photo processing' });
+  const toggle = feature.getByRole('switch', { name: 'Photo processing' });
+  await expect(toggle).not.toBeChecked();
+  await expect(feature.getByRole('note')).toHaveCount(0);
+
+  await toggle.check();
+  await expect(page.getByText(/Photo processing is on for /)).toBeVisible();
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await expect(page.getByText(/Photo processing is off for /)).toBeVisible();
+  await expect(toggle).not.toBeChecked();
+
+  await page.getByRole('link', { name: 'Audit log' }).click();
+  const log = page.getByRole('table', { name: 'Audit log' });
+  await expect(log.getByRole('row').filter({ hasText: 'Turned a feature on' }).filter({ hasText: 'Photo processing' })).toHaveCount(1);
+  await expect(log.getByRole('row').filter({ hasText: 'Turned a feature off' })).toHaveCount(1);
+});
+
 test('only admins and owners see the audit log', async ({ page }) => {
   await logIn(page, 'operator@example.com');
   await expect(page.getByRole('link', { name: 'Members' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Audit log' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Features' })).toHaveCount(0);
   expect((await page.request.get('/organisation/audit')).status()).toBe(403);
+  expect((await page.request.get('/organisation/features')).status()).toBe(403);
 });
 
 test('a point cloud waits for the converter, shows why it failed, and can be retried with an EPSG code', async ({ page }) => {
