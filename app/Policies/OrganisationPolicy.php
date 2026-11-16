@@ -47,6 +47,15 @@ final readonly class OrganisationPolicy
     }
 
     /**
+     * Turning optional features on and off for everyone: the people who
+     * manage members.
+     */
+    public function manageFeatures(User $user, Organisation $organisation): bool
+    {
+        return $user->accessIn($organisation)?->canManageMembers() ?? false;
+    }
+
+    /**
      * Setting up single sign-on, which decides how everyone in the
      * organisation signs in: its owners.
      */

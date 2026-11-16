@@ -62,6 +62,15 @@ return [
     ],
 
     /*
+    | Processing drone photos into a survey, with NodeODM (OpenDroneMap's
+    | processing server, AGPL-3.0, run as a separate service). Without its
+    | URL, the Photo processing feature can't be turned on.
+    */
+    'photos' => [
+        'nodeodm_url' => env('MERIDIAN_NODEODM_URL'),
+    ],
+
+    /*
     | Photogrammetry meshes (OBJ, or a zipped export with its MTL, textures
     | and georeference) are reprojected by meridian-mesh and tiled by
     | Obj2Tiles on the same queue.

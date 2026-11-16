@@ -98,6 +98,7 @@ php artisan queue:work conversions --queue=conversions --timeout=14400
 | `MERIDIAN_MESH_CONVERTER`              | Where the mesh converter is, default `meridian-mesh` on the path   |
 | `MERIDIAN_MESH_MAX_EXTRACTED_MB`       | Most a zipped mesh export may unzip to, default 20,480 MB          |
 | `MERIDIAN_MESH_TIMEOUT_MINUTES`        | Longest a mesh conversion may run, default 240                     |
+| `MERIDIAN_NODEODM_URL`                 | NodeODM, for the **Photo processing** feature; unset, it's off     |
 
 Give the converter memory and shared memory to match your largest scans; the Docker service has 2 GB of `/dev/shm`.
 

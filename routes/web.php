@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\OrganisationApiTokenController;
 use App\Http\Controllers\OrganisationAuditController;
 use App\Http\Controllers\OrganisationController;
+use App\Http\Controllers\OrganisationFeatureController;
 use App\Http\Controllers\OrganisationMemberController;
 use App\Http\Controllers\OrganisationScimTokenController;
 use App\Http\Controllers\OrganisationSsoController;
@@ -168,6 +169,8 @@ Route::middleware(['auth', 'verified', EnsureCurrentOrganisation::class, EnsureS
     Route::patch('organisation/members/{membership}', [OrganisationMemberController::class, 'update'])->name('organisation.members.update');
     Route::delete('organisation/members/{membership}', [OrganisationMemberController::class, 'destroy'])->name('organisation.members.destroy');
     Route::get('organisation/audit', [OrganisationAuditController::class, 'index'])->name('organisation.audit.index');
+    Route::get('organisation/features', [OrganisationFeatureController::class, 'index'])->name('organisation.features.index');
+    Route::put('organisation/features/{feature}', [OrganisationFeatureController::class, 'update'])->name('organisation.features.update');
     Route::get('organisation/sso', [OrganisationSsoController::class, 'show'])->name('organisation.sso.show');
     Route::put('organisation/sso', [OrganisationSsoController::class, 'update'])->middleware('throttle:10,1')->name('organisation.sso.update');
     Route::delete('organisation/sso', [OrganisationSsoController::class, 'destroy'])->name('organisation.sso.destroy');

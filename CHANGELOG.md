@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Features** ([#60]): owners and admins switch optional features on or off for their organisation under **Features** in the sidebar, each change kept in the audit log. A feature that needs something the server runs can't be switched on where the server doesn't offer it, and the page says why. The first is **Photo processing**, offered when `MERIDIAN_NODEODM_URL` is set.
 - **OpenDroneMap exports** ([#59]): **It is** → **An OpenDroneMap export** takes WebODM's `all.zip` (or a zipped project folder) in one upload. The upload becomes its textured mesh, and its orthophoto, surface and bare-ground models and point cloud become library items of their own, dated as the upload is and each converted on its own. Meshes are now placed by OpenDroneMap's own `odm_georeferencing/coords.txt`, and its 3D model is taken over the larger 2.5D one beside it.
 - **Deploying** ([#57]): `docker/production` runs Meridian on one server with HTTPS: production images (php-fpm with the built front end, Caddy, the converter with the code, and a gateway), a compose file with a worker, the scheduler and migrations, MQTT over TLS with the domain's certificate, and `docker/production/meridian` to install (writing `.env` with new secrets), upgrade (backing up first), back up and restore. A new user manual chapter, **Deploying Meridian**, covers it, with sizing and rough costs. The home page gains **Free to run. Or let us run it.**, with links set by `MERIDIAN_SOURCE_URL` and `MERIDIAN_HOSTED_URL`. Meridian is licensed under MIT (`LICENSE`).
 - **A landing page** ([#56]): the home page now shows what Meridian does, with the real walkthrough screenshots: a tour of a twin (live, what-if, volumes, map layers, sections and issues) that moves on by itself until you choose, a March-to-June comparison of a dated survey, a twin definition whose parts light up as you point at them, and what's there for teams. It leads to the sample twins and offers signed-in people their dashboard, follows the visitor's wish for less motion, and works on phones.
@@ -263,6 +264,7 @@ Dates are when the change was merged into `main` (UTC).
 [#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#43]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/43
 [#45]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/45
+[#60]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/60
 [#59]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/59
 [#58]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/58
 [#57]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/57
