@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\Feature;
 use App\Enums\OrganisationRole;
 use App\Enums\ProjectAssetStatus;
 use App\Jobs\ProcessDirectUpload;
@@ -22,6 +23,23 @@ it('starts a direct upload and plans its parts', function (): void {
     expect($asset->status)->toBe(ProjectAssetStatus::Uploading)
         ->and($asset->captured_on?->toDateString())->toBe('2026-03-10');
 });
+
+it('takes drone photos to process only where the organisation has photo processing on', function (bool $on): void {
+    config(['meridian.photos.nodeodm_url' => 'http://nodeodm:3000']);
+    fakeDirectUploads(['CreateMultipartUpload' => new Result(['UploadId' => 'up-1'])]);
+    [$user, $organisation] = member();
+    $organisation->update(['features' => $on ? [Feature::PhotoProcessing] : []]);
+    $project = Project::factory()->for($organisation)->create();
+
+    $response = $this->actingAs($user)->postJson(route('projects.uploads.store', $project), ['name' => 'Flight', 'filename' => 'photos.zip', 'bytes' => 3000, 'as' => 'photos', 'quality' => 'fast', 'dtm' => false]);
+
+    if ($on) {
+        $response->assertCreated();
+        expect($project->assets()->sole()->options)->toBe(['quality' => 'fast', 'dtm' => false, 'photos' => true]);
+    } else {
+        $response->assertJsonValidationErrors(['as' => 'Photo processing is off for this organisation. Its owners and admins turn it on under Features.']);
+    }
+})->with(['on' => true, 'off' => false]);
 
 it('is not there unless direct uploads are on', function (): void {
     [$user, $organisation] = member();

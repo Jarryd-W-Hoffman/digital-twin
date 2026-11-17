@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\AddAssetToTwin;
+use App\Enums\Feature;
 use App\Enums\OrganisationRole;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
@@ -167,6 +168,36 @@ it('takes an OpenDroneMap export as a mesh to split, and says so', function (): 
 
     expect($project->assets()->sole()->kind)->toBe(ProjectAssetKind::Mesh)
         ->and($project->assets()->sole()->options)->toBe(['opendronemap' => true]);
+});
+
+it('takes drone photos to process, and says so, only with photo processing on', function (): void {
+    Queue::fake();
+    config(['meridian.photos.nodeodm_url' => 'http://nodeodm:3000']);
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+    $upload = fn () => $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Flight', 'file' => UploadedFile::fake()->createWithContent('photos.zip', 'PK'), 'as' => 'photos', 'quality' => 'high', 'dtm' => '1', 'epsg' => '2193',
+    ]);
+
+    $upload()->assertSessionHasErrors(['as' => 'Photo processing is off for this organisation. Its owners and admins turn it on under Features.']);
+
+    $organisation->update(['features' => [Feature::PhotoProcessing]]);
+
+    $upload()->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Flight uploaded. Sending the photos to be processed…']);
+    expect($project->assets()->sole()->kind)->toBe(ProjectAssetKind::Mesh)
+        ->and($project->assets()->sole()->options)->toBe(['epsg' => 2193, 'quality' => 'high', 'dtm' => true, 'photos' => true]);
+});
+
+it('drops the quality and DTM from anything but photos', function (): void {
+    Queue::fake();
+    [$user, $organisation] = member();
+    $project = Project::factory()->for($organisation)->create();
+
+    $this->actingAs($user)->post(route('projects.assets.store', $project), [
+        'name' => 'Site', 'file' => UploadedFile::fake()->createWithContent('all.zip', 'PK'), 'as' => 'opendronemap', 'quality' => 'high', 'dtm' => '0',
+    ])->assertSessionHasNoErrors();
+
+    expect($project->assets()->sole()->options)->toBe(['opendronemap' => true]);
 });
 
 it('keeps whether a mesh in local metres has y up', function (): void {

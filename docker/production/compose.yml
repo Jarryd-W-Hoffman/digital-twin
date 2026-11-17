@@ -155,6 +155,19 @@ services:
     networks:
       - meridian
 
+  # Processes drone photos, for the Photo processing feature: OpenDroneMap's
+  # NodeODM (AGPL-3.0), run unmodified as a separate service. On when .env
+  # sets MERIDIAN_NODEODM_URL=http://nodeodm:3000.
+  nodeodm:
+    image: opendronemap/nodeodm:3.6.2
+    restart: unless-stopped
+    volumes:
+      - nodeodm-data:/var/www/data
+    profiles:
+      - photos
+    networks:
+      - meridian
+
   mosquitto:
     image: iegomez/mosquitto-go-auth:3.0.0-mosquitto_2.0.18
     restart: unless-stopped
@@ -207,3 +220,4 @@ volumes:
   caddy-data:
   caddy-config:
   mosquitto-data:
+  nodeodm-data:

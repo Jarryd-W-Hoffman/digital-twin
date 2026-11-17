@@ -68,6 +68,9 @@ return [
     */
     'photos' => [
         'nodeodm_url' => env('MERIDIAN_NODEODM_URL'),
+        'nodeodm_token' => env('MERIDIAN_NODEODM_TOKEN'),
+        'poll_seconds' => (int) env('MERIDIAN_PHOTOS_POLL_SECONDS', 30),
+        'timeout_hours' => (int) env('MERIDIAN_PHOTOS_TIMEOUT_HOURS', 48),
     ],
 
     /*

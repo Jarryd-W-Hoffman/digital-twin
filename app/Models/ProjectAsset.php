@@ -30,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read ProjectAssetStatus $status
  * @property-read string|null $error
  * @property-read string|null $upload_id
- * @property-read array{epsg?: int, spacing?: float, y_up?: bool, opendronemap?: true}|null $options
+ * @property-read array{epsg?: int, spacing?: float, y_up?: bool, quality?: string, dtm?: bool, opendronemap?: true, photos?: true, nodeodm_task?: string}|null $options
  * @property-read int|null $progress
  * @property-read string|null $log
  * @property-read string|null $crs

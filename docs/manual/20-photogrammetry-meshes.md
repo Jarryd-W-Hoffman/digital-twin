@@ -75,6 +75,41 @@ The upload becomes the **mesh**, and Meridian adds a library item for each of th
 
 ![The library after an OpenDroneMap export: the mesh, orthophoto, surface model and point cloud.](../images/odm-library.png)
 
+## Processing drone photos
+
+Where the server runs [NodeODM](https://github.com/OpenDroneMap/NodeODM) and the organisation has **Photo processing** on (see [Features](02-organisations-and-members.md#features)), Meridian makes the survey from the drone photos itself.
+
+1. Zip the flight's photos (JPEG or TIFF, as the drone took them, with their GPS positions). A `geo.txt` or `gcp_list.txt` beside them is sent too. Anything else, and the junk a Mac adds, is left out.
+2. In the project's **Library**, choose the zip and set **It is** to **Drone photos to process**.
+3. Choose a **Quality**:
+    - **Fast**: a quick look, with a sparser point cloud.
+    - **Standard**: OpenDroneMap's defaults.
+    - **High**: the most detail, and the slowest.
+4. Leave **Bare-ground model (DTM)** ticked for terrain to stand the twin on. Without it, there's only the surface model.
+5. Choose **Upload**.
+
+![Uploading a zip of drone photos to process, at Fast quality, with a bare-ground model.](../images/photos-form.png)
+
+```mermaid
+flowchart LR
+    Z["photos.zip"] --> N["NodeODM<br/>Converting 5–70%"]
+    N -->|"all.zip"| S["Split, as an<br/>OpenDroneMap export"]
+    S --> M["The mesh<br/>70–100%"]
+    S --> O["Orthophoto, DSM,<br/>DTM, point cloud"]
+```
+
+The upload shows **Converting** while NodeODM works, from 5% to 70%, then carries on as an [OpenDroneMap export](#an-opendronemap-export): the orthophoto, surface and bare-ground models and point cloud appear beside it, each converting, and the upload becomes the mesh. **Log** says how many photos were sent and how long NodeODM took.
+
+![The photos at 62% while NodeODM works on them.](../images/photos-processing.png)
+
+![Once processed: the surface and bare-ground models, point cloud, orthophoto and mesh, all placed in UTM zone 17N.](../images/photos-library.png)
+
+- **It takes a while.** The 77 photos of OpenDroneMap's Aukerman Park sample, at half size and **Fast**, took NodeODM 32 minutes on 8 cores, then Meridian 7 more to convert the outputs. Meridian only checks on NodeODM every 30 seconds, so other conversions carry on meanwhile.
+- **It needs memory.** Those half-size photos processed with 16 GB; the full-size ones didn't. If NodeODM runs out, the upload fails with its last lines. Try **Fast**, or smaller photos, or a bigger NodeODM server.
+- **If it fails**, the photos are kept: **Retry** sends them again, with the same quality.
+- **Deleting** the upload while NodeODM is working stops it.
+- The photos aren't kept once they're processed. Keep your own copy.
+
 ## Adding it to a twin
 
 In the twin's **Layout** panel, choose **Add** beside the mesh in the library.
@@ -90,17 +125,33 @@ A mesh has its own ground, at the same height as the twin's terrain. So that its
 
 ## Limits
 
-| Setting                          | Default         | What it limits                               |
-| -------------------------------- | --------------- | -------------------------------------------- |
-| `MERIDIAN_MESH_MAX_EXTRACTED_MB` | 20480           | The unzipped export, in MB                   |
-| `MERIDIAN_MESH_TIMEOUT_MINUTES`  | 240             | How long one conversion may run              |
-| `MERIDIAN_MESH_CONVERTER`        | `meridian-mesh` | The converter script, on the worker's `PATH` |
+| Setting                          | Default         | What it limits                                 |
+| -------------------------------- | --------------- | ---------------------------------------------- |
+| `MERIDIAN_MESH_MAX_EXTRACTED_MB` | 20480           | The unzipped export, in MB                     |
+| `MERIDIAN_MESH_TIMEOUT_MINUTES`  | 240             | How long one conversion may run                |
+| `MERIDIAN_MESH_CONVERTER`        | `meridian-mesh` | The converter script, on the worker's `PATH`   |
+| `MERIDIAN_NODEODM_URL`           | none            | NodeODM, for processing drone photos           |
+| `MERIDIAN_NODEODM_TOKEN`         | none            | NodeODM's token, if it asks for one            |
+| `MERIDIAN_PHOTOS_POLL_SECONDS`   | 30              | How often to check on NodeODM                  |
+| `MERIDIAN_PHOTOS_TIMEOUT_HOURS`  | 48              | How long NodeODM may take, before it's stopped |
 
 Large surveys take a while: a mesh of tens of millions of triangles can take an hour or more. Big exports can go straight to object storage in parts (see [Large uploads](03-projects-and-the-library.md#large-uploads)).
 
 ## About Obj2Tiles
 
 The tiling is done by [Obj2Tiles](https://github.com/OpenDroneMap/Obj2Tiles) 1.9.0 from OpenDroneMap, which is licensed under the **AGPL-3.0**. It's shipped unmodified in the converter image as a separate program in `/opt/obj2tiles`, with its licence, its third-party notices and where to get its source; Meridian only runs it.
+
+## About NodeODM
+
+Photos are processed by [NodeODM](https://github.com/OpenDroneMap/NodeODM) 3.6.2, OpenDroneMap's processing server, which is licensed under the **AGPL-3.0**. It runs unmodified, as its own container from OpenDroneMap's published image (`opendronemap/nodeodm`), and Meridian only talks to it over its web API. It's optional: without it, Meridian has no photo processing, and everything else works the same.
+
+To run it:
+
+- **In development:** `docker compose --profile photos up -d nodeodm`, and set `MERIDIAN_NODEODM_URL=http://nodeodm:3000` in `.env`.
+- **In a deployment:** set `MERIDIAN_NODEODM_URL=http://nodeodm:3000` in `docker/production/.env`, and `meridian start` runs it. See [Deploying Meridian](23-deploying.md#photo-processing).
+- **Somewhere else:** another NodeODM server, such as a bigger machine, works too. Set its address, and `MERIDIAN_NODEODM_TOKEN` if it asks for a token.
+
+Then owners and admins turn **Photo processing** on under **Features**.
 
 ## See also
 

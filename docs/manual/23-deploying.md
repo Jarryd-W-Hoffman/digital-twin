@@ -34,6 +34,7 @@ flowchart LR
 | `migrate`   | Updates the database at each start, then stops                                 |        |
 | `mosquitto` | The MQTT broker, for devices that publish readings to the server               | if on  |
 | `gateway`   | One twin's gateway, run on the server rather than on site                      | if on  |
+| `nodeodm`   | NodeODM, which processes drone photos into surveys                             | if on  |
 
 The images are built on the server from the code, so nothing has to be published to a registry first.
 
@@ -114,6 +115,18 @@ MERIDIAN_DIRECT_UPLOADS=true   (browsers upload large files straight to the buck
 
 With direct uploads, allow `PUT` from `https://twins.example.com` in the bucket's CORS settings. See [Large uploads](03-projects-and-the-library.md#large-uploads).
 
+## Photo processing
+
+To let organisations process drone photos into surveys, run NodeODM beside Meridian. In `docker/production/.env`, set:
+
+```text
+MERIDIAN_NODEODM_URL=http://nodeodm:3000
+```
+
+Then run `meridian start`: the `nodeodm` container starts with the rest. Owners and admins then turn **Photo processing** on under **Features**. NodeODM is AGPL-3.0, and runs unmodified as its own container (see [About NodeODM](20-photogrammetry-meshes.md#about-nodeodm)).
+
+NodeODM needs far more memory than the rest of Meridian: 16 GB handles a flight of about a hundred photos at modest resolution, and bigger flights need more. Give it a server of its own if surveys are large: run `opendronemap/nodeodm` there, and point `MERIDIAN_NODEODM_URL` at it (with `MERIDIAN_NODEODM_TOKEN` if you start it with `--token`).
+
 ## Sizing and cost
 
 The converter decides the size: tiling a point cloud of a few hundred million points or a large photogrammetry mesh wants 8–16 GB of memory while it runs. Everything else is light.
@@ -146,6 +159,7 @@ Meridian can also be split onto managed services (ECS or Kubernetes, RDS or anot
 | The site doesn't load, or the certificate fails | DNS points at the server, ports 80 and 443 are open, and `meridian logs web` for what Let's Encrypt said |
 | 500 errors                                      | `meridian logs app`                                                                                      |
 | Uploads stay **Converting**                     | `meridian logs converter`; a large scan may need more memory                                             |
+| Photo processing fails                          | The upload's **Log**, and `meridian logs nodeodm`; it may need more memory, or **Fast** quality          |
 | No emails                                       | `MAIL_MAILER=smtp` and the `MAIL_*` settings, and `meridian logs worker`                                 |
 | Devices can't connect                           | `MERIDIAN_RUN_MQTT=true`, port 8883 open, and `meridian logs mosquitto`                                  |
 | Alerts or reports don't go out                  | `meridian logs scheduler` and `meridian logs worker`                                                     |
@@ -158,7 +172,7 @@ The home page says so, beside hosting for those who'd rather not run it. Set `ME
 
 ![The home page's Run it yourself and Let us host it](../images/home-run-it.png)
 
-The images also contain other projects' software, each under its own licence. Among them: CesiumJS (Apache-2.0), PDAL (BSD), GDAL (MIT), py3dtiles (Apache-2.0), IfcOpenShell (LGPL-3.0), Caddy (Apache-2.0), Eclipse Mosquitto (EPL-2.0 / EDL-1.0), PostgreSQL (PostgreSQL licence), TimescaleDB (the Timescale License: free to use in an application like Meridian, but not to offer the database itself as a service) and Obj2Tiles (AGPL-3.0, run unmodified as a separate program, with its licence and where to get its source in `/opt/obj2tiles`; see [Photogrammetry meshes](20-photogrammetry-meshes.md#about-obj2tiles)).
+The images also contain other projects' software, each under its own licence. Among them: CesiumJS (Apache-2.0), PDAL (BSD), GDAL (MIT), py3dtiles (Apache-2.0), IfcOpenShell (LGPL-3.0), Caddy (Apache-2.0), Eclipse Mosquitto (EPL-2.0 / EDL-1.0), PostgreSQL (PostgreSQL licence), TimescaleDB (the Timescale License: free to use in an application like Meridian, but not to offer the database itself as a service), Obj2Tiles (AGPL-3.0, run unmodified as a separate program, with its licence and where to get its source in `/opt/obj2tiles`; see [Photogrammetry meshes](20-photogrammetry-meshes.md#about-obj2tiles)) and, if you run it, NodeODM (AGPL-3.0, OpenDroneMap's own image, run unmodified as its own container; see [About NodeODM](20-photogrammetry-meshes.md#about-nodeodm)).
 
 ## See also
 

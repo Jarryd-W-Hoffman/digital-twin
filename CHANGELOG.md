@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- **Processing drone photos** ([#61]): with **Photo processing** on, a zip of drone photos uploaded as **Drone photos to process** is sent to NodeODM (OpenDroneMap's processing server, AGPL-3.0, an optional container: `--profile photos`, or `MERIDIAN_NODEODM_URL` in a deployment) at a chosen quality, with or without a bare-ground model. Its progress shows as **Converting** while NodeODM works, and its outputs then come in as an OpenDroneMap export: the mesh, orthophoto, surface and bare-ground models and point cloud. A failure keeps the photos for **Retry**, and deleting the upload stops NodeODM.
 - **Features** ([#60]): owners and admins switch optional features on or off for their organisation under **Features** in the sidebar, each change kept in the audit log. A feature that needs something the server runs can't be switched on where the server doesn't offer it, and the page says why. The first is **Photo processing**, offered when `MERIDIAN_NODEODM_URL` is set.
 - **OpenDroneMap exports** ([#59]): **It is** → **An OpenDroneMap export** takes WebODM's `all.zip` (or a zipped project folder) in one upload. The upload becomes its textured mesh, and its orthophoto, surface and bare-ground models and point cloud become library items of their own, dated as the upload is and each converted on its own. Meshes are now placed by OpenDroneMap's own `odm_georeferencing/coords.txt`, and its 3D model is taken over the larger 2.5D one beside it.
 - **Deploying** ([#57]): `docker/production` runs Meridian on one server with HTTPS: production images (php-fpm with the built front end, Caddy, the converter with the code, and a gateway), a compose file with a worker, the scheduler and migrations, MQTT over TLS with the domain's certificate, and `docker/production/meridian` to install (writing `.env` with new secrets), upgrade (backing up first), back up and restore. A new user manual chapter, **Deploying Meridian**, covers it, with sizing and rough costs. The home page gains **Free to run. Or let us run it.**, with links set by `MERIDIAN_SOURCE_URL` and `MERIDIAN_HOSTED_URL`. Meridian is licensed under MIT (`LICENSE`).
@@ -66,6 +67,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Fixed
 
+- A point cloud whose coordinate system is a WGS 84 UTM zone without an EPSG code, as OpenDroneMap writes them, is named by its code (such as EPSG:32617) rather than **unknown** ([#61]).
 - **Survey display** ([#58]): terrain no longer drops to sea level beyond a DEM or in its gaps. A site high above sea level stood on a cliff, and a bare-ground model's gaps under trees showed as spikes; the ground beyond now stays at the DEM's edge height and gaps are filled from the ground around them, for display only (volumes still use the DEM as given). Photogrammetry meshes no longer flicker against the terrain under them: tilesets are drawn 0.3% of their distance nearer the camera. The whole-hemisphere terrain tiles get a horizon culling point that can't hide the globe.
 - **Share links** ([#54]) now load a twin's map layers and imagery, which they refused before. The manual no longer says **Uploaded layers** hides models; it never did.
 - **Sidebar on organisation pages** ([#41]): **Members**, **Types** and **API** showed no organisation switcher, because each page's own organisation details hid the shared ones.
@@ -264,6 +266,7 @@ Dates are when the change was merged into `main` (UTC).
 [#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#43]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/43
 [#45]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/45
+[#61]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/61
 [#60]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/60
 [#59]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/59
 [#58]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/58

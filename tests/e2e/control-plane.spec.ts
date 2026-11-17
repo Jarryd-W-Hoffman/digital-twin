@@ -369,6 +369,33 @@ test('an owner turns photo processing on and off for the organisation, and the a
   await expect(log.getByRole('row').filter({ hasText: 'Turned a feature off' })).toHaveCount(1);
 });
 
+test('drone photos can be uploaded to process only while photo processing is on', async ({ page }) => {
+  await logIn(page, 'test@example.com');
+  const zip = join(mkdtempSync(join(tmpdir(), 'photos-')), 'flight.zip');
+  writeFileSync(zip, 'PK');
+  const choices = async () => {
+    await page.goto('/projects');
+    await page.getByRole('link', { name: /^Pilot sites/ }).click();
+    await page.getByLabel(/^File \(/).setInputFiles(zip);
+    return page.getByLabel('It is').locator('option').allTextContents();
+  };
+
+  expect(await choices()).not.toContain('Drone photos to process');
+
+  await page.getByRole('link', { name: 'Features' }).click();
+  await page.getByRole('switch', { name: 'Photo processing' }).check();
+  await expect(page.getByText(/Photo processing is on for /)).toBeVisible();
+
+  expect(await choices()).toContain('Drone photos to process');
+  await page.getByLabel('It is').selectOption('photos');
+  await expect(page.getByLabel('Quality')).toHaveValue('standard');
+  await expect(page.getByLabel('Bare-ground model (DTM)')).toBeChecked();
+
+  await page.getByRole('link', { name: 'Features' }).click();
+  await page.getByRole('switch', { name: 'Photo processing' }).uncheck();
+  await expect(page.getByText(/Photo processing is off for /)).toBeVisible();
+});
+
 test('only admins and owners see the audit log', async ({ page }) => {
   await logIn(page, 'operator@example.com');
   await expect(page.getByRole('link', { name: 'Members' })).toBeVisible();

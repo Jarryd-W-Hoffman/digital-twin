@@ -88,10 +88,14 @@ final readonly class Converter
         return ['entry' => $entry, 'bytes' => $bytes, 'files' => count($files)];
     }
 
+    /**
+     * Adds a line to the conversion's log, and moves its progress on (never
+     * back: a mesh from photos carries on from where processing them left it).
+     */
     public function note(ProjectAsset $asset, int $progress, string $line): void
     {
         $log = mb_ltrim(($asset->log ?? '')."\n".$line);
 
-        $asset->update(['progress' => $progress, 'log' => mb_substr($log, -self::LOG_LIMIT)]);
+        $asset->update(['progress' => max($progress, $asset->progress ?? 0), 'log' => mb_substr($log, -self::LOG_LIMIT)]);
     }
 }

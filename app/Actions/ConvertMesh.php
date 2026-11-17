@@ -42,7 +42,9 @@ final readonly class ConvertMesh
         File::ensureDirectoryExists($work);
 
         try {
-            $asset->update(['status' => ProjectAssetStatus::Processing, 'progress' => 0, 'error' => null, 'log' => null]);
+            // Its log and progress carry on from processing its photos, if it
+            // was photos; an upload or a retry starts them afresh.
+            $asset->update(['status' => ProjectAssetStatus::Processing, 'error' => null]);
 
             $extension = mb_strtolower(pathinfo($asset->original_name, PATHINFO_EXTENSION));
             $source = $work.'/source.'.$extension;
