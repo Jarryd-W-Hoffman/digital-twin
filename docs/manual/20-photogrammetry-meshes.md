@@ -155,6 +155,7 @@ Then owners and admins turn **Photo processing** on under **Features**.
 
 ## See also
 
+- [From drone photos to a twin](24-from-drone-photos-to-a-twin.md): a survey from start to finish.
 - [Point clouds](04-point-clouds.md): scans as points rather than a mesh.
 - [Comparing surveys](17-comparing-surveys.md): volumes between terrain or point cloud surveys.
 - [Projects and the library](03-projects-and-the-library.md): uploads, large uploads and deleting.

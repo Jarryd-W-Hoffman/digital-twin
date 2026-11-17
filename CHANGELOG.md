@@ -14,6 +14,7 @@ Dates are when the change was merged into `main` (UTC).
 
 ### Added
 
+- User manual chapter **From drone photos to a twin** ([#62]): one survey from start to finish, on OpenDroneMap's Aukerman Park sample: processing the photos, what comes back, building a twin on the bare ground with the orthophoto, mesh and site drawings, measuring volumes (and why a surface model against its bare ground counts the trees), and flying again.
 - **Processing drone photos** ([#61]): with **Photo processing** on, a zip of drone photos uploaded as **Drone photos to process** is sent to NodeODM (OpenDroneMap's processing server, AGPL-3.0, an optional container: `--profile photos`, or `MERIDIAN_NODEODM_URL` in a deployment) at a chosen quality, with or without a bare-ground model. Its progress shows as **Converting** while NodeODM works, and its outputs then come in as an OpenDroneMap export: the mesh, orthophoto, surface and bare-ground models and point cloud. A failure keeps the photos for **Retry**, and deleting the upload stops NodeODM.
 - **Features** ([#60]): owners and admins switch optional features on or off for their organisation under **Features** in the sidebar, each change kept in the audit log. A feature that needs something the server runs can't be switched on where the server doesn't offer it, and the page says why. The first is **Photo processing**, offered when `MERIDIAN_NODEODM_URL` is set.
 - **OpenDroneMap exports** ([#59]): **It is** → **An OpenDroneMap export** takes WebODM's `all.zip` (or a zipped project folder) in one upload. The upload becomes its textured mesh, and its orthophoto, surface and bare-ground models and point cloud become library items of their own, dated as the upload is and each converted on its own. Meshes are now placed by OpenDroneMap's own `odm_georeferencing/coords.txt`, and its 3D model is taken over the larger 2.5D one beside it.
@@ -266,6 +267,7 @@ Dates are when the change was merged into `main` (UTC).
 [#42]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/42
 [#43]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/43
 [#45]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/45
+[#62]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/62
 [#61]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/61
 [#60]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/60
 [#59]: https://github.com/Jarryd-W-Hoffman/digital-twin/pull/59
