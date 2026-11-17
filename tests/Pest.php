@@ -319,6 +319,23 @@ function openDroneMapExport(?array $files = null, string $prefix = ''): string
 }
 
 /**
+ * A zip of drone photos' bytes: DSC00001.JPG and on, and any other files
+ * given (say, geo.txt, or the junk a Mac adds).
+ *
+ * @param  array<string, string>  $others  Each other file's name in the zip, and its contents.
+ */
+function dronePhotos(int $count, array $others = []): string
+{
+    $files = $others;
+
+    for ($photo = 1; $photo <= $count; $photo++) {
+        $files[sprintf('flight/DSC%05d.JPG', $photo)] = 'jpeg '.$photo;
+    }
+
+    return openDroneMapExport($files);
+}
+
+/**
  * A twin with a gateway token, and the token.
  *
  * @return array{0: Twin, 1: string}

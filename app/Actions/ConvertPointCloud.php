@@ -98,7 +98,7 @@ final readonly class ConvertPointCloud
     {
         $output = $this->run([config()->string('meridian.point_clouds.pdal'), 'info', '--summary', $source], __('PDAL could not read the file'));
 
-        /** @var array{summary?: array{num_points?: int, srs?: array{json?: array{name?: string, id?: array{authority?: string, code?: int|string}}}}} $info */
+        /** @var array{summary?: array{num_points?: int, srs?: array{json?: array{name?: string, id?: array{authority?: string, code?: int|string}, conversion?: array{name?: string}, base_crs?: array{datum?: array{name?: string}, datum_ensemble?: array{name?: string}}}}}} $info */
         $info = json_decode($output, true) ?: [];
         $points = (int) ($info['summary']['num_points'] ?? 0);
 
@@ -118,7 +118,26 @@ final readonly class ConvertPointCloud
 
         $id = $srs['id'] ?? null;
 
-        return [$points, isset($id['authority'], $id['code']) ? $id['authority'].':'.$id['code'] : ($srs['name'] ?? 'Custom')];
+        if (isset($id['authority'], $id['code'])) {
+            return [$points, $id['authority'].':'.$id['code']];
+        }
+
+        $datum = $srs['base_crs']['datum']['name'] ?? $srs['base_crs']['datum_ensemble']['name'] ?? '';
+
+        return [$points, $this->utm($srs['conversion']['name'] ?? '', $datum) ?? $srs['name'] ?? 'Custom'];
+    }
+
+    /**
+     * The EPSG code of a WGS 84 UTM zone described without one, as
+     * OpenDroneMap writes its point clouds (from "+proj=utm +zone=17").
+     */
+    private function utm(string $conversion, string $datum): ?string
+    {
+        if (! str_starts_with($datum, 'World Geodetic System 1984') || preg_match('/^UTM zone (\d{1,2})([NS])$/', $conversion, $zone) !== 1) {
+            return null;
+        }
+
+        return sprintf('EPSG:%d%02d', $zone[2] === 'N' ? 326 : 327, $zone[1]);
     }
 
     /**

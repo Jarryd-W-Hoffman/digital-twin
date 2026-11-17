@@ -31,6 +31,15 @@ it('still splits an OpenDroneMap export that failed before it was split', functi
     expect($asset->refresh()->options)->toBe(['epsg' => 32617, 'opendronemap' => true]);
 });
 
+it('processes the photos again, as they were asked for', function (): void {
+    Queue::fake();
+    $asset = ProjectAsset::factory()->mesh()->create(['status' => ProjectAssetStatus::Failed, 'options' => ['photos' => true, 'quality' => 'fast', 'dtm' => false]]);
+
+    resolve(RetryConversion::class)->handle($asset, []);
+
+    expect($asset->refresh()->options)->toBe(['photos' => true, 'quality' => 'fast', 'dtm' => false]);
+});
+
 it('only retries failed conversions', function (ProjectAsset $asset): void {
     resolve(RetryConversion::class)->handle($asset, []);
 })->with([

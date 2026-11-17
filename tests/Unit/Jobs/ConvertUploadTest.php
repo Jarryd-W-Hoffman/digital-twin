@@ -2,12 +2,23 @@
 
 declare(strict_types=1);
 
+use App\Actions\ConvertIfc;
+use App\Actions\ConvertImagery;
+use App\Actions\ConvertMesh;
+use App\Actions\ConvertPointCloud;
+use App\Actions\ConvertTerrain;
+use App\Actions\ConvertVector;
+use App\Actions\SendPhotosToNodeOdm;
+use App\Enums\Feature;
 use App\Enums\ProjectAssetKind;
 use App\Enums\ProjectAssetStatus;
 use App\Jobs\ConvertUpload;
+use App\Jobs\WatchPhotoProcessing;
 use App\Models\ProjectAsset;
 use Illuminate\Queue\Attributes\Timeout;
 use Illuminate\Queue\Attributes\Tries;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
@@ -110,6 +121,23 @@ it('tiles a mesh', function (): void {
 
     expect($this->asset->refresh()->status)->toBe(ProjectAssetStatus::Ready)
         ->and($this->asset->entry)->toBe('tileset.json');
+});
+
+it('sends drone photos to be processed', function (): void {
+    Queue::fake();
+    config(['meridian.photos.nodeodm_url' => 'http://nodeodm:3000']);
+    Http::fake([
+        'nodeodm:3000/task/new/init' => Http::response(['uuid' => 'task-1']),
+        'nodeodm:3000/task/new/*' => Http::response(['success' => true]),
+    ]);
+    $this->asset->update(['kind' => ProjectAssetKind::Mesh, 'original_name' => 'photos.zip', 'options' => ['photos' => true]]);
+    $this->asset->project->organisation->update(['features' => [Feature::PhotoProcessing]]);
+    Storage::disk('local')->put($this->asset->sourceKey(), dronePhotos(5));
+
+    new ConvertUpload($this->asset)->handle(...array_map(resolve(...), [ConvertPointCloud::class, ConvertTerrain::class, ConvertIfc::class, ConvertVector::class, ConvertImagery::class, ConvertMesh::class, SendPhotosToNodeOdm::class]));
+
+    expect($this->asset->refresh()->options)->toBe(['photos' => true, 'nodeodm_task' => 'task-1']);
+    Queue::assertPushed(WatchPhotoProcessing::class);
 });
 
 it('tiles an image', function (): void {

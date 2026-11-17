@@ -1,4 +1,11 @@
-import { Head, Link, router, useForm, usePoll } from '@inertiajs/react';
+import {
+    Head,
+    Link,
+    router,
+    useForm,
+    usePage,
+    usePoll,
+} from '@inertiajs/react';
 import { Globe, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import Heading from '@/components/heading';
@@ -62,6 +69,13 @@ const AMBIGUOUS: { test: RegExp; choices: [string, string][] }[] = [
         ],
     },
 ];
+/** Offered for a zip when the organisation has photo processing on. */
+const PHOTOS: [string, string] = ['photos', 'Drone photos to process'];
+const QUALITY: [string, string][] = [
+    ['fast', 'Fast (a quick look)'],
+    ['standard', 'Standard'],
+    ['high', 'High (slowest)'],
+];
 const EXTENSIONS =
     /\.(glb|zip|obj|las|laz|e57|tif|tiff|asc|ifc|geojson|json|kml|kmz|dxf|gpkg)$/i;
 
@@ -95,6 +109,8 @@ export default function ShowProject({
         spacing: string;
         as: string;
         y_up: boolean;
+        quality: string;
+        dtm: boolean;
         captured_on: string;
     }>({
         name: '',
@@ -103,12 +119,23 @@ export default function ShowProject({
         spacing: '',
         as: '',
         y_up: false,
+        quality: 'standard',
+        dtm: true,
         captured_on: '',
     });
     const filename = upload.data.file?.name ?? '';
     const isPointCloud = pointCloud.test(filename);
-    const choices = AMBIGUOUS.find((a) => a.test.test(filename))?.choices;
+    const processesPhotos =
+        usePage().props.organisation?.current?.features.includes(
+            'photo-processing',
+        ) ?? false;
+    const ambiguous = AMBIGUOUS.find((a) => a.test.test(filename));
+    const choices =
+        ambiguous && processesPhotos && ambiguous.test.test('.zip')
+            ? [...ambiguous.choices, PHOTOS]
+            : ambiguous?.choices;
     const isMesh = objMesh.test(filename) || upload.data.as === 'mesh';
+    const isPhotos = upload.data.as === 'photos';
     // Anything converted with GDAL or PDAL may need the EPSG code of its coordinates.
     const needsCrs =
         isPointCloud ||
@@ -158,6 +185,10 @@ export default function ShowProject({
                     }),
                     ...(choices && upload.data.as && { as: upload.data.as }),
                     ...(isMesh && upload.data.y_up && { y_up: true }),
+                    ...(isPhotos && {
+                        quality: upload.data.quality,
+                        dtm: upload.data.dtm,
+                    }),
                     ...(upload.data.captured_on && {
                         captured_on: upload.data.captured_on,
                     }),
@@ -369,7 +400,7 @@ export default function ShowProject({
                                     <Label htmlFor="upload-as">It is</Label>
                                     <select
                                         id="upload-as"
-                                        className="h-9 rounded-md border bg-transparent px-3 text-sm"
+                                        className="h-9 w-full min-w-0 rounded-md border bg-transparent px-3 text-sm"
                                         value={upload.data.as}
                                         onChange={(e) =>
                                             upload.setData('as', e.target.value)
@@ -428,6 +459,48 @@ export default function ShowProject({
                                             />
                                         </div>
                                     )}
+                                </>
+                            )}
+                            {isPhotos && (
+                                <>
+                                    <div className="grid w-48 gap-2">
+                                        <Label htmlFor="upload-quality">
+                                            Quality
+                                        </Label>
+                                        <select
+                                            id="upload-quality"
+                                            className="h-9 w-full min-w-0 rounded-md border bg-transparent px-3 text-sm"
+                                            value={upload.data.quality}
+                                            onChange={(e) =>
+                                                upload.setData(
+                                                    'quality',
+                                                    e.target.value,
+                                                )
+                                            }
+                                        >
+                                            {QUALITY.map(([value, label]) => (
+                                                <option
+                                                    key={value}
+                                                    value={value}
+                                                >
+                                                    {label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <label className="flex h-9 items-center gap-2 text-sm">
+                                        <input
+                                            type="checkbox"
+                                            checked={upload.data.dtm}
+                                            onChange={(e) =>
+                                                upload.setData(
+                                                    'dtm',
+                                                    e.target.checked,
+                                                )
+                                            }
+                                        />
+                                        Bare-ground model (DTM)
+                                    </label>
                                 </>
                             )}
                             {isMesh && (

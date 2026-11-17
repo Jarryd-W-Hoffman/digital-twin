@@ -57,11 +57,12 @@ enum ProjectAssetKind: string
 
     /**
      * A zip is a tileset, unless it's a zipped shapefile, a photogrammetry
-     * export, or OpenDroneMap's (a mesh to split first).
+     * export, OpenDroneMap's (a mesh to split first), or drone photos (a mesh
+     * to process first).
      */
     private static function zipped(?string $as): self
     {
-        if ($as === 'opendronemap') {
+        if ($as === 'opendronemap' || $as === 'photos') {
             return self::Mesh;
         }
 

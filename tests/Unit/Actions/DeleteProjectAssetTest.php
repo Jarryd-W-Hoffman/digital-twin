@@ -7,6 +7,8 @@ use App\Actions\DeleteProjectAsset;
 use App\Actions\StoreProjectAsset;
 use App\Models\ProjectAsset;
 use App\Models\Twin;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(fn () => Storage::fake('local'));
@@ -45,4 +47,15 @@ it('also removes an original still waiting to be processed', function (): void {
     resolve(DeleteProjectAsset::class)->handle($asset, null);
 
     expect(Storage::disk('local')->allFiles())->toBe([]);
+});
+
+it('stops NodeODM processing its photos', function (): void {
+    config(['meridian.photos.nodeodm_url' => 'http://nodeodm:3000']);
+    Http::fake(['nodeodm:3000/task/remove' => Http::response(['error' => 'already gone'], 404)]);
+    $asset = ProjectAsset::factory()->mesh()->processing()->create(['options' => ['photos' => true, 'nodeodm_task' => 'task-1']]);
+
+    resolve(DeleteProjectAsset::class)->handle($asset, null);
+
+    expect(ProjectAsset::query()->find($asset->id))->toBeNull();
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://nodeodm:3000/task/remove' && $request->data() === ['uuid' => 'task-1']);
 });

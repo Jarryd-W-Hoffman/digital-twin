@@ -152,6 +152,23 @@ services:
     networks:
       - meridian
 
+  # Processes drone photos into surveys, for the Photo processing feature:
+  # OpenDroneMap's NodeODM (AGPL-3.0), run unmodified as a separate service.
+  # It needs memory: 16 GB handles about a hundred photos at modest size. Start it
+  # with `docker compose --profile photos up -d nodeodm`, set
+  # MERIDIAN_NODEODM_URL=http://nodeodm:3000 in the app's .env, then turn
+  # Photo processing on under Features.
+  nodeodm:
+    image: opendronemap/nodeodm:3.6.2
+    container_name: ${COMPOSE_PROJECT_NAME:-meridian}-nodeodm
+    restart: unless-stopped
+    volumes:
+      - nodeodm-data:/var/www/data
+    profiles:
+      - photos
+    networks:
+      - meridian
+
   # Streams one twin. It loads the definition from the control plane with a
   # gateway token (issued in the twin's Layout panel) and follows new versions.
   # Start it once you have a token: set MERIDIAN_GATEWAY_TOKEN in .env, then
@@ -348,6 +365,7 @@ networks:
 
 volumes:
   mosquitto-data:
+  nodeodm-data:
   postgres-data:
   redis-data:
   rustfs-data:

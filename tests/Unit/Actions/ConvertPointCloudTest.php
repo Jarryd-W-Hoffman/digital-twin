@@ -85,8 +85,11 @@ it('names a CRS PDAL describes without an authority code', function (array $srs,
 
     expect(resolve(ConvertPointCloud::class)->handle($this->asset)->crs)->toBe($crs);
 })->with([
-    [['name' => 'Site grid'], 'Site grid'],
-    [[], 'Custom'],
+    'its name' => [['name' => 'Site grid'], 'Site grid'],
+    'nothing' => [[], 'Custom'],
+    'a WGS 84 UTM zone, as OpenDroneMap writes' => [['name' => 'unknown', 'conversion' => ['name' => 'UTM zone 17N'], 'base_crs' => ['datum' => ['name' => 'World Geodetic System 1984']]], 'EPSG:32617'],
+    'a southern zone, in a datum ensemble' => [['name' => 'unknown', 'conversion' => ['name' => 'UTM zone 6S'], 'base_crs' => ['datum_ensemble' => ['name' => 'World Geodetic System 1984 ensemble']]], 'EPSG:32706'],
+    'UTM on another datum' => [['name' => 'unknown', 'conversion' => ['name' => 'UTM zone 55S'], 'base_crs' => ['datum' => ['name' => 'Geocentric Datum of Australia 1994']]], 'unknown'],
 ]);
 
 it('refuses files that are not point clouds', function (): void {

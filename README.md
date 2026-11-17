@@ -27,7 +27,7 @@ The sample twin, **Northshore Cold Chain Hub**, is a fictional refrigerated logi
 | **The site over time**             | Uploads are dated by when they were captured, and a twin's **Site on** slider steps through those dates: each kind of scan, mesh, tileset and image shows until the next capture of its kind, while models and map layers stay from their date on, so a site's monthly surveys can be stepped through like a timeline. |
 | **Importing readings**             | Readings from CSV files go into a twin's history without a gateway, for survey monitoring, lab results and loggers: a column per series or a row per reading, the layout guessed in the browser and each series mapped to a metric, imported on the queue in place of what the twin had over the file's span, and removable. Write tokens add readings through `POST /api/v1/twins/{twin}/readings`. |
 | **BIM models**                     | IFC files are converted to one GLB by the same queue (IfcOpenShell), each element a node named by its GlobalId with its name, class and storey. A georeferenced model (IfcMapConversion, or the site's latitude and longitude) is added to a twin where it belongs. An asset can be bound to one element of a model or tileset, which then takes its colour and selects it when clicked.                                                                                                                                   |
-| **Photogrammetry meshes**          | Textured OBJ meshes and zipped exports from drone and photo surveys (ContextCapture, DJI Terra, Pix4D, Metashape, OpenDroneMap) are converted to 3D Tiles by the same queue (Obj2Tiles, AGPL-3.0, run as a separate program). Where it is comes from the export's `metadata.xml`, OpenDroneMap's `coords.txt`, Pix4D's offset files or an EPSG code; a whole OpenDroneMap export (WebODM's `all.zip`) becomes its mesh, orthophoto, DEMs and point cloud in one upload; every vertex is reprojected to metres east, north and up so grid north turns to true north, and a mesh with no georeference is placed like a model.                                                               |
+| **Photogrammetry meshes**          | Textured OBJ meshes and zipped exports from drone and photo surveys (ContextCapture, DJI Terra, Pix4D, Metashape, OpenDroneMap) are converted to 3D Tiles by the same queue (Obj2Tiles, AGPL-3.0, run as a separate program). Where it is comes from the export's `metadata.xml`, OpenDroneMap's `coords.txt`, Pix4D's offset files or an EPSG code; a whole OpenDroneMap export (WebODM's `all.zip`) becomes its mesh, orthophoto, DEMs and point cloud in one upload, and with **Photo processing** on, a zip of drone photos is processed into one by NodeODM (AGPL-3.0, its own container); every vertex is reprojected to metres east, north and up so grid north turns to true north, and a mesh with no georeference is placed like a model.                                                               |
 | **Placement**                      | Models and local-coordinate tilesets are placed in metres east, north and up from the twin's origin, with heading and scale. Edits preview live in the scene, **Place on map** moves a layer to wherever you click on the ground, and **Move in scene** gives it handles to drag east, north and up, slide and turn.                                                                                                                                                                                                       |
 | **Custom asset types**             | Equipment the simulator has no physics for, described as data: metrics with units and defaults, a colour and a shape, plus behaviour written as safe expressions: derived metrics, states and transitions, setpoints operators can change, and power drawn from the feed tree. Each organisation keeps a library of types its twins copy from.                                                                                                                                                                             |
 | **Live physics**                   | A microgrid power balance (solar, battery dispatch with peak shaving, grid, generator start delay, load shedding by priority) feeding a refrigeration plant (chiller capacity and COP that derate with ambient air, store thermal mass, door losses, stock spoilage). Vehicles drive their routes and queue for chargers. It's a reference domain: a twin with no buses doesn't model power at all. |
@@ -482,6 +482,30 @@ the upload's zip ← only odm_texturing/, coords.txt and proj.txt, here and in s
 drop opendronemap from its options: a retry converts the mesh and adds nothing twice
 no odm_texturing/*.obj: fail, saying the other outputs were added
 then convert it as any mesh
+```
+
+With **Photo processing** on for the organisation, a zip uploaded as **drone photos** (`as=photos`, with `quality` and `dtm`) is a mesh with `photos: true`. Its conversion sends it to [NodeODM](https://github.com/OpenDroneMap/NodeODM) (`SendPhotosToNodeOdm`), and `WatchPhotoProcessing` follows it without holding a worker:
+
+```text
+still on for the organisation, and offered by the server (MERIDIAN_NODEODM_URL)?
+the zip's JPEG and TIFF photos (not in dot-folders or __MACOSX), with geo.txt
+    and gcp_list.txt if there; at least 5
+NodeODM: POST task/new/init {name, options, skipPostProcessing}
+    options: dsm, dtm (unless not asked), auto-boundary, and the quality's
+        fast: feature-quality medium, pc-quality low · standard: NodeODM's ·
+        high: feature-quality ultra, pc-quality high
+    POST task/new/upload/{task} in batches of 10, streamed from the zip
+    POST task/new/commit/{task}; keep the task's id in the upload's options
+    (if anything fails, POST task/remove)
+every MERIDIAN_PHOTOS_POLL_SECONDS, a job asks GET task/{task}/info:
+    queued or running: progress 5 + 65% of NodeODM's
+    completed: GET task/{task}/download/all.zip as the upload's original,
+        remove the task, swap photos for opendronemap in its options, and
+        queue its conversion: split it, then the mesh (70 → 100%)
+    failed or cancelled: fail with the last lines of GET task/{task}/output,
+        keeping the photos so Retry sends them again
+    unreachable 10 times running, or past MERIDIAN_PHOTOS_TIMEOUT_HOURS: fail
+deleting the upload removes its task
 ```
 
 Obj2Tiles is AGPL-3.0. The Dockerfile downloads the 1.9.0 Linux release, checks its SHA-256, and keeps it unmodified in `/opt/obj2tiles` with its licence, third-party notices and a pointer to its source; Meridian runs it as a separate program and links none of it. Heights are the file's, taken as above the ellipsoid. A georeferenced mesh is added to a twin with its own transform and needs no placement; one in local metres is placed at the origin, as a point cloud in local metres is.
@@ -1564,6 +1588,9 @@ _Coloured by power after dark: solar has gone quiet, and the battery and grid ca
 | `MERIDIAN_MESH_MAX_EXTRACTED_MB`               | Most a zipped mesh export may unpack to, default 20480                                                                 |
 | `MERIDIAN_MESH_TIMEOUT_MINUTES`                | Longest a mesh conversion may run, default 240                                                                         |
 | `MERIDIAN_NODEODM_URL`                         | NodeODM, which processes drone photos; unset, the **Photo processing** feature can't be switched on                    |
+| `MERIDIAN_NODEODM_TOKEN`                       | NodeODM's token, if it was started with one                                                                            |
+| `MERIDIAN_PHOTOS_POLL_SECONDS`                 | How often to check on NodeODM while it processes photos, default 30                                                    |
+| `MERIDIAN_PHOTOS_TIMEOUT_HOURS`                | Longest NodeODM may take on one flight before it's stopped, default 48                                                 |
 | `MERIDIAN_READINGS_RETENTION_DAYS`             | How long recorded readings are kept, default 365                                                                       |
 | `MERIDIAN_READINGS_IMPORT_MAX_MB`              | Largest CSV file of readings to import, default 50                                                                     |
 | `MERIDIAN_READINGS_IMPORT_MAX`                 | Most readings in one imported file, default 2,000,000                                                                  |
@@ -1638,7 +1665,7 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 24. **The site over time** (done): library items dated by when they were captured, and a date slider that shows the scans, surveys, imagery and models current at the time ([#54](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/54)).
 25. **Towards 1.0** (in progress): a versioned definition format whose older versions are always read and moved up, an OpenAPI description of `/api/v1` kept true by tests, and a stability and upgrade guide; with terrain that changes with the date, and saved views and links that keep it.
 26. **Packaging** (in progress): production images, one-command install with HTTPS, upgrades, backups and restores, a deployment guide, and the MIT licence.
-27. **Surveys that look right** (in progress): terrain with no cliffs at its edges or holes under trees, and photogrammetry meshes that don't flicker against the ground beneath them (part 1); OpenDroneMap's outputs imported as they come, a whole export in one upload (part 2); a Features page for owners and admins (part 3a); then drone photos processed into a twin's survey, as a feature (part 3b).
+27. **Surveys that look right** (in progress): terrain with no cliffs at its edges or holes under trees, and photogrammetry meshes that don't flicker against the ground beneath them (part 1); OpenDroneMap's outputs imported as they come, a whole export in one upload (part 2); a Features page for owners and admins (part 3a); and drone photos processed into a survey by NodeODM, as a feature (part 3b).
 
 ## Licence
 

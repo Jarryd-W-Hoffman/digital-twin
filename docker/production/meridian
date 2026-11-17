@@ -32,6 +32,9 @@ need_env() {
     if grep -q '^MERIDIAN_GATEWAY_TOKEN=..*' "$env_file"; then
         profiles+=(--profile gateway)
     fi
+    if grep -q '^MERIDIAN_NODEODM_URL=http://nodeodm:' "$env_file"; then
+        profiles+=(--profile photos)
+    fi
 }
 
 secret() { head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; }

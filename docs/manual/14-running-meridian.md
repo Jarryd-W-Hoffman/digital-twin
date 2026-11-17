@@ -77,30 +77,35 @@ Point clouds, DEMs, map layers, imagery, IFC models and photogrammetry meshes ar
 php artisan queue:work conversions --queue=conversions --timeout=14400
 ```
 
-| Setting                                | What it does                                                       |
-| -------------------------------------- | ------------------------------------------------------------------ |
-| `MERIDIAN_POINT_CLOUD_JOBS`            | Processes py3dtiles tiles with, default 2                          |
-| `MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES` | Longest each conversion step may run, default 240                  |
-| `MERIDIAN_PDAL`, `MERIDIAN_PY3DTILES`  | Where the tools are, default `pdal` and `py3dtiles` on the path    |
-| `MERIDIAN_TERRAIN_JOBS`                | Processes terrain tiles are made with, default 2                   |
-| `MERIDIAN_TERRAIN_TIMEOUT_MINUTES`     | Longest a terrain conversion may run, default 240                  |
-| `MERIDIAN_TERRAIN_TILER`               | Where the terrain tiler is, default `meridian-terrain` on the path |
-| `MERIDIAN_VECTOR_CONVERTER`            | Where the map layer converter is, default `meridian-vector` on the path |
-| `MERIDIAN_VECTOR_MAX_FEATURES`         | Most shapes a map layer may have, default 250,000                  |
-| `MERIDIAN_VECTOR_TIMEOUT_MINUTES`      | Longest a map layer conversion may run, default 30                 |
-| `MERIDIAN_IMAGERY_TILER`               | Where the imagery tiler is, default `meridian-imagery` on the path |
-| `MERIDIAN_IMAGERY_JOBS`                | Processes imagery tiles are made with, default 2                   |
-| `MERIDIAN_IMAGERY_TIMEOUT_MINUTES`     | Longest an imagery conversion may run, default 240                 |
-| `MERIDIAN_VOLUME_TOOL`                 | Where the survey comparer is, default `meridian-volume` on the path |
+| Setting                                | What it does                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| `MERIDIAN_POINT_CLOUD_JOBS`            | Processes py3dtiles tiles with, default 2                                      |
+| `MERIDIAN_POINT_CLOUD_TIMEOUT_MINUTES` | Longest each conversion step may run, default 240                              |
+| `MERIDIAN_PDAL`, `MERIDIAN_PY3DTILES`  | Where the tools are, default `pdal` and `py3dtiles` on the path                |
+| `MERIDIAN_TERRAIN_JOBS`                | Processes terrain tiles are made with, default 2                               |
+| `MERIDIAN_TERRAIN_TIMEOUT_MINUTES`     | Longest a terrain conversion may run, default 240                              |
+| `MERIDIAN_TERRAIN_TILER`               | Where the terrain tiler is, default `meridian-terrain` on the path             |
+| `MERIDIAN_VECTOR_CONVERTER`            | Where the map layer converter is, default `meridian-vector` on the path        |
+| `MERIDIAN_VECTOR_MAX_FEATURES`         | Most shapes a map layer may have, default 250,000                              |
+| `MERIDIAN_VECTOR_TIMEOUT_MINUTES`      | Longest a map layer conversion may run, default 30                             |
+| `MERIDIAN_IMAGERY_TILER`               | Where the imagery tiler is, default `meridian-imagery` on the path             |
+| `MERIDIAN_IMAGERY_JOBS`                | Processes imagery tiles are made with, default 2                               |
+| `MERIDIAN_IMAGERY_TIMEOUT_MINUTES`     | Longest an imagery conversion may run, default 240                             |
+| `MERIDIAN_VOLUME_TOOL`                 | Where the survey comparer is, default `meridian-volume` on the path            |
 | `MERIDIAN_SURVEY_CELL_M`               | Grid volumes are measured on, and point clouds' heights kept on, default 0.5 m |
-| `MERIDIAN_SURVEY_MAX`                  | Most surveys in one comparison, default 12                         |
-| `MERIDIAN_VOLUME_TIMEOUT_MINUTES`      | Longest measuring one pair of surveys may take, default 30         |
-| `MERIDIAN_MESH_CONVERTER`              | Where the mesh converter is, default `meridian-mesh` on the path   |
-| `MERIDIAN_MESH_MAX_EXTRACTED_MB`       | Most a zipped mesh export may unzip to, default 20,480 MB          |
-| `MERIDIAN_MESH_TIMEOUT_MINUTES`        | Longest a mesh conversion may run, default 240                     |
-| `MERIDIAN_NODEODM_URL`                 | NodeODM, for the **Photo processing** feature; unset, it's off     |
+| `MERIDIAN_SURVEY_MAX`                  | Most surveys in one comparison, default 12                                     |
+| `MERIDIAN_VOLUME_TIMEOUT_MINUTES`      | Longest measuring one pair of surveys may take, default 30                     |
+| `MERIDIAN_MESH_CONVERTER`              | Where the mesh converter is, default `meridian-mesh` on the path               |
+| `MERIDIAN_MESH_MAX_EXTRACTED_MB`       | Most a zipped mesh export may unzip to, default 20,480 MB                      |
+| `MERIDIAN_MESH_TIMEOUT_MINUTES`        | Longest a mesh conversion may run, default 240                                 |
+| `MERIDIAN_NODEODM_URL`                 | NodeODM, for the **Photo processing** feature; unset, it's off                 |
+| `MERIDIAN_NODEODM_TOKEN`               | NodeODM's token, if it was started with one                                    |
+| `MERIDIAN_PHOTOS_POLL_SECONDS`         | How often to check on NodeODM, default 30                                      |
+| `MERIDIAN_PHOTOS_TIMEOUT_HOURS`        | Longest NodeODM may take on one flight, default 48                             |
 
 Give the converter memory and shared memory to match your largest scans; the Docker service has 2 GB of `/dev/shm`.
+
+For processing drone photos, start NodeODM too: `docker compose --profile photos up -d nodeodm`, set `MERIDIAN_NODEODM_URL=http://nodeodm:3000`, and restart the converter so its worker reads it. See [Processing drone photos](20-photogrammetry-meshes.md#processing-drone-photos).
 
 ## The broker
 
