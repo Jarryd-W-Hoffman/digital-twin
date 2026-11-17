@@ -6,7 +6,7 @@ A twin is a JSON definition. Meridian turns it into a running physical model, a 
 
 ![Overview of the Northshore twin](docs/images/overview.png)
 
-**New to Meridian?** The [user manual](docs/manual/README.md) walks through every part of it, step by step, with screenshots: projects and uploads, point clouds, the viewer, alerts and what-if, layout and versions, gateways, devices and MQTT, OPC UA, Modbus, importing readings, and running it yourself.
+**New to Meridian?** The [user manual](docs/manual/README.md) walks through every part of it, step by step, with screenshots: projects and uploads, point clouds, the viewer, alerts and what-if, layout and versions, gateways, devices and MQTT, OPC UA, Modbus, importing readings, and running it yourself. [From drone photos to a twin](docs/manual/24-from-drone-photos-to-a-twin.md) follows one survey from start to finish.
 
 What changed in each version is in the [changelog](CHANGELOG.md).
 
@@ -1665,7 +1665,7 @@ Meridian is meant to be a tool teams run for their own sites: bring in scans, mo
 24. **The site over time** (done): library items dated by when they were captured, and a date slider that shows the scans, surveys, imagery and models current at the time ([#54](https://github.com/Jarryd-W-Hoffman/digital-twin/pull/54)).
 25. **Towards 1.0** (in progress): a versioned definition format whose older versions are always read and moved up, an OpenAPI description of `/api/v1` kept true by tests, and a stability and upgrade guide; with terrain that changes with the date, and saved views and links that keep it.
 26. **Packaging** (in progress): production images, one-command install with HTTPS, upgrades, backups and restores, a deployment guide, and the MIT licence.
-27. **Surveys that look right** (in progress): terrain with no cliffs at its edges or holes under trees, and photogrammetry meshes that don't flicker against the ground beneath them (part 1); OpenDroneMap's outputs imported as they come, a whole export in one upload (part 2); a Features page for owners and admins (part 3a); and drone photos processed into a survey by NodeODM, as a feature (part 3b).
+27. **Surveys that look right** (in progress): terrain with no cliffs at its edges or holes under trees, and photogrammetry meshes that don't flicker against the ground beneath them (part 1); OpenDroneMap's outputs imported as they come, a whole export in one upload (part 2); a Features page for owners and admins (part 3a); and drone photos processed into a survey by NodeODM, as a feature (part 3b); and a manual chapter following one survey from drone photos to a twin (part 4).
 
 ## Licence
 

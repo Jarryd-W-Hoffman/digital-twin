@@ -31,6 +31,7 @@ Everything Meridian does, one part at a time: what it's for, how it works, and h
 | 📅  | [The site over time](21-the-site-over-time.md)                   | Dating uploads by when they were captured, and stepping a twin through its surveys with Site on                                                      |
 | 🧭  | [Upgrading and stability](22-upgrading-and-stability.md)         | What's kept stable across versions, definition formats, the API's OpenAPI description, and upgrading safely                                          |
 | 🚀  | [Deploying Meridian](23-deploying.md)                            | Running Meridian on your own server with HTTPS: installing, backups, upgrades, sizing and cost, and licences                                         |
+| 🚁  | [From drone photos to a twin](24-from-drone-photos-to-a-twin.md) | A survey from start to finish: processing a drone flight's photos, building a twin on it, measuring volumes and flying again                         |
 
 ## Conventions
 
